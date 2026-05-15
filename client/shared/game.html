@@ -219,7 +219,8 @@
     font-size:.74rem;font-weight:700;transition:all .18s;touch-action:manipulation;}
   .action-btn:hover{transform:translateY(-1px);filter:brightness(1.12);}
   .action-btn:disabled{opacity:.35;cursor:not-allowed;}
-  .btn-new{background:#2471a3;color:#fff;}.btn-shuffle{background:#16a085;color:#fff;}
+  .btn-new{background:#2471a3;color:#fff;}
+  .btn-shuffle{background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border-color:rgba(125,211,252,.28);}
   .btn-start{background:#27ae60;color:#fff;}.btn-rotate{background:#8e44ad;color:#fff;}
   .btn-clear{background:#7f8c8d;color:#fff;min-width:38px;}
   .btn-analysis{background:#0e7490;color:#fff;}
@@ -528,9 +529,10 @@
     .subtitle{font-size:.76rem;text-align:left;}
     .title-help,.title-status{justify-self:stretch;}
     .help-trigger{width:100%;text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center;}
-    .title-status{justify-self:center;justify-content:center;}
-    .status-readout{flex:1 1 170px;text-align:left;justify-content:flex-start;min-height:34px;font-size:.72rem;}
-    .mode-exit-btn{flex:0 0 auto;min-height:34px;padding:6px 10px;font-size:.68rem;}
+    .title-status{justify-self:center;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;gap:8px;}
+    .status-readout{min-width:0;text-align:left;justify-content:flex-start;height:36px;min-height:36px;font-size:.7rem;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .mode-exit-btn{height:36px;min-height:36px;padding:6px 10px;font-size:.68rem;white-space:nowrap;}
     .mode-strip{grid-template-columns:1fr;}
     .mode-step{min-height:44px;padding:6px 9px;}
     .mode-meta{justify-content:flex-start;}
@@ -987,7 +989,7 @@
     </div>
     <div class="mobile-board-tabs" id="mobileBoardTabs" role="group" aria-label="Board actions">
       <button class="mobile-board-tab active" id="mobileYourTab" type="button" aria-controls="yourWrap" onclick="setMobileBoard('your')"><span id="mobileYourLabel">Your Fleet</span><small id="mobileYourHint">Place ships</small></button>
-      <button class="mobile-board-tab" id="mobileEnemyTab" type="button" aria-controls="enemyWrap" onclick="setMobileBoard('enemy')"><span id="mobileEnemyLabel">Enemy Waters</span><small id="mobileEnemyHint">Fire here</small></button>
+      <button class="mobile-board-tab" id="mobileEnemyTab" type="button" aria-controls="enemyWrap" onclick="setMobileBoard('enemy')"><span id="mobileEnemyLabel"><span class="enemy-emoji small" aria-hidden="true">😈</span> Enemy Waters</span><small id="mobileEnemyHint">Fire here</small></button>
       <div class="top-arrange-actions" id="topArrangeActions" aria-label="Arrange controls">
         <button class="action-btn btn-shuffle" id="btnShuffle" type="button" onclick="autoPlace()">Auto-Place</button>
         <button class="action-btn btn-rotate" id="btnRotate" type="button" onclick="rotateOrientation()">Rotate</button>
@@ -1001,7 +1003,7 @@
         <div id="yourContainer"></div>
       </div>
       <div class="board-wrap" id="enemyWrap">
-        <div class="board-title" id="enemyTitle">🎯 Enemy Waters</div>
+        <div class="board-title" id="enemyTitle"><span class="enemy-emoji small" aria-hidden="true">😈</span> Enemy Waters</div>
         <div id="enemyContainer"></div>
       </div>
     </div>
@@ -2138,7 +2140,7 @@
     }
     if(arrangeActions)arrangeActions.hidden=phase!=='placing';
     if(yourLabel)yourLabel.textContent=phase==='placing'&&ready?'Confirm':'Your Fleet';
-    if(enemyLabel)enemyLabel.textContent='Enemy Waters';
+    if(enemyLabel)enemyLabel.innerHTML=enemyIcon('small')+' Enemy Waters';
     if(yourHint){
       if(phase==='placing')yourHint.textContent=ready?'Start battle':'Place ships';
       else if(currentTurn==='ai')yourHint.textContent='Under attack';
