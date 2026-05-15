@@ -2,7 +2,7 @@
   "free": {
     "name": "GhostFleet",
     "tier": "free",
-    "route": "/free",
+    "route": "/",
     "theme": "classic",
     "themeManifest": "classic.theme.json",
     "ads": {
@@ -14,7 +14,7 @@
       "analysis": true,
       "achievements": true,
       "explosionSprites": true,
-      "roomCodeMultiplayer": false,
+      "roomCodeMultiplayer": true,
       "randomMatchmaking": false
     },
     "access": {

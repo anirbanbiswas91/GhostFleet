@@ -17,17 +17,17 @@ This report was completed before GitHub push or Railway deployment, per the requ
 | Static server checks | `npm.cmd run check` | Pass |
 | Server syntax | `node --check server/index.js`, `server/multiplayer.js`, `server/tier-configs.js` | Pass |
 | Inline game script | Parsed and compiled inline scripts from `client/shared/game.html` | Pass |
-| Local dev routes | `/free`, `/premium`, `/api/tier/free`, `/api/tier/premium`, `/healthz` | Pass |
-| Free-only routes | `GHOSTFLEET_FREE_ONLY=true`: `/free` works, `/premium` 404, premium tier API 404 | Pass |
+| Local dev routes | `/`, `/free` redirect, `/premium`, `/api/tier/free`, `/api/tier/premium`, `/healthz` | Pass |
+| Free-only routes | `GHOSTFLEET_FREE_ONLY=true`: `/` works, `/free` redirects to `/`, `/premium` 404, premium tier API 404 | Pass |
 | Multiplayer socket flow | create room, uppercase join, auto placement, submit fleets, miss/hit/sunk shot results | Pass |
 | Headless Edge free flow | Clear-Ship label, disabled initial state, auto-place, select ship, clear selected ship, fleet headings | Pass |
-| Headless Edge premium flow | Join Room, Back, Create Room, 6-letter lowercase room code | Pass |
+| Human multiplayer flow | Join Room, Back, Create Room, 6-letter lowercase room code | Pass |
 
 ## Free Mode User Actions
 
 | User action | Expected behavior | Result |
 |---|---|---|
-| Open `/free` | Classic GhostFleet loads with single-player controls | Pass |
+| Open `/` | Classic GhostFleet loads with the AI/Human opponent selector | Pass |
 | Arrange mode starts | Carrier selected by default, Clear-Ship disabled until a placed ship is selected | Pass |
 | Auto-Place | Places all ships and enables Confirm | Pass |
 | Tap/click placed ship | Ship enters edit mode and Clear-Ship enables | Pass |
@@ -53,11 +53,12 @@ This report was completed before GitHub push or Railway deployment, per the requ
 
 | Route/action | Expected behavior with `GHOSTFLEET_FREE_ONLY=true` | Result |
 |---|---|---|
-| `/free` | Free single-player game serves normally | Pass |
+| `/` | Main GhostFleet game serves normally | Pass |
+| `/free` | Redirects to `/` for old links | Pass |
 | `/premium` | Premium multiplayer disabled response | Pass |
 | `/api/tier` | Returns only `free` | Pass |
 | `/api/tier/premium` | Returns disabled/404 response | Pass |
-| `/healthz` | Reports `freeOnly: true` and multiplayer disabled | Pass |
+| `/healthz` | Reports `freeOnly: true` and active multiplayer stats | Pass |
 
 ## Notes
 
