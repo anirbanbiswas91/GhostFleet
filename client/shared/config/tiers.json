@@ -1,0 +1,70 @@
+{
+  "free": {
+    "name": "GhostFleet",
+    "tier": "free",
+    "route": "/free",
+    "theme": "classic",
+    "themeManifest": "classic.theme.json",
+    "ads": {
+      "enabled": true,
+      "placements": ["page-banner", "post-battle"]
+    },
+    "features": {
+      "singlePlayerAI": true,
+      "analysis": true,
+      "achievements": true,
+      "explosionSprites": true,
+      "roomCodeMultiplayer": false,
+      "randomMatchmaking": false
+    },
+    "access": {
+      "requiresEntitlement": false
+    }
+  },
+  "premium": {
+    "name": "GhostFleet",
+    "tier": "premium",
+    "route": "/premium",
+    "theme": "classic",
+    "themeManifest": "classic.theme.json",
+    "ads": {
+      "enabled": false,
+      "placements": []
+    },
+    "features": {
+      "singlePlayerAI": true,
+      "analysis": true,
+      "achievements": true,
+      "explosionSprites": true,
+      "roomCodeMultiplayer": true,
+      "randomMatchmaking": false
+    },
+    "access": {
+      "requiresEntitlement": true,
+      "entitlement": "premium"
+    }
+  },
+  "multiplayer_plus": {
+    "name": "GhostFleet Multiplayer Plus",
+    "tier": "multiplayer_plus",
+    "route": "/multiplayer-plus",
+    "theme": "classic",
+    "themeManifest": "classic.theme.json",
+    "ads": {
+      "enabled": false,
+      "placements": []
+    },
+    "features": {
+      "singlePlayerAI": true,
+      "analysis": true,
+      "achievements": true,
+      "explosionSprites": true,
+      "roomCodeMultiplayer": true,
+      "randomMatchmaking": true
+    },
+    "access": {
+      "requiresEntitlement": true,
+      "entitlement": "multiplayer_plus"
+    }
+  }
+}

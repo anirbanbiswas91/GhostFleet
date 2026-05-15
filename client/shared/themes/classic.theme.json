@@ -1,0 +1,26 @@
+{
+  "id": "classic",
+  "label": "Classic Storm",
+  "subtitle": "Command a haunted fleet across stormy-dark waters.",
+  "bodyClass": "theme-classic",
+  "cssVars": {
+    "--board-frame-bg": "rgba(27,52,83,.62)",
+    "--board-frame-border": "rgba(27,52,83,.9)",
+    "--grid-cell-bg": "#0d1c23",
+    "--grid-cell-border": "#2a4a6e",
+    "--grid-cell-shadow": "none",
+    "--panel-accent": "#e2b96f",
+    "--radar-sweep": "transparent"
+  },
+  "assets": {
+    "gridTexture": "",
+    "panelAccent": "",
+    "shipMarks": {
+      "cv": "assets/ships-grid/ship-grid-cv.png",
+      "bb": "assets/ships-grid/ship-grid-bb.png",
+      "ca": "assets/ships-grid/ship-grid-ca.png",
+      "ss": "assets/ships-grid/ship-grid-ss.png",
+      "dd": "assets/ships-grid/ship-grid-dd.png"
+    }
+  }
+}

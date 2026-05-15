@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="cellGlow" cx="50%" cy="50%" r="60%">
+      <stop offset="0" stop-color="#5eead4" stop-opacity=".22"/>
+      <stop offset=".42" stop-color="#0e7490" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ecfeff" stop-opacity=".28"/>
+      <stop offset=".28" stop-color="#5eead4" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#5eead4" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="microGrid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#67e8f9" stroke-opacity=".08" stroke-width="1"/>
+      <path d="M16 0V32M0 16H32" fill="none" stroke="#e2b96f" stroke-opacity=".035" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="512" height="512" fill="#0d1c23"/>
+  <rect width="512" height="512" fill="url(#microGrid)"/>
+  <circle cx="256" cy="256" r="224" fill="none" stroke="#5eead4" stroke-opacity=".08" stroke-width="2"/>
+  <circle cx="256" cy="256" r="162" fill="none" stroke="#5eead4" stroke-opacity=".12" stroke-width="2"/>
+  <circle cx="256" cy="256" r="98" fill="none" stroke="#e2b96f" stroke-opacity=".10" stroke-width="2"/>
+  <path d="M256 256 L480 96 A250 250 0 0 1 512 260 Z" fill="url(#sweep)"/>
+  <path d="M256 32V480M32 256H480" stroke="#5eead4" stroke-opacity=".07" stroke-width="2"/>
+  <rect width="512" height="512" fill="url(#cellGlow)"/>
+</svg>

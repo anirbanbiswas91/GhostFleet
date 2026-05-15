@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 790" role="img" aria-labelledby="title desc">
+  <title id="title">GhostFleet ship icon style options</title>
+  <desc id="desc">Five visual style options for Carrier, Battleship, Cruiser, Submarine, and Destroyer icons.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#020617"/>
+      <stop offset=".55" stop-color="#06202b"/>
+      <stop offset="1" stop-color="#07111d"/>
+    </linearGradient>
+    <filter id="softGlow" x="-25%" y="-35%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#67e8f9" flood-opacity=".35"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#000000" flood-opacity=".75"/>
+    </filter>
+    <filter id="goldGlow" x="-25%" y="-35%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#facc15" flood-opacity=".38"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#000000" flood-opacity=".7"/>
+    </filter>
+    <style>
+      .bg{fill:url(#bg);}
+      .title{fill:#e2b96f;font:900 30px Arial,sans-serif;letter-spacing:2px;}
+      .subtitle{fill:#cbd5e1;font:700 14px Arial,sans-serif;letter-spacing:.5px;}
+      .row-title{fill:#f8fafc;font:900 16px Arial,sans-serif;letter-spacing:1px;}
+      .row-sub{fill:#94a3b8;font:700 11px Arial,sans-serif;}
+      .col-title{fill:#7dd3fc;font:900 13px Arial,sans-serif;letter-spacing:1px;text-anchor:middle;}
+      .cell-label{fill:#e2b96f;font:800 10px Arial,sans-serif;text-anchor:middle;letter-spacing:.6px;}
+      .slot{fill:rgba(15,23,42,.68);stroke:rgba(125,211,252,.26);stroke-width:1.4;}
+      .guide{stroke:rgba(226,185,111,.20);stroke-width:1;stroke-dasharray:4 5;}
+      .ship{fill:var(--fill);stroke:var(--stroke);stroke-width:2.4;filter:url(#softGlow);}
+      .deck{stroke:#ecfeff;stroke-width:2.2;stroke-linecap:round;opacity:.72;}
+      .dark{fill:#07111d;}
+      .light{fill:#f8fafc;}
+      .spark{fill:#facc15;}
+      .wake{fill:none;stroke:#bfdbfe;stroke-width:2;stroke-linecap:round;opacity:.48;}
+      .ghost{fill:#e0f2fe;opacity:.55;}
+      .crest{filter:url(#goldGlow);}
+    </style>
+  </defs>
+
+  <rect class="bg" width="1280" height="790"/>
+  <text class="title" x="40" y="48">GHOSTFLEET SHIP ICON OPTIONS</text>
+  <text class="subtitle" x="40" y="75">Preview only: each mark is drawn as a long strip intended to fill most of the occupied cells when sliced across the board.</text>
+
+  <g transform="translate(250 104)">
+    <text class="col-title" x="95" y="0">CARRIER</text>
+    <text class="col-title" x="290" y="0">BATTLESHIP</text>
+    <text class="col-title" x="485" y="0">CRUISER</text>
+    <text class="col-title" x="680" y="0">SUBMARINE</text>
+    <text class="col-title" x="875" y="0">DESTROYER</text>
+  </g>
+
+  <!-- Option A -->
+  <g transform="translate(34 120)">
+    <text class="row-title" x="0" y="34">OPTION A</text>
+    <text class="row-sub" x="0" y="54">Ghost silhouettes</text>
+  </g>
+  <g transform="translate(250 116)">
+    <g transform="translate(0 0)" style="--fill:#38bdf8;--stroke:#e0f2fe">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M36 10V72M72 10V72M108 10V72M144 10V72"/>
+      <path class="ghost" d="M10 61 C34 45 142 45 171 61 C140 76 41 76 10 61Z"/><path class="ship" d="M12 54 L168 48 L154 66 L28 68 Z"/><path class="deck" d="M30 55 L150 51"/><path class="light" d="M73 36 L102 32 L109 49 L67 51 Z"/><circle class="spark" cx="142" cy="55" r="3"/>
+      <text class="cell-label" x="90" y="78">5 CELLS</text>
+    </g>
+    <g transform="translate(195 0)" style="--fill:#f472b6;--stroke:#fce7f3">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M45 10V72M90 10V72M135 10V72"/>
+      <path class="ghost" d="M12 62 C40 47 139 47 168 62 C136 75 43 75 12 62Z"/><path class="ship" d="M14 55 H166 L150 69 H30 Z"/><path class="deck" d="M35 56 H145"/><path class="light" d="M70 35 H109 L116 55 H63 Z"/><path class="deck" d="M58 43 L35 34M119 43 L144 34"/>
+      <text class="cell-label" x="90" y="78">4 CELLS</text>
+    </g>
+    <g transform="translate(390 0)" style="--fill:#f59e0b;--stroke:#fef3c7">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/>
+      <path class="ghost" d="M18 62 C47 49 133 49 162 62 C129 74 51 74 18 62Z"/><path class="ship" d="M18 56 L162 52 L148 68 H34 Z"/><path class="deck" d="M42 56 L138 53"/><path class="light" d="M74 36 H106 L113 55 H67 Z"/><circle class="spark" cx="90" cy="32" r="8" fill="none" stroke="#fef3c7" stroke-width="2"/>
+      <text class="cell-label" x="90" y="78">3 CELLS</text>
+    </g>
+    <g transform="translate(585 0)" style="--fill:#a78bfa;--stroke:#ede9fe">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/>
+      <path class="ghost" d="M11 61 C31 43 149 43 169 61 C151 73 30 73 11 61Z"/><path class="ship" d="M12 59 C31 42 149 42 168 59 C151 70 29 70 12 59Z"/><path class="deck" d="M32 57 C63 48 119 48 148 57"/><path class="light" d="M82 31 H96 V49 H82 Z"/><path class="deck" d="M91 31 H112"/>
+      <text class="cell-label" x="90" y="78">3 CELLS</text>
+    </g>
+    <g transform="translate(780 0)" style="--fill:#cbd5e1;--stroke:#f8fafc">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M90 10V72"/>
+      <path class="ghost" d="M24 62 C56 50 125 50 156 62 C128 73 55 73 24 62Z"/><path class="ship" d="M24 56 L156 51 L140 68 H39 Z"/><path class="deck" d="M47 56 L133 53"/><path class="light" d="M75 36 H103 L109 55 H69 Z"/><path class="deck" d="M62 45 L42 36M107 45 L134 35"/>
+      <text class="cell-label" x="90" y="78">2 CELLS</text>
+    </g>
+  </g>
+
+  <!-- Option B -->
+  <g transform="translate(34 246)">
+    <text class="row-title" x="0" y="34">OPTION B</text>
+    <text class="row-sub" x="0" y="54">Detailed spectral navy</text>
+  </g>
+  <g transform="translate(250 242)">
+    <g transform="translate(0 0)" style="--fill:#0ea5e9;--stroke:#bae6fd">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M36 10V72M72 10V72M108 10V72M144 10V72"/>
+      <path class="wake" d="M20 70 C55 76 125 76 160 70"/><path class="ship" d="M8 55 L172 48 L158 68 L24 70 Z"/><path class="deck" d="M29 55 L151 50"/><path class="dark" d="M68 36 L104 31 L112 50 L62 53 Z"/><path class="light" d="M77 25 L86 16 L93 29"/><path class="deck" d="M40 45 L55 39 L70 44M115 48 L145 43"/><circle class="spark" cx="151" cy="56" r="2.8"/>
+      <text class="cell-label" x="90" y="78">5 CELLS</text>
+    </g>
+    <g transform="translate(195 0)" style="--fill:#ec4899;--stroke:#fbcfe8">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M45 10V72M90 10V72M135 10V72"/>
+      <path class="wake" d="M25 70 C58 75 122 75 155 70"/><path class="ship" d="M10 55 L170 55 L153 70 H27 Z"/><path class="deck" d="M30 56 H150"/><path class="dark" d="M72 31 H109 L118 55 H63 Z"/><path class="dark" d="M40 43 H58 L61 55 H37 ZM121 43 H139 L142 55 H118 Z"/><path class="deck" d="M48 42 L23 33M132 42 L157 33M89 31 V18"/>
+      <text class="cell-label" x="90" y="78">4 CELLS</text>
+    </g>
+    <g transform="translate(390 0)" style="--fill:#f59e0b;--stroke:#fde68a">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/>
+      <path class="wake" d="M28 70 C60 74 120 74 152 70"/><path class="ship" d="M16 56 L164 52 L149 69 H31 Z"/><path class="deck" d="M38 56 L142 53"/><path class="dark" d="M66 39 H113 L120 56 H60 Z"/><path class="deck" d="M88 39 V18M88 20 A10 10 0 1 1 87 20M60 49 L38 41M120 49 L144 41"/>
+      <text class="cell-label" x="90" y="78">3 CELLS</text>
+    </g>
+    <g transform="translate(585 0)" style="--fill:#8b5cf6;--stroke:#ddd6fe">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/>
+      <path class="wake" d="M22 69 C58 75 122 75 158 69"/><path class="ship" d="M10 59 C30 43 150 43 170 59 C150 72 30 72 10 59Z"/><path class="deck" d="M31 58 C62 49 118 49 149 58"/><path class="dark" d="M74 42 Q90 29 106 42 L111 57 H69 Z"/><path class="light" d="M86 20 H94 V42 H86 Z"/><path class="deck" d="M91 20 H118"/>
+      <text class="cell-label" x="90" y="78">3 CELLS</text>
+    </g>
+    <g transform="translate(780 0)" style="--fill:#94a3b8;--stroke:#f8fafc">
+      <rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M90 10V72"/>
+      <path class="wake" d="M36 70 C66 74 114 74 144 70"/><path class="ship" d="M22 57 L158 52 L143 69 H38 Z"/><path class="deck" d="M45 56 L135 53"/><path class="dark" d="M65 42 H103 L110 57 H59 Z"/><path class="deck" d="M72 42 L45 34M103 42 L136 34M88 42 V24"/>
+      <text class="cell-label" x="90" y="78">2 CELLS</text>
+    </g>
+  </g>
+
+  <!-- Option C -->
+  <g transform="translate(34 372)">
+    <text class="row-title" x="0" y="34">OPTION C</text>
+    <text class="row-sub" x="0" y="54">Minimal tactical bands</text>
+  </g>
+  <g transform="translate(250 368)">
+    <g transform="translate(0 0)" style="--fill:#0284c7;--stroke:#7dd3fc"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M36 10V72M72 10V72M108 10V72M144 10V72"/><path class="ship" d="M12 43 H152 L170 55 L152 67 H12 L24 55 Z"/><path class="deck" d="M34 55 H145"/><path class="light" d="M68 35 H108 V75 H68 Z" opacity=".18"/><text class="cell-label" x="90" y="78">5 CELLS</text></g>
+    <g transform="translate(195 0)" style="--fill:#db2777;--stroke:#f9a8d4"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M45 10V72M90 10V72M135 10V72"/><path class="ship" d="M14 43 H151 L168 55 L151 67 H14 L25 55 Z"/><path class="deck" d="M36 55 H143"/><rect class="light" x="65" y="36" width="50" height="38" opacity=".18"/><text class="cell-label" x="90" y="78">4 CELLS</text></g>
+    <g transform="translate(390 0)" style="--fill:#d97706;--stroke:#fcd34d"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/><path class="ship" d="M18 43 H149 L164 55 L149 67 H18 L29 55 Z"/><path class="deck" d="M42 55 H136"/><rect class="light" x="70" y="36" width="40" height="38" opacity=".18"/><text class="cell-label" x="90" y="78">3 CELLS</text></g>
+    <g transform="translate(585 0)" style="--fill:#7c3aed;--stroke:#c4b5fd"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/><path class="ship" d="M13 55 C32 39 148 39 167 55 C148 71 32 71 13 55Z"/><path class="deck" d="M42 55 H138"/><rect class="light" x="82" y="28" width="16" height="38" opacity=".35"/><text class="cell-label" x="90" y="78">3 CELLS</text></g>
+    <g transform="translate(780 0)" style="--fill:#64748b;--stroke:#e2e8f0"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M90 10V72"/><path class="ship" d="M26 43 H146 L158 55 L146 67 H26 L36 55 Z"/><path class="deck" d="M52 55 H128"/><rect class="light" x="76" y="36" width="28" height="38" opacity=".2"/><text class="cell-label" x="90" y="78">2 CELLS</text></g>
+  </g>
+
+  <!-- Option D -->
+  <g transform="translate(34 498)">
+    <text class="row-title" x="0" y="34">OPTION D</text>
+    <text class="row-sub" x="0" y="54">Crest emblems</text>
+  </g>
+  <g transform="translate(250 494)">
+    <g transform="translate(0 0)" style="--fill:#38bdf8;--stroke:#e0f2fe"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M36 10V72M72 10V72M108 10V72M144 10V72"/><path class="ship crest" d="M20 44 H160 L169 55 L160 66 H20 L11 55 Z"/><circle class="dark" cx="90" cy="55" r="20"/><path class="light" d="M78 60 Q90 33 102 60 L90 68 Z"/><path class="deck" d="M35 55 H70M110 55 H145"/><text class="cell-label" x="90" y="78">5 CELLS</text></g>
+    <g transform="translate(195 0)" style="--fill:#f472b6;--stroke:#fce7f3"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M45 10V72M90 10V72M135 10V72"/><path class="ship crest" d="M22 44 H158 L168 55 L158 66 H22 L12 55 Z"/><circle class="dark" cx="90" cy="55" r="20"/><path class="light" d="M76 61 L90 34 L104 61 L90 69 Z"/><path class="deck" d="M38 55 H68M112 55 H142"/><text class="cell-label" x="90" y="78">4 CELLS</text></g>
+    <g transform="translate(390 0)" style="--fill:#f59e0b;--stroke:#fef3c7"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/><path class="ship crest" d="M26 44 H154 L165 55 L154 66 H26 L15 55 Z"/><circle class="dark" cx="90" cy="55" r="20"/><path class="light" d="M73 56 L90 34 L107 56 L90 70 Z"/><path class="deck" d="M43 55 H68M112 55 H137"/><text class="cell-label" x="90" y="78">3 CELLS</text></g>
+    <g transform="translate(585 0)" style="--fill:#a78bfa;--stroke:#ede9fe"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/><path class="ship crest" d="M25 55 C44 41 136 41 155 55 C136 69 44 69 25 55Z"/><circle class="dark" cx="90" cy="55" r="20"/><path class="light" d="M80 63 Q90 33 100 63 L90 69 Z"/><path class="deck" d="M43 55 H68M112 55 H137"/><text class="cell-label" x="90" y="78">3 CELLS</text></g>
+    <g transform="translate(780 0)" style="--fill:#cbd5e1;--stroke:#f8fafc"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M90 10V72"/><path class="ship crest" d="M34 44 H146 L157 55 L146 66 H34 L23 55 Z"/><circle class="dark" cx="90" cy="55" r="19"/><path class="light" d="M78 62 L90 35 L102 62 L90 69 Z"/><path class="deck" d="M49 55 H70M110 55 H131"/><text class="cell-label" x="90" y="78">2 CELLS</text></g>
+  </g>
+
+  <!-- Option E -->
+  <g transform="translate(34 624)">
+    <text class="row-title" x="0" y="34">OPTION E</text>
+    <text class="row-sub" x="0" y="54">Painted top-down</text>
+  </g>
+  <g transform="translate(250 620)">
+    <g transform="translate(0 0)" style="--fill:#0ea5e9;--stroke:#e0f2fe"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M36 10V72M72 10V72M108 10V72M144 10V72"/><path class="wake" d="M12 37 C44 22 136 22 168 37M16 72 C50 78 130 78 164 72"/><path class="ship" d="M8 55 C24 42 147 41 172 53 C153 70 28 72 8 55Z"/><path class="dark" d="M65 34 H111 L119 56 H58 Z"/><path class="light" d="M80 30 L96 20 L104 34"/><path class="deck" d="M34 57 C64 50 116 49 148 55"/><text class="cell-label" x="90" y="78">5 CELLS</text></g>
+    <g transform="translate(195 0)" style="--fill:#ec4899;--stroke:#fbcfe8"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M45 10V72M90 10V72M135 10V72"/><path class="wake" d="M16 38 C50 26 130 26 164 38M18 72 C54 77 126 77 162 72"/><path class="ship" d="M11 55 C28 44 151 44 169 55 C148 70 31 70 11 55Z"/><path class="dark" d="M67 32 H111 L121 56 H58 Z"/><path class="deck" d="M42 58 C70 51 112 51 140 58M54 45 L30 36M126 45 L151 36"/><text class="cell-label" x="90" y="78">4 CELLS</text></g>
+    <g transform="translate(390 0)" style="--fill:#d97706;--stroke:#fde68a"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/><path class="wake" d="M22 38 C54 27 126 27 158 38M22 71 C56 76 124 76 158 71"/><path class="ship" d="M18 55 C38 45 142 45 162 55 C141 69 39 69 18 55Z"/><path class="dark" d="M68 36 H110 L118 56 H61 Z"/><path class="deck" d="M45 58 C72 52 108 52 135 58M90 36 V20"/><text class="cell-label" x="90" y="78">3 CELLS</text></g>
+    <g transform="translate(585 0)" style="--fill:#8b5cf6;--stroke:#ddd6fe"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M60 10V72M120 10V72"/><path class="wake" d="M16 42 C48 27 132 27 164 42M18 70 C54 77 126 77 162 70"/><path class="ship" d="M10 58 C32 40 148 40 170 58 C148 72 32 72 10 58Z"/><path class="dark" d="M74 42 Q90 29 106 42 L113 58 H67 Z"/><path class="light" d="M86 20 H94 V42 H86 Z"/><path class="deck" d="M34 58 C64 50 116 50 146 58"/><text class="cell-label" x="90" y="78">3 CELLS</text></g>
+    <g transform="translate(780 0)" style="--fill:#94a3b8;--stroke:#f8fafc"><rect class="slot" width="180" height="82" rx="10"/><path class="guide" d="M90 10V72"/><path class="wake" d="M30 38 C62 29 118 29 150 38M32 71 C64 75 116 75 148 71"/><path class="ship" d="M24 56 C45 46 135 46 156 56 C134 69 46 69 24 56Z"/><path class="dark" d="M69 39 H109 L116 57 H63 Z"/><path class="deck" d="M50 58 C76 53 104 53 130 58M84 39 V23"/><text class="cell-label" x="90" y="78">2 CELLS</text></g>
+  </g>
+</svg>

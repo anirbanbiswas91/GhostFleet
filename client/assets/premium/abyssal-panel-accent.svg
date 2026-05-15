@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 180">
+  <defs>
+    <linearGradient id="line" x1="0" x2="1">
+      <stop offset="0" stop-color="#5eead4" stop-opacity="0"/>
+      <stop offset=".2" stop-color="#7dd3fc" stop-opacity=".45"/>
+      <stop offset=".5" stop-color="#e2b96f" stop-opacity=".28"/>
+      <stop offset=".8" stop-color="#7dd3fc" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#5eead4" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="ping" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ecfeff" stop-opacity=".42"/>
+      <stop offset=".5" stop-color="#5eead4" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#5eead4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="960" height="180" fill="none"/>
+  <path d="M0 92H960" stroke="url(#line)" stroke-width="2"/>
+  <path d="M80 92C180 42 280 142 380 92S580 42 680 92 860 142 960 92" fill="none" stroke="#7dd3fc" stroke-opacity=".14" stroke-width="3"/>
+  <circle cx="480" cy="92" r="76" fill="none" stroke="#5eead4" stroke-opacity=".16" stroke-width="2"/>
+  <circle cx="480" cy="92" r="42" fill="url(#ping)"/>
+  <path d="M480 14V170M402 92H558" stroke="#e2b96f" stroke-opacity=".18" stroke-width="2"/>
+</svg>

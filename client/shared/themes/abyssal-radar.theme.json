@@ -1,0 +1,33 @@
+{
+  "id": "abyssal-radar",
+  "label": "Abyssal Radar",
+  "subtitle": "Command a haunted fleet across stormy-dark waters.",
+  "bodyClass": "theme-abyssal-radar",
+  "cssVars": {
+    "--board-frame-bg": "rgba(27,52,83,.56)",
+    "--board-frame-border": "rgba(94,234,212,.72)",
+    "--grid-cell-bg": "#0d1c23",
+    "--grid-cell-border": "rgba(94,234,212,.32)",
+    "--grid-cell-shadow": "inset 0 0 18px rgba(94,234,212,.08)",
+    "--panel-accent": "#f4c86f",
+    "--radar-sweep": "rgba(94,234,212,.2)",
+    "--premium-panel-bg": "rgba(3,12,18,.76)",
+    "--premium-panel-border": "rgba(94,234,212,.34)",
+    "--premium-panel-border-strong": "rgba(94,234,212,.62)",
+    "--premium-panel-shadow": "0 0 0 1px rgba(94,234,212,.12), 0 16px 36px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.08)",
+    "--premium-cyan": "#5eead4",
+    "--premium-gold": "#f4c86f",
+    "--premium-red": "#ff6b8a"
+  },
+  "assets": {
+    "gridTexture": "assets/premium/abyssal-grid-texture.svg",
+    "panelAccent": "assets/premium/abyssal-panel-accent.svg",
+    "shipMarks": {
+      "cv": "assets/premium/ships-grid/ship-grid-cv.png",
+      "bb": "assets/premium/ships-grid/ship-grid-bb.png",
+      "ca": "assets/premium/ships-grid/ship-grid-ca.png",
+      "ss": "assets/premium/ships-grid/ship-grid-ss.png",
+      "dd": "assets/premium/ships-grid/ship-grid-dd.png"
+    }
+  }
+}

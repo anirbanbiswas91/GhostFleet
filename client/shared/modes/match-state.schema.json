@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostfleet.local/schemas/match-state.schema.json",
+  "title": "GhostFleet MatchState",
+  "type": "object",
+  "required": ["mode", "phase", "boardSize", "players", "turn", "battleLog"],
+  "properties": {
+    "mode": {
+      "enum": ["singlePlayerAI", "roomCodeMultiplayer", "randomMatchmaking"]
+    },
+    "phase": {
+      "enum": ["placing", "playing", "ended"]
+    },
+    "boardSize": {
+      "type": "integer",
+      "enum": [8, 10]
+    },
+    "players": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "displayName", "ships", "shots"],
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "ships": { "type": "array" },
+          "shots": { "type": "array" }
+        }
+      }
+    },
+    "turn": {
+      "type": "string"
+    },
+    "winner": {
+      "type": ["string", "null"]
+    },
+    "battleLog": {
+      "type": "array"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 220" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="goldLine" x1="0" x2="1">
+      <stop offset="0" stop-color="#f4c86f" stop-opacity="0"/>
+      <stop offset=".18" stop-color="#f4c86f" stop-opacity=".32"/>
+      <stop offset=".5" stop-color="#ecfeff" stop-opacity=".20"/>
+      <stop offset=".82" stop-color="#f4c86f" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#f4c86f" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="ping" cx="50%" cy="48%" r="50%">
+      <stop offset="0" stop-color="#ecfeff" stop-opacity=".30"/>
+      <stop offset=".35" stop-color="#5eead4" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#5eead4" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="scan" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" fill="none" stroke="#5eead4" stroke-opacity=".08" stroke-width="1"/>
+      <path d="M0 18H36" fill="none" stroke="#f4c86f" stroke-opacity=".04" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1440" height="220" fill="none"/>
+  <rect width="1440" height="220" fill="url(#scan)" opacity=".72"/>
+  <circle cx="720" cy="108" r="176" fill="none" stroke="#5eead4" stroke-opacity=".11" stroke-width="2"/>
+  <circle cx="720" cy="108" r="112" fill="none" stroke="#5eead4" stroke-opacity=".16" stroke-width="2"/>
+  <circle cx="720" cy="108" r="54" fill="url(#ping)"/>
+  <path d="M0 108H1440" stroke="url(#goldLine)" stroke-width="2"/>
+  <path d="M160 108C280 42 400 174 520 108S760 42 880 108 1120 174 1280 108" fill="none" stroke="#5eead4" stroke-opacity=".16" stroke-width="4"/>
+  <path d="M720 20V200M630 108H810" stroke="#f4c86f" stroke-opacity=".16" stroke-width="2"/>
+</svg>
