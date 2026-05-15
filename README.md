@@ -1,10 +1,11 @@
 # GhostFleet
 
-GhostFleet is a web-based strategy game inspired by tactical naval combat, with a free single-player deployment and local multiplayer experiments for future premium work.
+GhostFleet is a web-based strategy game inspired by tactical naval combat, with AI and room-code Human multiplayer in the main deployment.
 
 One Railway-deployable Node app serving GhostFleet game routes:
 
-- `/free` - ad-supported GhostFleet.
+- `/` - ad-supported GhostFleet.
+- `/free` - legacy redirect to `/`.
 - `/premium` - local/dev open-playtest GhostFleet room-code multiplayer.
 
 ## Local Run
@@ -16,25 +17,25 @@ npm start
 
 Open:
 
-- `http://localhost:3000/free`
+- `http://localhost:3000/`
 - `http://localhost:3000/premium`
 - `http://localhost:3000/healthz`
 
 ## Multiplayer
 
-Premium multiplayer uses Socket.IO on the same Express service during local development. The server owns room state, turn validation, shot results, sunk ships, reconnect tokens, and room cleanup. Clients send intents only: create/join room, submit fleet, fire at a cell, and leave room.
+Human multiplayer uses Socket.IO on the same Express service. The server owns room state, turn validation, shot results, sunk ships, reconnect tokens, and room cleanup. Clients send intents only: create/join room, submit fleet, fire at a cell, and leave room.
 
 Room-code play uses 6-letter lowercase room codes. Random matchmaking remains reserved for a later release.
 
 ## Railway Free-Only Deployment
 
-For the current Railway production deployment, serve only the free version:
+For the current Railway production deployment, serve only the main game:
 
 ```bash
 GHOSTFLEET_FREE_ONLY=true
 ```
 
-When enabled, `/premium` and premium tier APIs return disabled responses, and Socket.IO multiplayer is not attached.
+When enabled, `/premium` and premium tier APIs return disabled responses. Socket.IO remains attached because Human multiplayer is now available from `/`.
 
 ## Payment Stub
 

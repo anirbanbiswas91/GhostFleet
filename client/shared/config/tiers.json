@@ -2,7 +2,7 @@
   "free": {
     "name": "GhostFleet",
     "tier": "free",
-    "route": "/free",
+    "route": "/",
     "theme": "classic",
     "themeManifest": "classic.theme.json",
     "ads": {

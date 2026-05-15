@@ -38,8 +38,8 @@ GHOSTFLEET_FREE_ONLY=true
 
 5. Deploy and smoke test:
 
-- `/` redirects to `/free`
-- `/free` serves GhostFleet
+- `/` serves GhostFleet
+- `/free` redirects to `/` for old links
 - `/healthz` returns `freeOnly: true`
 - `/premium` returns disabled/404
 
@@ -47,4 +47,4 @@ GHOSTFLEET_FREE_ONLY=true
 
 - Do not push before the repo is private.
 - `node_modules/` is ignored by `.gitignore`; dependencies are restored through `npm install`.
-- Premium multiplayer remains available locally when `GHOSTFLEET_FREE_ONLY` is unset or false.
+- Human multiplayer is available from `/`; premium remains available locally when `GHOSTFLEET_FREE_ONLY` is unset or false.

@@ -39,14 +39,17 @@ function serveTier(tierName) {
       return res.status(404).type('text').send('GhostFleet premium multiplayer is disabled in this deployment.');
     }
     if (tierName === 'premium' && !isPremiumAllowed(req)) {
-      return res.redirect('/free?premium=required');
+      return res.redirect('/?premium=required');
     }
     res.type('html').send(renderGame(tierName));
   };
 }
 
-app.get('/', (req, res) => res.redirect('/free'));
-app.get('/free', serveTier('free'));
+app.get('/', serveTier('free'));
+app.get('/free', (req, res) => {
+  const query = new URLSearchParams(req.query).toString();
+  res.redirect(301, `/${query ? `?${query}` : ''}`);
+});
 app.get('/premium', serveTier('premium'));
 
 app.get('/api/tier', (req, res) => {
