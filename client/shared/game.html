@@ -556,7 +556,21 @@
     .board-wrap.mobile-hidden{display:none;}
     .board-wrap.dimmed{opacity:.72;filter:none;}
     .board-wrap.dimmed::after{display:none;}
+    .board-wrap.your-active{box-shadow:0 0 0 1px #06b6d4,0 0 16px rgba(6,182,212,.42);}
+    .board-wrap.enemy-target{box-shadow:0 0 0 1px #e74c3c,0 0 18px rgba(231,76,60,.44);}
     .board-title{font-size:.72rem;letter-spacing:1.5px;margin-bottom:7px;flex-wrap:wrap;}
+    .cell{background:
+        radial-gradient(circle at var(--ocean-x,50%) var(--ocean-y,50%),rgba(125,211,252,.055),transparent 46%),
+        linear-gradient(145deg,rgba(14,116,144,.065),transparent 52%),
+        rgba(13,28,35,.48);
+      box-shadow:inset 0 0 0 1px rgba(94,234,212,.018),inset 0 0 8px rgba(3,20,28,.38);
+      backdrop-filter:none;transition:background .08s,transform .06s;}
+    .cell::before{opacity:.14;mix-blend-mode:normal;}
+    .cell.ship{box-shadow:inset 0 0 18px var(--ship-glow-mid),inset 0 0 5px var(--ship-glow),0 0 8px var(--ship-glow-soft);}
+    .cell .ship-icon{mix-blend-mode:normal;filter:drop-shadow(0 1px 2px rgba(0,0,0,.82));}
+    .cell.last-shot{animation:none;outline-color:#f6d992;}
+    .explosion-sprite{filter:drop-shadow(0 0 6px rgba(255,176,56,.48));mix-blend-mode:normal;}
+    .explosion-sprite.sunk-sprite{filter:drop-shadow(0 0 10px rgba(255,176,56,.58));}
     .left-panel{order:4;display:grid;grid-template-columns:1fr;gap:9px;width:100%;}
     .left-panel>*{max-width:none;flex:auto;}
     .right-panel{order:3;display:contents;}
@@ -1134,6 +1148,8 @@
   let lastGameWon=false;
   let endedBySurrender=false;
   let activeMobileBoard='your';
+  const boardCellRefs={enemyContainer:new Map(),yourContainer:new Map()};
+  let dragPreviewFrame=null,dragPreviewPoint=null;
   let multiplayer={
     enabled:MULTIPLAYER_ENABLED,
     socket:null,
@@ -1579,7 +1595,8 @@
   function registerExplosionSprite(canvas,type){
     const entry={canvas,type,frame:0,raf:null,delayTimer:null,forceTimer:null,done:false};
     activeExplosionSprites.push(entry);
-    while(activeExplosionSprites.length>EXPLOSION_CONFIG.maxActiveSprites)cleanupExplosionSprite(activeExplosionSprites[0]);
+    const limit=isMobileLayout()?3:EXPLOSION_CONFIG.maxActiveSprites;
+    while(activeExplosionSprites.length>limit)cleanupExplosionSprite(activeExplosionSprites[0]);
     entry.forceTimer=setTimeout(()=>cleanupExplosionSprite(entry),EXPLOSION_CONFIG.forceCleanupMs[type]);
     return entry;
   }
@@ -1593,7 +1610,7 @@
     const size=EXPLOSION_CONFIG.frameSize;
     canvas.width=size;
     canvas.height=size;
-    const scale=EXPLOSION_CONFIG.scale[type]*100;
+    const scale=EXPLOSION_CONFIG.scale[type]*(isMobileLayout()?.82:1)*100;
     canvas.style.width=scale+'%';
     canvas.style.height=scale+'%';
     cell.appendChild(canvas);
@@ -1611,9 +1628,33 @@
     step();
   }
 
-  function animateShot(containerId,idx,isHit,isSunk=false){
+  function getBoardCell(containerId,idx){
+    const cache=boardCellRefs[containerId];
+    let cell=cache&&cache.get(idx);
+    if(cell&&cell.isConnected)return cell;
     const cont=document.getElementById(containerId);
-    const cell=cont&&cont.querySelector(`.cell[data-idx="${idx}"]`);
+    cell=cont&&cont.querySelector(`.cell[data-idx="${idx}"]`);
+    if(cell&&cache)cache.set(idx,cell);
+    return cell;
+  }
+
+  function renderBoardById(containerId,cellSize){
+    if(containerId==='enemyContainer')renderBoard(containerId,enemyBoard,true,cellSize);
+    else if(containerId==='yourContainer')renderBoard(containerId,yourBoard,false,cellSize);
+  }
+
+  function renderVisibleMobileBoard(cellSize){
+    if(!isMobileLayout())return false;
+    renderBoardById(activeMobileBoard==='enemy'?'enemyContainer':'yourContainer',cellSize||computeCellSize());
+    return true;
+  }
+
+  function renderTurnSensitiveBoards(){
+    renderBoards({scope:isMobileLayout()?'visible':'enemy'});
+  }
+
+  function animateShot(containerId,idx,isHit,isSunk=false){
+    const cell=getBoardCell(containerId,idx);
     if(!cell)return;
     const fx=document.createElement('span');
     fx.className='shot-fx '+(isHit?'hit-splash':'miss-ripple');
@@ -1623,7 +1664,7 @@
   }
 
   function applyShotFeedback(containerId,idx,isHit,isSunk=false){
-    renderBoards();
+    renderBoards({scope:containerId==='enemyContainer'?'enemy':'your'});
     renderShipLists();
     updateStats();
     updateModeUI();
@@ -1631,10 +1672,8 @@
   }
 
   function flashPlacementFeedback(cells,ok){
-    const cont=document.getElementById('yourContainer');
-    if(!cont)return;
     cells.forEach(idx=>{
-      const cell=cont.querySelector(`.cell[data-idx="${idx}"]`);
+      const cell=getBoardCell('yourContainer',idx);
       if(!cell)return;
       const cls=ok?'place-ok':'place-bad';
       cell.classList.remove('place-ok','place-bad');
@@ -2115,6 +2154,7 @@
     if(phase==='placing'&&which==='enemy')return;
     activeMobileBoard=which;
     updateMobileBoardUI();
+    renderVisibleMobileBoard();
   }
 
   function updateMobileBoardUI(){
@@ -2172,16 +2212,15 @@
     b.classList.add('show',who);
     t.innerHTML=who==='you'?'⚓ YOUR TURN':`${enemyIcon()} ENEMY TURN`;
     inputLocked=true;
-    renderBoards();
+    renderTurnSensitiveBoards();
     if(who==='you')playYourTurnStinger();else playEnemyTurnStinger();
-    setTimeout(()=>{b.classList.remove('show','you','ai');inputLocked=false;renderBoards();},durMs);}
+    setTimeout(()=>{b.classList.remove('show','you','ai');inputLocked=false;renderTurnSensitiveBoards();},durMs);}
 
   // Sink celebration — rippling flash + banner + scaled boom
   function celebrateSink(ship,isEnemyShip){
     const containerId=isEnemyShip?'enemyContainer':'yourContainer';
-    const cont=document.getElementById(containerId);
     ship.cells.forEach((idx,i)=>{
-      const el=cont.querySelector(`.cell[data-idx="${idx}"]`);
+      const el=getBoardCell(containerId,idx);
       if(el){
         setTimeout(()=>el.classList.add('sink-flash'),i*60);
         setTimeout(()=>el.classList.remove('sink-flash'),i*60+1400);
@@ -2361,6 +2400,9 @@
     isDragging=false;
     dragState=null;
     boardPointer=null;
+    if(dragPreviewFrame)cancelAnimationFrame(dragPreviewFrame);
+    dragPreviewFrame=null;
+    dragPreviewPoint=null;
     clearPlacementPreview();
     updateArrangeControls();
   }
@@ -2371,9 +2413,8 @@
   function previewArrangeCells(cells,valid){
     clearPlacementPreview();
     if(!cells)return;
-    const cont=document.getElementById('yourContainer');
     cells.forEach(idx=>{
-      const el=cont&&cont.querySelector(`.cell[data-idx="${idx}"]`);
+      const el=getBoardCell('yourContainer',idx);
       if(el){el.classList.add(valid?'ship-preview':'ship-preview-bad');previewCellsCurrent.push(el);}
     });
   }
@@ -2401,9 +2442,9 @@
     const pivot=ship.cells[offset]!==undefined?ship.cells[offset]:ship.cells[0];
     return [1,-1].map(dir=>shipCellsAroundPivot(pivot,ship.len,nextOrient,offset,dir));
   }
-  function updateDragPreview(e){
+  function updateDragPreviewAt(x,y){
     if(!dragState)return;
-    const cell=getYourCellAtPoint(e.clientX,e.clientY);
+    const cell=getYourCellAtPoint(x,y);
     if(!cell){
       dragState.previewCells=null;
       dragState.previewValid=false;
@@ -2419,6 +2460,16 @@
     dragState.previewValid=valid;
     previewArrangeCells(dragState.previewCells,valid);
     updateArrangeControls();
+  }
+  function requestDragPreview(e){
+    dragPreviewPoint={x:e.clientX,y:e.clientY};
+    if(dragPreviewFrame)return;
+    dragPreviewFrame=requestAnimationFrame(()=>{
+      dragPreviewFrame=null;
+      const point=dragPreviewPoint;
+      dragPreviewPoint=null;
+      if(point)updateDragPreviewAt(point.x,point.y);
+    });
   }
   function handleArrangePointerDown(e,cont){
     if(phase!=='placing'||e.button>0)return;
@@ -2449,7 +2500,7 @@
     }
     if(!boardPointer.dragStarted)return;
     e.preventDefault();
-    updateDragPreview(e);
+    requestDragPreview(e);
   }
   function finishArrangePointer(e){
     if(!boardPointer||boardPointer.pointerId!==e.pointerId)return;
@@ -2866,10 +2917,19 @@
     return scaleBoardCell(Math.min(76,rawCell,heightCell));
   }
 
-  function renderBoards(){renderBoard('enemyContainer',enemyBoard,true);
-    renderBoard('yourContainer',yourBoard,false);
+  function renderBoards(options={}){
+    const scope=options.scope||'all';
+    const cellSize=computeCellSize();
+    if(scope==='enemy')renderBoard('enemyContainer',enemyBoard,true,cellSize);
+    else if(scope==='your')renderBoard('yourContainer',yourBoard,false,cellSize);
+    else if(scope==='visible'&&isMobileLayout())renderVisibleMobileBoard(cellSize);
+    else if(isMobileLayout())renderVisibleMobileBoard(cellSize);
+    else {
+      renderBoard('enemyContainer',enemyBoard,true,cellSize);
+      renderBoard('yourContainer',yourBoard,false,cellSize);
+    }
     updateMobileBoardUI();
-    if(phase==='placing')updateHoverPreview();}
+    if(phase==='placing'&&!isMobileLayout())updateHoverPreview();}
 
   function makeShipSvg(ship,cellIndexInShip){
     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -2898,9 +2958,10 @@
     return svg;
   }
 
-  function renderBoard(containerId,board,isEnemy){
+  function renderBoard(containerId,board,isEnemy,cellSize){
     const cont=document.getElementById(containerId);cont.innerHTML='';
-    const cellSize=computeCellSize();
+    if(boardCellRefs[containerId])boardCellRefs[containerId].clear();
+    cellSize=cellSize||computeCellSize();
     for(let r=0;r<N;r++){
       const rowDiv=document.createElement('div');rowDiv.className='row-with-cells';
       const rowCells=document.createElement('div');
@@ -2911,6 +2972,7 @@
         const idx=r*N+c;
         const cell=document.createElement('div');cell.className='cell';
         cell.dataset.idx=idx;
+        if(boardCellRefs[containerId])boardCellRefs[containerId].set(idx,cell);
         cell.style.width=cellSize+'px';cell.style.height=cellSize+'px';
         cell.style.setProperty('--ocean-x',Math.round((c/Math.max(1,N-1))*100)+'%');
         cell.style.setProperty('--ocean-y',Math.round((r/Math.max(1,N-1))*100)+'%');
@@ -2953,9 +3015,13 @@
       if(isEnemy){if(phase==='playing'&&currentTurn==='you'&&!inputLocked)playerShoot(idx);}};
     cont.oncontextmenu=e=>{const t=e.target.closest('.cell');if(t)e.preventDefault();};
     if(!isEnemy&&phase==='placing'){
-      cont.onmousemove=e=>{const t=e.target.closest('.cell');
-        const nh=t?+t.dataset.idx:-1;if(nh!==hoverCell){hoverCell=nh;updateHoverPreview();}};
-      cont.onmouseleave=()=>{hoverCell=-1;updateHoverPreview();};
+      if(isMobileLayout()){
+        cont.onmousemove=cont.onmouseleave=null;
+      } else {
+        cont.onmousemove=e=>{const t=e.target.closest('.cell');
+          const nh=t?+t.dataset.idx:-1;if(nh!==hoverCell){hoverCell=nh;updateHoverPreview();}};
+        cont.onmouseleave=()=>{hoverCell=-1;updateHoverPreview();};
+      }
       cont.ondragover=cont.ondragleave=cont.ondrop=null;
       cont.onpointerdown=e=>handleArrangePointerDown(e,cont);
       cont.onpointermove=handleArrangePointerMove;
@@ -2970,13 +3036,13 @@
   function updateHoverPreview(){
     const cont=document.getElementById('yourContainer');if(!cont)return;
     clearPlacementPreview();
-    if(phase!=='placing'||selectedSource!=='dock'||selectedShipId===null||hoverCell<0||isDragging)return;
+    if(isMobileLayout()||phase!=='placing'||selectedSource!=='dock'||selectedShipId===null||hoverCell<0||isDragging)return;
     if(yourBoard.ships.find(s=>s.id===selectedShipId))return;
     const ship=SHIPS.find(s=>s.id===selectedShipId);
     let cells=shipCellsAt(hoverCell,ship.len,orientation);
     let bad=!canPlace(yourBoard,cells||[]);
     if(!cells){cells=[hoverCell];bad=true;}
-    cells.forEach(idx=>{const el=cont.querySelector(`.cell[data-idx="${idx}"]`);
+    cells.forEach(idx=>{const el=getBoardCell('yourContainer',idx);
       if(el){el.classList.add(bad?'ship-preview-bad':'ship-preview');previewCellsCurrent.push(el);}});
   }
 
