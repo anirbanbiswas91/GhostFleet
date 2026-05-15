@@ -52,6 +52,7 @@ function publicPlayer(player) {
     displayName: player.displayName,
     connected: player.connected,
     lobbyReady: player.lobbyReady,
+    rematchRequested: player.rematchRequested,
     fleetReady: !!player.board,
     shots: Array.from(player.shots),
     hits: Array.from(player.hits),
@@ -149,6 +150,7 @@ function addPlayer(room, socket, displayName, existingToken = '') {
     displayName: cleanName(displayName),
     connected: true,
     lobbyReady: false,
+    rematchRequested: false,
     board: null,
     shots: new Set(),
     hits: new Set(),
@@ -184,6 +186,30 @@ function startBattleIfReady(room) {
   room.turn = room.players[Math.floor(Math.random() * 2)].id;
   room.updatedAt = Date.now();
   emitRoom(room, 'match:startBattle');
+}
+
+function resetRoomForRematch(room) {
+  room.phase = 'placing';
+  room.turn = null;
+  room.winner = null;
+  room.battleLog = [];
+  room.updatedAt = Date.now();
+  room.players.forEach(player => {
+    player.lobbyReady = false;
+    player.rematchRequested = false;
+    player.board = null;
+    player.shots = new Set();
+    player.hits = new Set();
+    player.misses = new Set();
+  });
+  emitRoom(room, 'match:startPlacement');
+}
+
+function startRematchIfReady(room) {
+  if (room.phase !== 'ended') return;
+  if (room.players.length !== 2) return;
+  if (!room.players.every(player => player.connected && player.rematchRequested)) return;
+  resetRoomForRematch(room);
 }
 
 function resolveShot(room, shooter, idx) {
@@ -313,6 +339,18 @@ function attachSocketHandlers(io) {
       startBattleIfReady(room);
     });
 
+    socket.on('match:rematch', () => {
+      const room = rooms.get(socket.data.roomCode);
+      if (!room) return fail(socket, 'Room expired.', 'room_missing');
+      const player = findPlayer(room, socket);
+      if (!player) return fail(socket, 'Player not found.', 'player_missing');
+      if (room.phase !== 'ended') return fail(socket, 'Rematch is available after the match ends.', 'wrong_phase');
+      player.rematchRequested = true;
+      room.updatedAt = Date.now();
+      emitRoom(room);
+      startRematchIfReady(room);
+    });
+
     socket.on('shot:fire', payload => {
       const room = rooms.get(socket.data.roomCode);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
@@ -345,6 +383,7 @@ function attachSocketHandlers(io) {
       const player = room ? findPlayer(room, socket) : null;
       if (room && player) {
         player.connected = false;
+        player.rematchRequested = false;
         player.socketId = null;
         room.updatedAt = Date.now();
         emitRoom(room);
