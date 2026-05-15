@@ -164,10 +164,15 @@
     min-height:34px;padding:3px 0;color:#d5e1eb;font-size:.78rem;font-weight:800;text-align:right;}
   .status-readout::before{content:'';width:8px;height:8px;border-radius:50%;background:#16a085;
     box-shadow:0 0 10px rgba(22,160,133,.75);flex:0 0 auto;}
-  .status-readout.bs-waiting::before{background:#94a3b8;box-shadow:0 0 8px rgba(148,163,184,.62);}
-  .status-readout.bs-aiturn::before,.status-readout.bs-lost::before{background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.82);}
-  .status-readout.bs-yourturn::before{background:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.8);}
-  .status-readout.bs-won::before{background:#facc15;box-shadow:0 0 10px rgba(250,204,21,.82);}
+  .status-readout.sr-waiting{color:#cbd5e1;}
+  .status-readout.sr-placing{color:#d1fae5;}
+  .status-readout.sr-yourturn{color:#bae6fd;}
+  .status-readout.sr-aiturn,.status-readout.sr-lost{color:#fecaca;}
+  .status-readout.sr-won{color:#fde68a;}
+  .status-readout.sr-waiting::before{background:#94a3b8;box-shadow:0 0 8px rgba(148,163,184,.62);}
+  .status-readout.sr-aiturn::before,.status-readout.sr-lost::before{background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.82);}
+  .status-readout.sr-yourturn::before{background:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.8);}
+  .status-readout.sr-won::before{background:#facc15;box-shadow:0 0 10px rgba(250,204,21,.82);}
   .mode-exit-btn{display:none;align-items:center;justify-content:center;min-height:34px;padding:6px 12px;
     border:1px solid rgba(226,185,111,.38);border-radius:999px;background:rgba(8,16,24,.42);
     color:#f8d88a;font-size:.72rem;font-weight:900;letter-spacing:.3px;cursor:pointer;
@@ -917,7 +922,7 @@
       </div>
     </div>
     <div class="title-status" id="statusBadge">
-      <span class="status-readout bs-placing" id="statusText">Place your fleet to begin!</span>
+      <span class="status-readout sr-placing" id="statusText">Place your fleet to begin!</span>
       <button class="mode-exit-btn" id="modeExitBtn" type="button" onclick="exitCurrentGame(true)">Exit Game</button>
     </div>
   </div>
@@ -2664,9 +2669,9 @@
     if(isSunk){
       inputLocked=true;
       celebrateSink(ship,true);
-      setStatus('aiturn','💥 Direct hit — fleet destroyed!');
+      setStatus('aiturn','Direct hit - enemy ship destroyed.');
       setTimeout(()=>{
-        setStatus('aiturn',`${enemyIcon('small')} INCOMING — Enemy fires back!`);
+        setStatus('aiturn','Enemy is firing back.');
         updateBoardHighlights('ai');renderBoards();
         showTurnBanner('ai',bannerDelay(800));
         setTimeout(aiShoot,turnDelay(850));
@@ -2674,7 +2679,7 @@
       return;
     }
 
-    setStatus('aiturn',`${enemyIcon('small')} INCOMING — Enemy fires back!`);
+    setStatus('aiturn','Enemy is firing back.');
     setTimeout(()=>{updateBoardHighlights('ai');renderBoards();showTurnBanner('ai',bannerDelay(800));
       setTimeout(aiShoot,turnDelay(850));},turnDelay(700));
   }
@@ -2705,7 +2710,7 @@
     // SINK PAUSE
     if(isSunk){
       celebrateSink(ship,false);
-      setStatus('yourturn','💀 Your ship was lost!');
+      setStatus('yourturn','Your ship was lost.');
       setTimeout(()=>{
         currentTurn='you';
         setStatus('yourturn','Your turn - fire at enemy waters.');
@@ -3007,10 +3012,10 @@
     document.getElementById('statAIShots').textContent=aiShots;
     document.getElementById('statAIHits').textContent=aiHits;
     document.getElementById('statWL').textContent=wins+' / '+losses;}
-  function setStatus(cls,msg){const m={waiting:'bs-waiting',placing:'bs-placing',
-    yourturn:'bs-yourturn',aiturn:'bs-aiturn',won:'bs-won',lost:'bs-lost'};
+  function setStatus(cls,msg){const m={waiting:'sr-waiting',placing:'sr-placing',
+    yourturn:'sr-yourturn',aiturn:'sr-aiturn',won:'sr-won',lost:'sr-lost'};
     const el=document.getElementById('statusText');
-    if(el){el.className='status-readout '+(m[cls]||'bs-waiting');el.textContent=msg;}
+    if(el){el.className='status-readout '+(m[cls]||'sr-waiting');el.textContent=msg;}
     updateExitControls();}
   function coord(i){return String.fromCharCode(65+(i%N))+(Math.floor(i/N)+1);}
   function log(msg,cls){const lg=document.getElementById('moveLog');
@@ -3261,7 +3266,7 @@
 
   function endGame(won){
     lastGameWon=won;
-    setStatus(won?'won':'lost',won?'🏆 Victory!':(endedBySurrender?'🏳 Surrendered':'💀 Defeated!'));
+    setStatus(won?'won':'lost',won?'Victory!':(endedBySurrender?'Surrendered':'Defeated!'));
     updateModeUI();
     enemyBoard.ships.forEach(s=>s.sunk=true);
     updateBoardHighlights();renderBoards();renderShipLists();updateStats();
