@@ -89,6 +89,10 @@
   .opponent-ai-step{display:none;margin-top:16px;}
   .opponent-ai-step.show{display:block;}
   .opponent-ai-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0;}
+  .opponent-ai-grid .modal-btn{border-color:rgba(125,211,252,.35);background:linear-gradient(135deg,rgba(14,116,144,.88),rgba(37,99,235,.74));}
+  .opponent-ai-grid .modal-btn:nth-child(1){background:linear-gradient(135deg,#16a085,#2980b9);}
+  .opponent-ai-grid .modal-btn:nth-child(2){background:linear-gradient(135deg,#34495e,#0f172a);}
+  .opponent-ai-grid .modal-btn:nth-child(3){background:linear-gradient(135deg,#8e44ad,#2c1b47);}
   .opponent-back{width:100%;margin-top:4px;background:#334155;}
   .multiplayer-form{display:grid;gap:10px;margin:16px 0;}
   .multiplayer-field{display:grid;gap:5px;}
@@ -123,15 +127,20 @@
   html[data-game-mode="human"] .premium-label-difficulty{display:none;}
   html[data-game-mode="human"] .premium-label-room{display:flex;}
   .premium-label-room{display:none;}
-  .multiplayer-exit-btn{display:none;}
-  html[data-game-mode="human"] .multiplayer-exit-btn{display:inline-flex;}
+  .mode-exit-modal-btn{display:none;}
+  html[data-game-mode="ai"] .mode-exit-modal-btn,
+  html[data-game-mode="human"] .mode-exit-modal-btn{display:inline-flex;}
+  .mp-opponent-back{width:100%;background:#334155;margin-top:2px;}
+  .mp-opponent-back.is-hidden{display:none;}
   .modal-close{position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
     background:rgba(8,16,24,.92);color:#e5edf5;font-size:1.1rem;font-weight:900;cursor:pointer;}
   .modal-close:hover{border-color:#e2b96f;color:#e2b96f;}
 @media(max-width:700px){.howto-body{grid-template-columns:1fr;}}
   @media(max-width:520px){
     .multiplayer-actions{grid-template-columns:1fr;}
-    .opponent-actions,.opponent-ai-grid{grid-template-columns:1fr;}
+    .opponent-actions{grid-template-columns:1fr;}
+    .opponent-ai-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+    .opponent-ai-grid .modal-btn{padding:9px 6px;font-size:.74rem;}
     .room-code-display{font-size:1.55rem;letter-spacing:4px;}
   }
 
@@ -148,9 +157,26 @@
   .brand-text{display:flex;flex-direction:column;align-items:flex-start;}
   .title-copy h1{margin-bottom:2px;}
   .title-help{justify-self:start;}
-  .title-status{justify-self:end;}
+  .title-status{justify-self:end;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
   .help-trigger{border:0;cursor:pointer;box-shadow:0 0 0 1px rgba(125,211,252,.18);}
   .bs-help{background:#0e7490;color:#fff;}
+  .status-readout{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    min-height:34px;padding:3px 0;color:#d5e1eb;font-size:.78rem;font-weight:800;text-align:right;}
+  .status-readout::before{content:'';width:8px;height:8px;border-radius:50%;background:#16a085;
+    box-shadow:0 0 10px rgba(22,160,133,.75);flex:0 0 auto;}
+  .status-readout.bs-waiting::before{background:#94a3b8;box-shadow:0 0 8px rgba(148,163,184,.62);}
+  .status-readout.bs-aiturn::before,.status-readout.bs-lost::before{background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.82);}
+  .status-readout.bs-yourturn::before{background:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.8);}
+  .status-readout.bs-won::before{background:#facc15;box-shadow:0 0 10px rgba(250,204,21,.82);}
+  .mode-exit-btn{display:none;align-items:center;justify-content:center;min-height:34px;padding:6px 12px;
+    border:1px solid rgba(226,185,111,.38);border-radius:999px;background:rgba(8,16,24,.42);
+    color:#f8d88a;font-size:.72rem;font-weight:900;letter-spacing:.3px;cursor:pointer;
+    transition:border-color .18s,box-shadow .18s,background .18s,transform .18s;}
+  html[data-game-mode="ai"] .mode-exit-btn,
+  html[data-game-mode="human"] .mode-exit-btn{display:inline-flex;}
+  .mode-exit-btn:hover,.mode-exit-btn:focus-visible{outline:none;border-color:#e2b96f;background:rgba(226,185,111,.13);
+    box-shadow:0 0 0 2px rgba(226,185,111,.12),0 0 16px rgba(226,185,111,.2);}
+  .mode-exit-btn:active{transform:translateY(1px);}
 
   .mode-strip{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:center;}
   .mode-step{background:rgba(11,18,27,.82);border:1px solid rgba(125,211,252,.12);border-radius:8px;padding:6px 10px;
@@ -299,11 +325,12 @@
   .cell.miss::after{content:'';width:38%;height:38%;border-radius:50%;
     background:radial-gradient(circle,#7fc7ec,#2980b9 70%,#1f4e79);
     box-shadow:0 0 10px rgba(93,173,226,.8);position:absolute;z-index:2;}
-  .cell.hit{background:radial-gradient(circle at 40% 35%,#ffeb3b,#ff6b6b 30%,#c0392b 70%,#7b1f1f);
-    border-color:#ff5722;animation:hitPulse .6s ease-out;}
+  .cell.hit{background:radial-gradient(circle at 40% 35%,#ffeb3b,#ff6b6b 30%,#c0392b 70%,#7b1f1f)!important;
+    border-color:#ff5722!important;box-shadow:inset 0 0 18px rgba(255,87,34,.78),0 0 12px rgba(255,87,34,.32)!important;
+    animation:hitPulse .6s ease-out;}
   .cell.hit .ship-icon{display:none;}
-  .cell.hit::after{content:'✕';color:#fff;font-weight:900;font-size:1.05rem;
-    text-shadow:0 0 8px rgba(0,0,0,.95);position:absolute;z-index:3;}
+  .cell.hit::after{content:'✕'!important;color:#fff!important;font-weight:900;font-size:1.05rem;
+    text-shadow:0 0 8px rgba(0,0,0,.95),0 0 14px rgba(255,255,255,.48);position:absolute;z-index:6;}
   .cell.sunk{background:radial-gradient(circle,#5d2a2a,#2a0e0e);border-color:#e74c3c;
     box-shadow:inset 0 0 10px rgba(231,76,60,.5);}
   .cell.sunk .ship-icon{opacity:.35;filter:grayscale(1);}
@@ -495,8 +522,10 @@
     h1{font-size:1.35rem;letter-spacing:1.8px;text-align:left;}
     .subtitle{font-size:.76rem;text-align:left;}
     .title-help,.title-status{justify-self:stretch;}
-    .help-trigger,.badge-status{width:100%;text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center;}
-    .title-status{justify-self:center;}
+    .help-trigger{width:100%;text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center;}
+    .title-status{justify-self:center;justify-content:center;}
+    .status-readout{flex:1 1 170px;text-align:left;justify-content:flex-start;min-height:34px;font-size:.72rem;}
+    .mode-exit-btn{flex:0 0 auto;min-height:34px;padding:6px 10px;font-size:.68rem;}
     .mode-strip{grid-template-columns:1fr;}
     .mode-step{min-height:44px;padding:6px 9px;}
     .mode-meta{justify-content:flex-start;}
@@ -510,8 +539,11 @@
     .board-title{font-size:.72rem;letter-spacing:1.5px;margin-bottom:7px;flex-wrap:wrap;}
     .left-panel{order:4;display:grid;grid-template-columns:1fr;gap:9px;width:100%;}
     .left-panel>*{max-width:none;flex:auto;}
-    .right-panel{order:3;display:flex;flex-direction:column;gap:9px;width:100%;}
-    .right-panel>*{max-width:none;flex:auto;}
+    .right-panel{order:3;display:contents;}
+    .right-panel>*{max-width:none;flex:auto;width:100%;}
+    #pickerBox{order:3;}
+    #fleetBox{order:4;}
+    #battleLogPanel{order:99;}
     .page-ad{order:5;max-width:none;}
     .arrange-controls{display:grid;grid-template-columns:repeat(2,1fr);}
     .action-btn,.diff-btn,.size-tab,.modal-btn{min-height:44px;justify-content:center;}
@@ -750,7 +782,7 @@
     <div class="modal-buttons">
       <button class="modal-btn" onclick="openAnalysis()">View Analysis</button>
       <button class="modal-btn" id="modalNewGameBtn" onclick="closeModal(true)">New Game</button>
-      <button class="modal-btn multiplayer-exit-btn" type="button" onclick="exitMultiplayerRoom()">Exit Room</button>
+      <button class="modal-btn mode-exit-modal-btn" id="modalExitBtn" type="button" onclick="exitCurrentGame(false)">Exit Game</button>
     </div>
   </div>
 </div>
@@ -786,7 +818,7 @@
     <div class="modal-buttons">
       <button class="modal-btn" onclick="closeAnalysis()">Back</button>
       <button class="modal-btn" id="analysisNewGameBtn" onclick="closeModal(true)">New Game</button>
-      <button class="modal-btn multiplayer-exit-btn" type="button" onclick="exitMultiplayerRoom()">Exit Room</button>
+      <button class="modal-btn mode-exit-modal-btn" id="analysisExitBtn" type="button" onclick="exitCurrentGame(false)">Exit Game</button>
     </div>
   </div>
 </div>
@@ -855,6 +887,7 @@
         <button class="modal-btn" id="mpCreateBtn" type="button" onclick="createMultiplayerRoom()">Create Room</button>
         <button class="modal-btn" id="mpJoinBtn" type="button" onclick="joinMultiplayerRoom()">Join Room</button>
       </div>
+      <button class="modal-btn mp-opponent-back" id="mpBackBtn" type="button" onclick="returnToOpponentChoice()">Back to Opponent Choice</button>
       <div class="multiplayer-field room-code" id="mpCodeField">
         <label for="mpCode">Room code</label>
         <input id="mpCode" maxlength="6" autocomplete="off" placeholder="abcdef"/>
@@ -883,7 +916,10 @@
         <p class="subtitle">Command a haunted fleet across stormy-dark waters.</p>
       </div>
     </div>
-    <div class="title-status" id="statusBadge"><span class="badge-status bs-placing">Place your fleet to begin!</span></div>
+    <div class="title-status" id="statusBadge">
+      <span class="status-readout bs-placing" id="statusText">Place your fleet to begin!</span>
+      <button class="mode-exit-btn" id="modeExitBtn" type="button" onclick="exitCurrentGame(true)">Exit Game</button>
+    </div>
   </div>
 
   <div class="mode-strip" id="modeStrip">
@@ -970,13 +1006,13 @@
         <div class="ship-picker" id="shipPicker"></div>
       </div>
       <div class="panel-box" id="fleetBox" style="display:none;">
-        <h3>🎯 Enemy Fleet</h3>
+        <h3 id="enemyFleetHeading">🎯 Enemy Fleet</h3>
         <div class="ship-list" id="enemyShipList"></div>
         <hr class="divider"/>
-        <h3>⚓ Your Fleet</h3>
+        <h3 id="yourFleetHeading">⚓ Your Fleet</h3>
         <div class="ship-list" id="yourShipList"></div>
       </div>
-      <div class="panel-box">
+      <div class="panel-box" id="battleLogPanel">
         <h3>📋 Battle Log</h3>
         <div class="move-log" id="moveLog">
           <div class="log-entry" style="color:#444;font-style:italic;">No shots fired yet…</div>
@@ -1103,6 +1139,7 @@
     document.documentElement.dataset.gameMode=opponentMode||'select';
     renderHowTo();
     updateMultiplayerRoomLabel();
+    updateExitControls();
   }
   function showOpponentChoices(){
     const choice=document.getElementById('opponentChoiceStep');
@@ -1150,15 +1187,37 @@
     }
     newGame();
   }
+  function returnToOpponentChoice(){
+    hideMultiplayerLobby();
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined)leaveMultiplayerRoom();
+    if(MODE_SELECTION_ENABLED){
+      opponentMode=null;
+      syncOpponentMode();
+    }
+    newGame();
+  }
+  function currentExitLabel(){
+    return MULTIPLAYER_ENABLED?'Exit Room':'Exit Game';
+  }
+  function updateExitControls(){
+    const label=currentExitLabel();
+    ['modeExitBtn','modalExitBtn','analysisExitBtn'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(!btn)return;
+      btn.textContent=label;
+      btn.setAttribute('aria-label',label);
+    });
+  }
   function updatePostGameActions(){
     const humanMatch=MULTIPLAYER_ENABLED&&multiplayer.joined;
-    const label=humanMatch?(multiplayer.rematchRequested?'Waiting...':'New Game'):'New Battle';
+    const label=humanMatch?(multiplayer.rematchRequested?'Waiting...':'New Game'):'New Game';
     ['modalNewGameBtn','analysisNewGameBtn'].forEach(id=>{
       const btn=document.getElementById(id);
       if(!btn)return;
       btn.textContent=label;
       btn.disabled=humanMatch&&multiplayer.rematchRequested;
     });
+    updateExitControls();
   }
   function updateMultiplayerEndState(snapshot){
     if(!MULTIPLAYER_ENABLED||!snapshot||snapshot.phase!=='ended')return;
@@ -1186,18 +1245,24 @@
     updatePostGameActions();
     if(multiplayer.socket)multiplayer.socket.emit('match:rematch');
   }
-  function exitMultiplayerRoom(){
+  function exitCurrentGame(confirmFirst=true){
+    if(confirmFirst&&phase!=='ended'){
+      const prompt=MULTIPLAYER_ENABLED?'Leave this room?':'Exit this game?';
+      if(!window.confirm(prompt))return;
+    }
     document.getElementById('modalOverlay').classList.remove('show');
     document.getElementById('analysisOverlay').classList.remove('show');
     document.getElementById('howToOverlay').classList.remove('show');
     stopConfetti();
-    leaveMultiplayerRoom();
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined)leaveMultiplayerRoom();
+    else hideMultiplayerLobby();
     if(MODE_SELECTION_ENABLED){
       opponentMode=null;
       syncOpponentMode();
     }
     newGame();
   }
+  function exitMultiplayerRoom(){exitCurrentGame(false);}
   // External sprite swaps should be horizontal transparent strips: 4-6 square frames, same frame size.
   const EXPLOSION_CONFIG={
     frameCount:6,
@@ -1623,6 +1688,8 @@
     const nameInput=document.getElementById('mpName');
     if(nameInput&&!nameInput.value)nameInput.value=savedName;
     if(!multiplayer.joined)setJoinMode(false);
+    const backBtn=document.getElementById('mpBackBtn');
+    if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
     updateMultiplayerRoomLabel();
     updateMultiplayerRoomSize();
   }
@@ -1674,8 +1741,10 @@
     const joinBtn=document.getElementById('mpJoinBtn');
     const createBtn=document.getElementById('mpCreateBtn');
     const sizeField=document.getElementById('mpSizeField');
+    const backBtn=document.getElementById('mpBackBtn');
     if(codeField)codeField.classList.toggle('show',multiplayer.joinMode);
     if(sizeField)sizeField.classList.toggle('hidden',multiplayer.joinMode||multiplayer.joined);
+    if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
     if(joinBtn)joinBtn.textContent=multiplayer.joinMode?'Enter Room':'Join Room';
     if(createBtn)createBtn.textContent=multiplayer.joinMode?'Back':'Create Room';
     if(multiplayer.joinMode){
@@ -2520,7 +2589,7 @@
     document.getElementById('analysisOverlay').classList.remove('show');
     document.getElementById('howToOverlay').classList.remove('show');
     document.getElementById('moveLog').innerHTML='<div class="log-entry" style="color:#444;font-style:italic;">No shots fired yet…</div>';
-    setStatus('placing','📍 Place your fleet to begin!');
+    setStatus('placing','Place your fleet to begin!');
     updateBoardHighlights();renderShipPicker();renderBoards();updateStartBtn();updateStats();
     setDifficulty(difficulty);
     if(MODE_SELECTION_ENABLED&&!opponentMode){
@@ -2548,7 +2617,7 @@
     document.getElementById('pickerBox').style.display='none';
     document.getElementById('fleetBox').style.display='';
     selectedShipId=null;selectedSource=null;selectedOffset=0;hoverCell=-1;previewCellsCurrent=[];
-    setStatus('yourturn','🎯 YOUR TURN — fire at enemy waters!');
+    setStatus('yourturn','Your turn - fire at enemy waters.');
     updateModeUI();updateBoardHighlights('you');renderBoards();renderShipLists();
     showTurnBanner('you',bannerDelay(700));}
 
@@ -2639,14 +2708,14 @@
       setStatus('yourturn','💀 Your ship was lost!');
       setTimeout(()=>{
         currentTurn='you';
-        setStatus('yourturn','🎯 YOUR TURN — fire at enemy waters!');
+        setStatus('yourturn','Your turn - fire at enemy waters.');
         updateBoardHighlights('you');renderBoards();
         showTurnBanner('you',bannerDelay(700));
       },turnDelay(1800));
       return;
     }
 
-    setStatus('yourturn','🎯 YOUR TURN — fire at enemy waters!');
+    setStatus('yourturn','Your turn - fire at enemy waters.');
     setTimeout(()=>{currentTurn='you';updateBoardHighlights('you');renderBoards();showTurnBanner('you',bannerDelay(700));},turnDelay(900));
   }
 
@@ -2825,7 +2894,7 @@
         cell.style.width=cellSize+'px';cell.style.height=cellSize+'px';
         const ship=board.ships.find(s=>s.cells.includes(idx));
         const isHit=board.hits.has(idx);
-        const isMiss=board.misses.has(idx);
+        const isMiss=board.misses.has(idx)&&!isHit;
         const selectedPlaced=!isEnemy&&phase==='placing'&&ship&&selectedSource==='grid'&&ship.id===selectedShipId;
         const showShip=(!isEnemy&&ship)||(isEnemy&&ship&&ship.sunk);
         if(showShip){
@@ -2907,8 +2976,8 @@
   }
 
   function renderShipLists(){
-    const enemyHeading=document.querySelector('#fleetBox h3:nth-of-type(1)');
-    const yourHeading=document.querySelector('#fleetBox h3:nth-of-type(2)');
+    const enemyHeading=document.getElementById('enemyFleetHeading');
+    const yourHeading=document.getElementById('yourFleetHeading');
     if(enemyHeading)enemyHeading.innerHTML=enemyIcon('small')+' Enemy Fleet';
     if(yourHeading)yourHeading.innerHTML='⚓ Your Fleet';
     renderShipList('enemyShipList',enemyBoard,true);
@@ -2940,7 +3009,9 @@
     document.getElementById('statWL').textContent=wins+' / '+losses;}
   function setStatus(cls,msg){const m={waiting:'bs-waiting',placing:'bs-placing',
     yourturn:'bs-yourturn',aiturn:'bs-aiturn',won:'bs-won',lost:'bs-lost'};
-    document.getElementById('statusBadge').innerHTML=`<span class="badge-status ${m[cls]}">${msg}</span>`;}
+    const el=document.getElementById('statusText');
+    if(el){el.className='status-readout '+(m[cls]||'bs-waiting');el.textContent=msg;}
+    updateExitControls();}
   function coord(i){return String.fromCharCode(65+(i%N))+(Math.floor(i/N)+1);}
   function log(msg,cls){const lg=document.getElementById('moveLog');
     battleLog.push({msg,cls:cls||'',turn:battleLog.length+1});
@@ -2973,6 +3044,18 @@
       else run=0;
     });
     return best;
+  }
+
+  function hitRunLabel(run){
+    if(run<=0)return 'No Contact';
+    if(run===1)return 'Contact';
+    if(run===2)return 'Destroyer Class';
+    if(run===3)return 'Cruiser/Submarine Class';
+    if(run===4)return 'Battleship Class';
+    if(run===5)return 'Carrier Class';
+    if(run<=7)return 'Fleet Breaker';
+    if(run<=9)return 'Phantom Barrage';
+    return 'GhostFleet Legend';
   }
 
   function formatPattern(moves){
@@ -3120,6 +3203,7 @@
     const aiSinks=aiMoves.filter(m=>m.result==='sunk').length;
     const firstHit=(playerMoves.find(isDamageMove)||{}).coord||'--';
     const bestRun=longestRun(playerMoves,'hit');
+    const bestRunTier=hitRunLabel(bestRun);
     const playerAcc=playerMoves.length?Math.round(playerHits/playerMoves.length*100):0;
     const aiAcc=aiMoves.length?Math.round(aiHitCount/aiMoves.length*100):0;
     const pressure=playerHits===aiHitCount?'Even':(playerHits>aiHitCount?'You +'+(playerHits-aiHitCount):'AI +'+(aiHitCount-playerHits));
@@ -3133,10 +3217,10 @@
       summary='You surrendered after '+playerMoves.length+' shots with '+playerAcc+'% accuracy. The enemy had landed '+aiHitCount+' hit'+(aiHitCount===1?'':'s')+', and your first confirmed contact was '+firstHit+'. The review below focuses on what to stabilize before withdrawing.'+achievementSummary;
     } else {
       summary=won
-        ? 'You won in '+playerMoves.length+' shots with '+playerAcc+'% accuracy. The strongest pattern was a '+bestRun+'-hit run, and your first confirmed contact was '+firstHit+'.'+achievementSummary
-        : 'You lost after '+playerMoves.length+' shots at '+playerAcc+'% accuracy. The enemy accuracy was '+aiAcc+'%, so the biggest opportunity is tighter hunt spacing and faster follow-up after hits.'+achievementSummary;
+        ? 'You won in '+playerMoves.length+' shots with '+playerAcc+'% accuracy. Your strongest contact tier was '+bestRunTier+', and your first confirmed contact was '+firstHit+'.'+achievementSummary
+        : 'You lost after '+playerMoves.length+' shots at '+playerAcc+'% accuracy. Your strongest contact tier was '+bestRunTier+'. The enemy accuracy was '+aiAcc+'%, so the biggest opportunity is tighter hunt spacing and faster follow-up after hits.'+achievementSummary;
     }
-    document.getElementById('analysisHitRun').textContent=bestRun;
+    document.getElementById('analysisHitRun').textContent=bestRunTier;
     document.getElementById('analysisFirstHit').textContent=firstHit;
     document.getElementById('analysisSinks').textContent=playerSinks+' / '+aiSinks;
     document.getElementById('analysisPressure').textContent=pressure;
@@ -3222,7 +3306,10 @@
     document.getElementById('analysisOverlay').classList.remove('show');
     document.getElementById('howToOverlay').classList.remove('show');
     stopConfetti();
-    if(n)startNewBattle();
+    if(n){
+      if(opponentMode==='ai')newGame();
+      else startNewBattle();
+    }
   }
 
   document.addEventListener('keydown',e=>{
