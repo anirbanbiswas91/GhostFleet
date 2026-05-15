@@ -1,5 +1,7 @@
 # GhostFleet Railway
 
+GhostFleet is a web-based strategy game inspired by tactical naval combat, with a free single-player deployment and local multiplayer experiments for future premium work.
+
 One Railway-deployable Node app serving GhostFleet game routes:
 
 - `/free` - ad-supported GhostFleet.
