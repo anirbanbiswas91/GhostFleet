@@ -1,4 +1,4 @@
-# GhostFleet Railway
+# GhostFleet
 
 GhostFleet is a web-based strategy game inspired by tactical naval combat, with a free single-player deployment and local multiplayer experiments for future premium work.
 
