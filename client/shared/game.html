@@ -79,12 +79,17 @@
   .howto-body p{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:10px;color:#d5e1eb;font-size:.86rem;line-height:1.45;}
   .howto-body kbd{background:#0d1117;border:1px solid #2a4a6e;border-radius:3px;
     padding:1px 4px;font-family:'Courier New',monospace;font-size:.7rem;color:#7fb3d5;}
-  .multiplayer-modal{max-width:560px;text-align:left;}
-  .multiplayer-modal h2,.multiplayer-modal p{text-align:center;}
+  .multiplayer-modal,.opponent-modal{max-width:560px;text-align:left;}
+  .multiplayer-modal h2,.multiplayer-modal p,.opponent-modal h2,.opponent-modal p{text-align:center;}
   .multiplayer-brand{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px;}
   .multiplayer-brand img{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#041019;
     box-shadow:0 0 0 2px rgba(226,185,111,.72),0 0 22px rgba(94,234,212,.28);}
   .multiplayer-brand h2{margin:0;font-size:1.85rem;}
+  .opponent-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px;}
+  .opponent-ai-step{display:none;margin-top:16px;}
+  .opponent-ai-step.show{display:block;}
+  .opponent-ai-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0;}
+  .opponent-back{width:100%;margin-top:4px;background:#334155;}
   .multiplayer-form{display:grid;gap:10px;margin:16px 0;}
   .multiplayer-field{display:grid;gap:5px;}
   .multiplayer-field label{color:#e2b96f;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;font-weight:800;}
@@ -107,9 +112,9 @@
   .room-player span{color:#94a3b8;text-transform:uppercase;letter-spacing:.8px;font-size:.62rem;font-weight:900;}
   .room-player.ready span{color:#6ee7b7;}
   .multiplayer-status{min-height:20px;color:#a7f3f0;font-size:.78rem;text-align:center;margin-top:8px;}
-  html[data-tier="premium"] .premium-ai-panel{display:none;}
-  html[data-tier="premium"] .premium-label-difficulty{display:none;}
-  html[data-tier="premium"] .premium-label-room{display:flex;}
+  html[data-game-mode="human"] .premium-ai-panel{display:none;}
+  html[data-game-mode="human"] .premium-label-difficulty{display:none;}
+  html[data-game-mode="human"] .premium-label-room{display:flex;}
   .premium-label-room{display:none;}
   .modal-close{position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
     background:rgba(8,16,24,.92);color:#e5edf5;font-size:1.1rem;font-weight:900;cursor:pointer;}
@@ -117,6 +122,7 @@
 @media(max-width:700px){.howto-body{grid-template-columns:1fr;}}
   @media(max-width:520px){
     .multiplayer-actions{grid-template-columns:1fr;}
+    .opponent-actions,.opponent-ai-grid{grid-template-columns:1fr;}
     .room-code-display{font-size:1.55rem;letter-spacing:4px;}
   }
 
@@ -791,6 +797,29 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="opponentOverlay">
+  <div class="modal opponent-modal" id="opponentDialog">
+    <div class="multiplayer-brand">
+      <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+      <h2>GhostFleet</h2>
+    </div>
+    <p>Choose who will command the enemy fleet.</p>
+    <div class="opponent-actions" id="opponentChoiceStep">
+      <button class="modal-btn" type="button" onclick="showAiDifficultyChoice()">Play vs AI</button>
+      <button class="modal-btn" type="button" onclick="chooseHumanOpponent()">Play vs Human</button>
+    </div>
+    <div class="opponent-ai-step" id="opponentAiStep">
+      <p>Pick the AI difficulty to start your battle.</p>
+      <div class="opponent-ai-grid">
+        <button class="modal-btn" type="button" onclick="chooseAiOpponent('easy')">Easy</button>
+        <button class="modal-btn" type="button" onclick="chooseAiOpponent('hard')">Hard</button>
+        <button class="modal-btn" type="button" onclick="chooseAiOpponent('expert')">Exp</button>
+      </div>
+      <button class="modal-btn opponent-back" type="button" onclick="showOpponentChoices()">Back</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="multiplayerOverlay">
   <div class="modal multiplayer-modal" id="multiplayerDialog">
     <div class="multiplayer-brand">
@@ -826,7 +855,7 @@
       <button class="badge-status bs-help help-trigger" id="howToBtn" onclick="openHowTo()">📖 How to Play</button>
     </div>
     <div class="title-copy">
-      <button class="brand-button" type="button" onclick="newGame()" aria-label="Start a new battle" title="Start a new battle">
+      <button class="brand-button" type="button" onclick="startNewBattle()" aria-label="Start a new battle" title="Start a new battle">
         <img class="brand-mark" src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
       </button>
       <div class="brand-text">
@@ -957,33 +986,38 @@
     unsinkable:'assets/achievement-unsinkable-gold.png'
   };
   const TIER_CONFIG=window.GHOSTFLEET_BOOTSTRAP||{};
-  const MULTIPLAYER_ENABLED=TIER_CONFIG.tier==='premium'&&!!(TIER_CONFIG.features&&TIER_CONFIG.features.roomCodeMultiplayer);
+  const MULTIPLAYER_AVAILABLE=!!(TIER_CONFIG.features&&TIER_CONFIG.features.roomCodeMultiplayer);
+  const MODE_SELECTION_ENABLED=TIER_CONFIG.tier==='free'&&MULTIPLAYER_AVAILABLE&&!!(TIER_CONFIG.features&&TIER_CONFIG.features.singlePlayerAI);
+  let opponentMode=(TIER_CONFIG.tier==='premium'&&MULTIPLAYER_AVAILABLE)?'human':(MODE_SELECTION_ENABLED?null:'ai');
+  let MULTIPLAYER_ENABLED=opponentMode==='human'&&MULTIPLAYER_AVAILABLE;
   const HOW_TO_COPY={
     mobile:[
+      ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
+      ['Choose opponent','Pick AI for a solo battle or Human to create or join a room with another player.'],
       ['Place ships','Carrier is selected first. Tap Your Fleet to place the selected ship, then the next unplaced ship is selected automatically.'],
       ['Move or rotate','Tap a placed ship to edit it. Drag it to new cells or use Rotate. Tap empty water to leave edit mode. Green is valid; red is blocked.'],
       ['Quick setup','Auto-Place rerolls the whole fleet every time. To remove one ship, tap it on your grid, then press Clear-Ship(C).'],
-      ['Start battle','When every ship is placed, the Your Fleet tab changes to Confirm / Start battle. Tap it to begin.'],
+      ['Start battle','When every ship is placed, use the Your Fleet control above the board to confirm or ready your fleet.'],
       ['Switch boards','In battle, use Enemy Waters and Your Fleet tabs. Fire only on Enemy Waters; use Your Fleet to inspect damage.'],
-      ['Turn lock','If it is the enemy turn, wait for the turn banner to finish before firing again.'],
       ['Review','After the match, View Analysis shows achievements, move patterns, and better search suggestions.']
     ],
     desktop:[
+      ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
+      ['Choose opponent','Pick AI for a solo battle or Human to create or join a room with another player.'],
       ['Place ships','Use Fleet Dock on the right, then click your board to place the selected ship. Rotate changes direction before placement.'],
       ['Edit layout','Click a placed ship to select it. Drag it to another valid position or rotate it. Click empty water to leave edit mode.'],
       ['Fast setup','Auto-Place rerolls the whole fleet every time. Click a placed ship, then use Clear-Ship(C) or keyboard C to remove only that ship.'],
-      ['Start battle','Once all ships are placed, use the Confirm / Start battle control above the boards.'],
+      ['Start battle','Once all ships are placed, use the Confirm / Start battle or Ready control above the boards.'],
       ['Battle view','Both boards stay visible: fire on Enemy Waters and watch damage on Your Fleet.'],
-      ['Controls','Difficulty, board size, and stats sit on the left. Arrange controls sit above the boards, with fleet lists and the log on the right.'],
       ['Review','After victory or defeat, View Analysis breaks down accuracy, pressure, sinks, achievements, and improvement tips.']
     ],
     multiplayer:[
-      ['Create or join','Enter a display name, create a room, then share the 6-letter room code. The second captain joins with that code.'],
+      ['Objective','Guess where the other captain hid their ships. Fire one cell per turn, use hits and misses to hunt them down, and sink every enemy ship before your fleet is destroyed. Whoever survives wins.'],
+      ['Create or join','Enter your Player Name, create a room, then share the 6-letter room code. The second captain joins with that code.'],
       ['Room flow','Player 2 joins with the shared code, then both captains move into ship placement automatically.'],
       ['Place ships','Place your fleet normally. When all ships are placed, press Ready above the board to submit your fleet.'],
-      ['Battle','The server controls turns and shot results. You can fire only when the turn banner says it is your turn.'],
+      ['Battle','Turns are controlled online. You can fire only when the turn banner says it is your turn.'],
       ['Privacy','Enemy ships stay hidden until they are sunk or the match ends.'],
-      ['Reconnect','If your browser drops, reopen premium and the room can restore from this device.'],
       ['Review','After the match, View Analysis summarizes your shots, pressure, achievements, and improvement tips.']
     ]
   };
@@ -992,6 +1026,7 @@
     const theme=TIER_CONFIG.theme||{};
     document.documentElement.dataset.tier=TIER_CONFIG.tier||'free';
     document.documentElement.dataset.ads=String(!!(TIER_CONFIG.ads&&TIER_CONFIG.ads.enabled));
+    document.documentElement.dataset.gameMode=opponentMode||'select';
     document.body.classList.remove('theme-classic');
     if(theme.bodyClass)document.body.classList.add(theme.bodyClass);
     Object.entries(theme.cssVars||{}).forEach(([key,value])=>{
@@ -1039,6 +1074,58 @@
     suppressLobby:false,
     joinMode:false
   };
+
+  function syncOpponentMode(){
+    MULTIPLAYER_ENABLED=opponentMode==='human'&&MULTIPLAYER_AVAILABLE;
+    multiplayer.enabled=MULTIPLAYER_ENABLED;
+    document.documentElement.dataset.gameMode=opponentMode||'select';
+    renderHowTo();
+    updateMultiplayerRoomLabel();
+  }
+  function showOpponentChoices(){
+    const choice=document.getElementById('opponentChoiceStep');
+    const aiStep=document.getElementById('opponentAiStep');
+    if(choice)choice.style.display='grid';
+    if(aiStep)aiStep.classList.remove('show');
+  }
+  function showAiDifficultyChoice(){
+    const choice=document.getElementById('opponentChoiceStep');
+    const aiStep=document.getElementById('opponentAiStep');
+    if(choice)choice.style.display='none';
+    if(aiStep)aiStep.classList.add('show');
+  }
+  function showOpponentOverlay(){
+    if(!MODE_SELECTION_ENABLED)return;
+    showOpponentChoices();
+    const overlay=document.getElementById('opponentOverlay');
+    if(overlay)overlay.classList.add('show');
+  }
+  function hideOpponentOverlay(){
+    const overlay=document.getElementById('opponentOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function chooseAiOpponent(level){
+    opponentMode='ai';
+    syncOpponentMode();
+    setDifficulty(level||'easy');
+    hideOpponentOverlay();
+    hideMultiplayerLobby();
+    newGame();
+  }
+  function chooseHumanOpponent(){
+    opponentMode='human';
+    syncOpponentMode();
+    hideOpponentOverlay();
+    newGame();
+  }
+  function startNewBattle(){
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
+    if(MODE_SELECTION_ENABLED){
+      opponentMode=null;
+      syncOpponentMode();
+    }
+    newGame();
+  }
   // External sprite swaps should be horizontal transparent strips: 4-6 square frames, same frame size.
   const EXPLOSION_CONFIG={
     frameCount:6,
@@ -1421,7 +1508,7 @@
   function closeHowTo(){document.getElementById('howToOverlay').classList.remove('show');}
 
   function mpStorageKey(){
-    return 'ghostfleet-premium-room';
+    return 'ghostfleet-'+(TIER_CONFIG.tier||'free')+'-room';
   }
   function setMultiplayerStatus(message){
     const el=document.getElementById('mpStatus');
@@ -1453,7 +1540,7 @@
     if(!MULTIPLAYER_ENABLED)return null;
     if(multiplayer.socket)return multiplayer.socket;
     if(typeof io!=='function'){
-      setMultiplayerStatus('Multiplayer transport did not load. Start the Node server with npm start, then open /premium.');
+      setMultiplayerStatus('Multiplayer transport did not load. Open GhostFleet from the Node or Railway server, then choose Human.');
       return null;
     }
     const socket=io();
@@ -1518,7 +1605,7 @@
       if(settled)return;
       settled=true;
       restoreButtons();
-      setMultiplayerStatus('Still connecting. Check that the Node server is running and reopen http://localhost:3000/premium.');
+      setMultiplayerStatus('Still connecting. Check that the server is running, then reopen GhostFleet and choose Human.');
     },5000);
     socket.once('connect',()=>{
       if(settled)return;
@@ -1532,7 +1619,7 @@
       settled=true;
       clearTimeout(timeout);
       restoreButtons();
-      setMultiplayerStatus('Could not connect. Run npm start in GhostFleetRailway and open /premium from that server.');
+      setMultiplayerStatus('Could not connect. Run npm start in GhostFleetRailway or use the Railway URL, then choose Human.');
     });
     return true;
   }
@@ -2298,9 +2385,10 @@
   }
 
   function newGame(){clearBattleAutoStart();clearArrangeDrag();phase='placing';
+    syncOpponentMode();
     if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
     yourBoard=emptyBoard();enemyBoard=emptyBoard();
-    if(!MULTIPLAYER_ENABLED)autoPlaceFleet(enemyBoard,SHIPS);
+    if(opponentMode==='ai')autoPlaceFleet(enemyBoard,SHIPS);
     shots=hits=aiShots=aiHits=0;lastPlayerShot=lastAIShot=-1;
     battleLog=[];battleMoves=[];lastGameWon=false;endedBySurrender=false;
     selectedShipId=SHIPS[0].id;selectedSource='dock';selectedOffset=0;orientation='h';hoverCell=-1;currentTurn='placing';previewCellsCurrent=[];
@@ -2319,6 +2407,11 @@
     setStatus('placing','📍 Place your fleet to begin!');
     updateBoardHighlights();renderShipPicker();renderBoards();updateStartBtn();updateStats();
     setDifficulty(difficulty);
+    if(MODE_SELECTION_ENABLED&&!opponentMode){
+      hideMultiplayerLobby();
+      showOpponentOverlay();
+      return;
+    }
     if(MULTIPLAYER_ENABLED&&!multiplayer.suppressLobby){
       ensureMultiplayerSocket();
       showMultiplayerLobby();
@@ -3008,7 +3101,7 @@
     document.getElementById('analysisOverlay').classList.remove('show');
     document.getElementById('howToOverlay').classList.remove('show');
     stopConfetti();
-    if(n)newGame();
+    if(n)startNewBattle();
   }
 
   document.addEventListener('keydown',e=>{

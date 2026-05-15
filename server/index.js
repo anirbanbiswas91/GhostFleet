@@ -15,9 +15,7 @@ const freeOnly = process.env.GHOSTFLEET_FREE_ONLY === 'true';
 
 const app = express();
 const server = http.createServer(app);
-const multiplayer = freeOnly
-  ? { stats: () => ({ disabled: true, rooms: 0, players: 0 }) }
-  : attachMultiplayer(server);
+const multiplayer = attachMultiplayer(server);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 app.use('/assets', express.static(path.join(clientDir, 'assets'), {

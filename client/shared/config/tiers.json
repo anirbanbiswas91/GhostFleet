@@ -14,7 +14,7 @@
       "analysis": true,
       "achievements": true,
       "explosionSprites": true,
-      "roomCodeMultiplayer": false,
+      "roomCodeMultiplayer": true,
       "randomMatchmaking": false
     },
     "access": {
