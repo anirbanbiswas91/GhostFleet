@@ -559,9 +559,15 @@
     .status-readout{min-width:0;text-align:left;justify-content:flex-start;height:36px;min-height:36px;font-size:.7rem;
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .mode-exit-btn{height:36px;min-height:36px;padding:6px 10px;font-size:.68rem;white-space:nowrap;}
-    .mode-strip{grid-template-columns:1fr;}
-    .mode-step{min-height:44px;padding:6px 9px;}
-    .mode-meta{justify-content:flex-start;}
+    .mode-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
+    .mode-strip.phase-playing,.mode-strip.phase-ended{grid-template-columns:1fr;}
+    .mode-strip.phase-playing #modeArrange,.mode-strip.phase-ended #modeArrange{display:none;}
+    .mode-step{min-height:32px;padding:5px 9px;border-radius:999px;}
+    .mode-content{gap:0;}
+    .mode-top{align-items:center;flex-direction:row;gap:6px;}
+    .mode-top strong{font-size:.58rem;letter-spacing:.8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .mode-top>span{font-size:.56rem;white-space:nowrap;}
+    .mode-meta{display:none;}
     .main-layout{display:flex;flex-direction:column;gap:10px;width:100%;}
     .mobile-board-tabs{display:flex;order:1;width:100%;gap:8px;}
     .boards-row{order:2;width:100%;display:flex;justify-content:center;align-items:center;gap:0;}
@@ -613,8 +619,8 @@
     .arrange-controls .action-btn{font-size:.68rem;padding:8px 6px;min-height:42px;}
     .top-arrange-actions{gap:5px;}
     .top-arrange-actions .action-btn{font-size:.58rem;padding:7px 3px;min-height:42px;letter-spacing:.1px;}
-    .mode-top{align-items:flex-start;flex-direction:column;gap:4px;}
-    .mode-meta{gap:6px;}
+    .mode-top{align-items:center;flex-direction:row;gap:5px;}
+    .mode-top strong{font-size:.54rem;}
   }
   @media(prefers-reduced-motion:reduce){
     *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important;}
@@ -2336,6 +2342,12 @@
     const ready=placed===SHIPS.length;
     const arrange=document.getElementById('modeArrange');
     const battle=document.getElementById('modeBattle');
+    const strip=document.getElementById('modeStrip');
+    if(strip){
+      strip.classList.toggle('phase-placing',phase==='placing');
+      strip.classList.toggle('phase-playing',phase==='playing');
+      strip.classList.toggle('phase-ended',phase==='ended');
+    }
     if(arrange&&battle){
       arrange.classList.toggle('active',phase==='placing');
       arrange.classList.toggle('done',phase!=='placing');
