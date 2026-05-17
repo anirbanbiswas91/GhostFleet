@@ -10,8 +10,11 @@ const SHIPS = [
 ];
 
 const ROOM_TTL_MS = 30 * 60 * 1000;
-const DISCONNECT_GRACE_MS = 2 * 60 * 1000;
+const DISCONNECT_GRACE_MS = 90 * 1000;
+const ENDED_ROOM_GRACE_MS = 60 * 1000;
+const TURN_TIMEOUT_MS = 120 * 1000;
 const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz';
+const PHASES = new Set(['waiting', 'placing', 'battle', 'ended']);
 const rooms = new Map();
 
 function makeRoomCode() {
@@ -38,6 +41,11 @@ function normalizeBoardSize(value) {
   return Number(value) === 10 ? 10 : 8;
 }
 
+function normalizeClientId(payload) {
+  const id = String(payload && payload.clientId || '').trim().slice(0, 80);
+  return id || '';
+}
+
 function shipDefinition(id) {
   return SHIPS.find(ship => ship.id === Number(id));
 }
@@ -46,12 +54,42 @@ function cellCoord(idx, size) {
   return String.fromCharCode(65 + (idx % size)) + (Math.floor(idx / size) + 1);
 }
 
-function publicPlayer(player) {
+function opponentSlot(slot) {
+  return slot === 0 ? 1 : 0;
+}
+
+function connectedPlayers(room) {
+  return room.players.filter(Boolean);
+}
+
+function activeSlots(room) {
+  return room.players.map((player, slot) => (player ? slot : -1)).filter(slot => slot >= 0);
+}
+
+function publicPlayer(player, slot) {
+  if (!player) {
+    return {
+      id: null,
+      playerIndex: slot,
+      displayName: `Player ${slot + 1}`,
+      connected: false,
+      lobbyReady: false,
+      placementDone: false,
+      rematchRequested: false,
+      fleetReady: false,
+      shots: [],
+      hits: [],
+      misses: [],
+      sunkCount: 0
+    };
+  }
   return {
     id: player.id,
+    playerIndex: slot,
     displayName: player.displayName,
     connected: player.connected,
-    lobbyReady: player.lobbyReady,
+    lobbyReady: player.placementDone,
+    placementDone: player.placementDone,
     rematchRequested: player.rematchRequested,
     fleetReady: !!player.board,
     shots: Array.from(player.shots),
@@ -75,33 +113,83 @@ function sanitizeShip(ship, revealCells = false) {
   };
 }
 
-function playerSnapshot(room, viewerId) {
-  const viewer = room.players.find(player => player.id === viewerId);
-  const opponent = room.players.find(player => player.id !== viewerId);
+function sanitizeBoardForOwner(player) {
+  if (!player || !player.board) return { ships: [], shots: [], hits: [], misses: [] };
+  return {
+    ships: player.board.ships.map(ship => sanitizeShip(ship, true)),
+    shots: Array.from(player.shots),
+    hits: Array.from(player.hits),
+    misses: Array.from(player.misses)
+  };
+}
+
+function sanitizeBoardForOpponent(player, room) {
+  if (!player || !player.board) return { ships: [], shots: [], hits: [], misses: [] };
+  const revealAll = room.phase === 'ended';
+  return {
+    ships: player.board.ships
+      .filter(ship => revealAll || ship.sunk)
+      .map(ship => sanitizeShip(ship, true)),
+    shots: Array.from(player.shots),
+    hits: Array.from(player.hits),
+    misses: Array.from(player.misses)
+  };
+}
+
+function playerSnapshot(room, slot) {
+  const viewer = room.players[slot] || null;
+  const otherSlot = opponentSlot(slot);
+  const opponent = room.players[otherSlot] || null;
+  const winner = room.winnerSlot !== null && room.winnerSlot !== undefined ? room.players[room.winnerSlot] : null;
+  const youBoard = sanitizeBoardForOwner(viewer);
+  const opponentBoard = sanitizeBoardForOpponent(opponent, room);
   return {
     code: room.code,
     phase: room.phase,
     boardSize: room.boardSize,
-    turn: room.turn,
-    winner: room.winner,
+    turn: room.turn !== null && room.players[room.turn] ? room.players[room.turn].id : null,
+    turnSlot: room.turn,
+    winner: winner ? winner.id : null,
+    winnerSlot: room.winnerSlot,
+    winnerName: winner ? winner.displayName : '',
+    playerIndex: slot,
+    opponentName: opponent ? opponent.displayName : '',
+    yourBoard: youBoard,
+    opponentBoard,
     you: viewer ? {
-      ...publicPlayer(viewer),
-      ships: viewer.board ? viewer.board.ships.map(ship => sanitizeShip(ship, true)) : []
+      ...publicPlayer(viewer, slot),
+      ships: youBoard.ships
     } : null,
     opponent: opponent ? {
-      ...publicPlayer(opponent),
-      ships: opponent.board ? opponent.board.ships.filter(ship => ship.sunk || room.phase === 'ended').map(ship => sanitizeShip(ship, true)) : []
+      ...publicPlayer(opponent, otherSlot),
+      ships: opponentBoard.ships
     } : null,
-    players: room.players.map(publicPlayer),
+    players: room.players.map((player, index) => publicPlayer(player, index)),
     battleLog: room.battleLog.slice(-50)
   };
 }
 
+function emitToSlot(room, slot, event, payload = {}) {
+  const player = room.players[slot];
+  if (!player || !player.socketId) return false;
+  room.io.to(player.socketId).emit(event, payload);
+  return true;
+}
+
+function emitSnapshotToSlot(room, slot, event = 'room:update') {
+  return emitToSlot(room, slot, event, playerSnapshot(room, slot));
+}
+
 function emitRoom(room, event = 'room:update') {
-  room.players.forEach(player => {
-    if (!player.socketId) return;
-    room.io.to(player.socketId).emit(event, playerSnapshot(room, player.id));
-  });
+  activeSlots(room).forEach(slot => emitSnapshotToSlot(room, slot, event));
+}
+
+function emitResync(room, slot) {
+  emitSnapshotToSlot(room, slot, 'resync');
+}
+
+function emitResyncToRoom(room) {
+  activeSlots(room).forEach(slot => emitResync(room, slot));
 }
 
 function fail(socket, message, code = 'invalid_request') {
@@ -141,38 +229,136 @@ function validateFleet(rawFleet, boardSize) {
   return { ok: true, board: { ships } };
 }
 
-function addPlayer(room, socket, displayName, existingToken = '') {
-  const token = existingToken || makeId('tok');
-  const player = {
+function createPlayer(socket, slot, clientId, displayName, token = '') {
+  return {
     id: makeId('p'),
-    token,
+    token: token || makeId('tok'),
+    clientId,
+    slot,
     socketId: socket.id,
     displayName: cleanName(displayName),
     connected: true,
-    lobbyReady: false,
+    placementDone: false,
     rematchRequested: false,
     board: null,
     shots: new Set(),
     hits: new Set(),
     misses: new Set()
   };
-  room.players.push(player);
+}
+
+function bindSocketToPlayer(room, socket, slot) {
+  const player = room.players[slot];
+  if (!player) return null;
+  player.socketId = socket.id;
+  player.connected = true;
   socket.data.roomCode = room.code;
-  socket.data.playerId = player.id;
-  socket.data.playerToken = token;
+  socket.data.playerIndex = slot;
+  socket.data.clientId = player.clientId;
   socket.join(room.code);
+  clearDisconnectTimer(room, slot);
   return player;
 }
 
-function findPlayer(room, socket) {
-  const playerId = socket.data.playerId;
-  return room.players.find(player => player.id === playerId) || null;
+function findSlotByClientId(room, clientId) {
+  return room.players.findIndex(player => player && player.clientId === clientId);
+}
+
+function findSlotBySocket(room, socket) {
+  const slot = Number(socket.data.playerIndex);
+  if (Number.isInteger(slot) && slot >= 0 && slot <= 1) {
+    const player = room.players[slot];
+    if (player && player.socketId === socket.id) return slot;
+  }
+  return room.players.findIndex(player => player && player.socketId === socket.id);
+}
+
+function findRoomAndSlot(socket, payload = {}) {
+  const code = String(payload.code || socket.data.roomCode || '').trim().toLowerCase();
+  const room = rooms.get(code);
+  if (!room) return { room: null, slot: -1 };
+  let slot = findSlotBySocket(room, socket);
+  if (slot < 0) {
+    const clientId = normalizeClientId(payload) || socket.data.clientId || '';
+    slot = findSlotByClientId(room, clientId);
+    if (slot >= 0) bindSocketToPlayer(room, socket, slot);
+  }
+  return { room, slot };
+}
+
+function addPlayerToSlot(room, socket, slot, clientId, displayName) {
+  const player = createPlayer(socket, slot, clientId, displayName);
+  room.players[slot] = player;
+  bindSocketToPlayer(room, socket, slot);
+  return player;
+}
+
+function clearDisconnectTimer(room, slot) {
+  if (room.disconnectTimers[slot]) {
+    clearTimeout(room.disconnectTimers[slot]);
+    room.disconnectTimers[slot] = null;
+  }
+}
+
+function clearTurnTimer(room) {
+  if (room.turnTimer) {
+    clearTimeout(room.turnTimer);
+    room.turnTimer = null;
+  }
+}
+
+function scheduleEndedCleanup(room) {
+  if (room.endCleanupTimer) clearTimeout(room.endCleanupTimer);
+  room.endCleanupTimer = setTimeout(() => {
+    const current = rooms.get(room.code);
+    if (current && current.phase === 'ended') rooms.delete(room.code);
+  }, ENDED_ROOM_GRACE_MS);
+  room.endCleanupTimer.unref?.();
+}
+
+function scheduleTurnTimer(room) {
+  clearTurnTimer(room);
+  if (room.phase !== 'battle' || (room.turn !== 0 && room.turn !== 1)) return;
+  room.turnTimer = setTimeout(() => {
+    const current = rooms.get(room.code);
+    if (!current || current.phase !== 'battle') return;
+    const previousTurn = current.turn;
+    current.turn = opponentSlot(current.turn);
+    current.updatedAt = Date.now();
+    const nextPlayer = current.players[current.turn];
+    activeSlots(current).forEach(slot => {
+      emitToSlot(current, slot, 'turn_timeout', {
+        previousTurnSlot: previousTurn,
+        turnSlot: current.turn,
+        playerName: nextPlayer ? nextPlayer.displayName : `Player ${current.turn + 1}`,
+        msg: 'Turn timed out. Command passes to the other captain.'
+      });
+      emitSnapshotToSlot(current, slot, 'turn:update');
+    });
+    validateRoomState(current);
+    scheduleTurnTimer(current);
+  }, TURN_TIMEOUT_MS);
+  room.turnTimer.unref?.();
+}
+
+function validateRoomState(room) {
+  const problems = [];
+  if (!Array.isArray(room.players) || room.players.length !== 2) problems.push('players');
+  if (!PHASES.has(room.phase)) problems.push('phase');
+  if (room.phase === 'battle' && room.turn !== 0 && room.turn !== 1) problems.push('turn');
+  if (room.phase === 'battle' && (!room.players[0] || !room.players[1])) problems.push('players_occupied');
+  if (problems.length) {
+    console.warn(`[GhostFleet] Room ${room.code} state inconsistency: ${problems.join(', ')}`);
+    emitResyncToRoom(room);
+    return false;
+  }
+  return true;
 }
 
 function startPlacementIfReady(room) {
-  if (room.phase !== 'lobby') return;
-  if (room.players.length !== 2) return;
-  if (!room.players.every(player => player.connected)) return;
+  if (room.phase !== 'waiting') return;
+  if (!room.players[0] || !room.players[1]) return;
+  if (!room.players[0].connected || !room.players[1].connected) return;
   room.phase = 'placing';
   room.updatedAt = Date.now();
   emitRoom(room, 'match:startPlacement');
@@ -180,22 +366,30 @@ function startPlacementIfReady(room) {
 
 function startBattleIfReady(room) {
   if (room.phase !== 'placing') return;
-  if (room.players.length !== 2) return;
-  if (!room.players.every(player => !!player.board)) return;
-  room.phase = 'playing';
-  room.turn = room.players[Math.floor(Math.random() * 2)].id;
+  if (!room.players[0] || !room.players[1]) return;
+  if (!room.players.every(player => player && player.placementDone && player.board)) return;
+  room.phase = 'battle';
+  room.turn = 0;
   room.updatedAt = Date.now();
   emitRoom(room, 'match:startBattle');
+  emitRoom(room, 'turn:update');
+  scheduleTurnTimer(room);
 }
 
 function resetRoomForRematch(room) {
+  clearTurnTimer(room);
+  if (room.endCleanupTimer) {
+    clearTimeout(room.endCleanupTimer);
+    room.endCleanupTimer = null;
+  }
   room.phase = 'placing';
   room.turn = null;
-  room.winner = null;
+  room.winnerSlot = null;
   room.battleLog = [];
   room.updatedAt = Date.now();
   room.players.forEach(player => {
-    player.lobbyReady = false;
+    if (!player) return;
+    player.placementDone = false;
     player.rematchRequested = false;
     player.board = null;
     player.shots = new Set();
@@ -207,13 +401,15 @@ function resetRoomForRematch(room) {
 
 function startRematchIfReady(room) {
   if (room.phase !== 'ended') return;
-  if (room.players.length !== 2) return;
+  if (!room.players[0] || !room.players[1]) return;
   if (!room.players.every(player => player.connected && player.rematchRequested)) return;
   resetRoomForRematch(room);
 }
 
-function resolveShot(room, shooter, idx) {
-  const target = room.players.find(player => player.id !== shooter.id);
+function resolveShot(room, shooterSlot, idx) {
+  const shooter = room.players[shooterSlot];
+  const targetSlot = opponentSlot(shooterSlot);
+  const target = room.players[targetSlot];
   if (!target || !target.board) return { ok: false, error: 'Opponent is not ready.' };
   const cell = Number(idx);
   if (!Number.isInteger(cell) || cell < 0 || cell >= room.boardSize * room.boardSize) {
@@ -240,133 +436,198 @@ function resolveShot(room, shooter, idx) {
   const entry = {
     turn: room.battleLog.length + 1,
     actorId: shooter.id,
+    actorSlot: shooterSlot,
     actorName: shooter.displayName,
     targetId: target.id,
+    targetSlot,
     idx: cell,
     coord: cellCoord(cell, room.boardSize),
     result,
     shipName: sunkShip ? sunkShip.name : ''
   };
   room.battleLog.push(entry);
-  room.turn = won ? null : target.id;
-  room.phase = won ? 'ended' : 'playing';
-  room.winner = won ? shooter.id : null;
   room.updatedAt = Date.now();
-  return { ok: true, target, entry, result, sunkShip, won };
+  return { ok: true, shooter, shooterSlot, target, targetSlot, entry, result, sunkShip, won };
+}
+
+function finishMatch(room, winnerSlot) {
+  clearTurnTimer(room);
+  room.phase = 'ended';
+  room.turn = null;
+  room.winnerSlot = winnerSlot;
+  room.updatedAt = Date.now();
+  emitRoom(room, 'match:end');
+  scheduleEndedCleanup(room);
+}
+
+function disconnectSlot(room, slot, explicit = false) {
+  const player = room.players[slot];
+  if (!player) return;
+  player.connected = false;
+  player.socketId = null;
+  player.rematchRequested = false;
+  room.updatedAt = Date.now();
+  clearDisconnectTimer(room, slot);
+  if (explicit) {
+    const other = opponentSlot(slot);
+    emitToSlot(room, other, 'opponent_disconnected', {
+      playerIndex: slot,
+      msg: `${player.displayName} left the room.`
+    });
+    rooms.delete(room.code);
+    return;
+  }
+  emitRoom(room);
+  room.disconnectTimers[slot] = setTimeout(() => {
+    const current = rooms.get(room.code);
+    if (!current) return;
+    const stale = current.players[slot];
+    if (!stale || stale.connected) return;
+    const other = opponentSlot(slot);
+    emitToSlot(current, other, 'opponent_disconnected', {
+      playerIndex: slot,
+      msg: `${stale.displayName} disconnected. The room has closed.`
+    });
+    rooms.delete(current.code);
+  }, DISCONNECT_GRACE_MS);
+  room.disconnectTimers[slot].unref?.();
 }
 
 function attachSocketHandlers(io) {
   io.on('connection', socket => {
+    // Triggered when a host creates a room; validates clientId and board size, creates slot 0, emits room:joined and room:update.
     socket.on('room:create', payload => {
+      const clientId = normalizeClientId(payload);
+      if (!clientId) return fail(socket, 'Missing client session. Refresh GhostFleet and try again.', 'missing_client_id');
       const code = makeRoomCode();
       const room = {
         code,
         io,
-        phase: 'lobby',
+        phase: 'waiting',
         boardSize: normalizeBoardSize(payload && payload.boardSize),
-        players: [],
+        players: [null, null],
         turn: null,
-        winner: null,
+        winnerSlot: null,
         battleLog: [],
+        disconnectTimers: [null, null],
+        turnTimer: null,
+        endCleanupTimer: null,
         createdAt: Date.now(),
         updatedAt: Date.now()
       };
       rooms.set(code, room);
-      const player = addPlayer(room, socket, payload && payload.displayName);
-      socket.emit('room:joined', { code, playerId: player.id, token: player.token, snapshot: playerSnapshot(room, player.id) });
+      const player = addPlayerToSlot(room, socket, 0, clientId, payload && payload.displayName);
+      socket.emit('room:joined', { code, playerId: player.id, playerIndex: 0, token: player.token, clientId, snapshot: playerSnapshot(room, 0) });
       emitRoom(room);
-      startPlacementIfReady(room);
+      validateRoomState(room);
     });
 
+    // Triggered when player 2 enters a code; validates room availability and clientId, fills slot 1, emits room:joined and starts placement when ready.
     socket.on('room:join', payload => {
       const code = String(payload && payload.code || '').trim().toLowerCase();
+      const clientId = normalizeClientId(payload);
       const room = rooms.get(code);
+      if (!clientId) return fail(socket, 'Missing client session. Refresh GhostFleet and try again.', 'missing_client_id');
       if (!room) return fail(socket, 'Room code not found.', 'room_not_found');
-      if (room.phase !== 'lobby') return fail(socket, 'That match has already started.', 'room_started');
-      if (room.players.length >= 2) return fail(socket, 'That room is full.', 'room_full');
-      const player = addPlayer(room, socket, payload && payload.displayName);
-      socket.emit('room:joined', { code, playerId: player.id, token: player.token, snapshot: playerSnapshot(room, player.id) });
+      if (room.phase !== 'waiting') return fail(socket, 'That match has already started.', 'room_started');
+      const reconnectSlot = findSlotByClientId(room, clientId);
+      const slot = reconnectSlot >= 0 ? reconnectSlot : room.players.findIndex(player => !player);
+      if (slot < 0) return fail(socket, 'That room is full.', 'room_full');
+      const player = reconnectSlot >= 0
+        ? bindSocketToPlayer(room, socket, reconnectSlot)
+        : addPlayerToSlot(room, socket, slot, clientId, payload && payload.displayName);
+      socket.emit('room:joined', { code, playerId: player.id, playerIndex: slot, token: player.token, clientId, snapshot: playerSnapshot(room, slot) });
       emitRoom(room);
       startPlacementIfReady(room);
+      validateRoomState(room);
     });
 
+    // Triggered by stored client identity after reconnect; validates clientId/code, replaces the socket in the existing slot, emits room:joined and resync.
     socket.on('match:rejoin', payload => {
       const code = String(payload && payload.code || '').trim().toLowerCase();
-      const token = String(payload && payload.token || '');
+      const clientId = normalizeClientId(payload);
       const room = rooms.get(code);
-      if (!room || !token) return fail(socket, 'Could not restore that room.', 'rejoin_failed');
-      const player = room.players.find(candidate => candidate.token === token);
-      if (!player) return fail(socket, 'Could not restore that player.', 'rejoin_failed');
-      player.socketId = socket.id;
-      player.connected = true;
-      socket.data.roomCode = room.code;
-      socket.data.playerId = player.id;
-      socket.data.playerToken = token;
-      socket.join(room.code);
-      socket.emit('room:joined', { code, playerId: player.id, token, snapshot: playerSnapshot(room, player.id) });
-      emitRoom(room);
-      if (room.phase === 'placing') socket.emit('match:startPlacement', playerSnapshot(room, player.id));
-      if (room.phase === 'playing') {
-        socket.emit('match:startBattle', playerSnapshot(room, player.id));
-        socket.emit('turn:update', playerSnapshot(room, player.id));
-      }
-      if (room.phase === 'ended') socket.emit('match:end', playerSnapshot(room, player.id));
+      if (!room || !clientId) return fail(socket, 'Could not restore that room.', 'rejoin_failed');
+      const slot = findSlotByClientId(room, clientId);
+      if (slot < 0) return fail(socket, 'Could not restore that player.', 'rejoin_failed');
+      const player = bindSocketToPlayer(room, socket, slot);
+      socket.emit('room:joined', { code, playerId: player.id, playerIndex: slot, token: player.token, clientId, snapshot: playerSnapshot(room, slot) });
+      if (room.phase === 'waiting') emitRoom(room);
+      else emitResync(room, slot);
+      validateRoomState(room);
     });
 
-    socket.on('player:ready', () => {
-      const room = rooms.get(socket.data.roomCode);
+    // Legacy compatibility: triggered by older clients; validates room/player and marks lobby ready without affecting the auto-start slot flow.
+    socket.on('player:ready', payload => {
+      const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
-      const player = findPlayer(room, socket);
-      if (!player) return fail(socket, 'Player not found.', 'player_missing');
-      if (room.phase !== 'lobby') return;
-      player.lobbyReady = true;
-      room.updatedAt = Date.now();
+      if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
+      if (room.phase !== 'waiting') return fail(socket, 'Room readiness is only available before placement.', 'wrong_phase');
       emitRoom(room);
       startPlacementIfReady(room);
     });
 
+    // Triggered when a player confirms fleet placement; validates phase/fleet, marks that slot placed, emits opponent_placement_done and starts battle when both are ready.
     socket.on('fleet:submit', payload => {
-      const room = rooms.get(socket.data.roomCode);
+      const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
-      const player = findPlayer(room, socket);
-      if (!player) return fail(socket, 'Player not found.', 'player_missing');
+      if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       if (room.phase !== 'placing') return fail(socket, 'Fleet cannot be submitted right now.', 'wrong_phase');
       const checked = validateFleet(payload && payload.fleet, room.boardSize);
       if (!checked.ok) return fail(socket, checked.error, 'invalid_fleet');
+      const player = room.players[slot];
       player.board = checked.board;
+      player.placementDone = true;
       room.updatedAt = Date.now();
-      emitRoom(room);
+      emitSnapshotToSlot(room, slot, 'room:update');
+      emitToSlot(room, opponentSlot(slot), 'opponent_placement_done', {
+        playerIndex: slot,
+        playerName: player.displayName,
+        msg: `${player.displayName} is ready.`
+      });
+      emitSnapshotToSlot(room, opponentSlot(slot), 'room:update');
       startBattleIfReady(room);
+      validateRoomState(room);
     });
 
-    socket.on('match:rematch', () => {
-      const room = rooms.get(socket.data.roomCode);
+    // Triggered from the result modal; validates ended phase and records the slot rematch vote, then emits room:update or restarts placement.
+    socket.on('match:rematch', payload => {
+      const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
-      const player = findPlayer(room, socket);
-      if (!player) return fail(socket, 'Player not found.', 'player_missing');
+      if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       if (room.phase !== 'ended') return fail(socket, 'Rematch is available after the match ends.', 'wrong_phase');
-      player.rematchRequested = true;
+      room.players[slot].rematchRequested = true;
       room.updatedAt = Date.now();
       emitRoom(room);
       startRematchIfReady(room);
     });
 
+    // Triggered when a player fires; validates phase, slot turn, bounds, duplicate shots, and opponent board, then emits shot:result plus match:end or turn:update.
     socket.on('shot:fire', payload => {
-      const room = rooms.get(socket.data.roomCode);
+      const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
-      const shooter = findPlayer(room, socket);
-      if (!shooter) return fail(socket, 'Player not found.', 'player_missing');
-      if (room.phase !== 'playing') return fail(socket, 'The match is not in battle mode.', 'wrong_phase');
-      if (room.turn !== shooter.id) return fail(socket, 'Wait for your turn.', 'not_your_turn');
-      const resolved = resolveShot(room, shooter, payload && payload.idx);
+      if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
+      if (room.phase !== 'battle') return fail(socket, 'The match is not in battle mode.', 'wrong_phase');
+      if (socket.id !== (room.players[room.turn] && room.players[room.turn].socketId)) return fail(socket, 'Wait for your turn.', 'not_your_turn');
+      const resolved = resolveShot(room, slot, payload && payload.idx);
       if (!resolved.ok) return fail(socket, resolved.error, 'invalid_shot');
-      room.players.forEach(player => {
-        if (!player.socketId) return;
-        room.io.to(player.socketId).emit('shot:result', {
-          snapshot: playerSnapshot(room, player.id),
+      clearTurnTimer(room);
+      if (resolved.won) {
+        room.phase = 'ended';
+        room.turn = null;
+        room.winnerSlot = slot;
+        room.updatedAt = Date.now();
+      } else {
+        room.turn = opponentSlot(slot);
+        room.updatedAt = Date.now();
+      }
+      activeSlots(room).forEach(viewerSlot => {
+        emitToSlot(room, viewerSlot, 'shot:result', {
+          snapshot: playerSnapshot(room, viewerSlot),
           shot: {
             ...resolved.entry,
-            viewerId: player.id,
+            viewerSlot,
+            viewerId: room.players[viewerSlot].id,
             sunkShip: resolved.sunkShip,
             hit: resolved.result === 'hit' || resolved.result === 'sunk',
             sunk: resolved.result === 'sunk'
@@ -374,39 +635,41 @@ function attachSocketHandlers(io) {
         });
       });
       if (resolved.won) {
-        setTimeout(() => emitRoom(room, 'match:end'), 1200);
+        emitRoom(room, 'match:end');
+        scheduleEndedCleanup(room);
+      } else {
+        emitRoom(room, 'turn:update');
+        scheduleTurnTimer(room);
       }
+      validateRoomState(room);
     });
 
-    socket.on('room:leave', () => {
-      const room = rooms.get(socket.data.roomCode);
-      const player = room ? findPlayer(room, socket) : null;
-      if (room && player) {
-        player.connected = false;
-        player.rematchRequested = false;
-        player.socketId = null;
-        room.updatedAt = Date.now();
-        emitRoom(room);
-      }
-      socket.leave(socket.data.roomCode);
+    // Triggered by explicit Exit Room; validates the socket room and tells the opponent before closing the room.
+    socket.on('room:leave', payload => {
+      const { room, slot } = findRoomAndSlot(socket, payload);
+      if (room && slot >= 0) disconnectSlot(room, slot, true);
+      if (socket.data.roomCode) socket.leave(socket.data.roomCode);
       socket.data.roomCode = null;
-      socket.data.playerId = null;
+      socket.data.playerIndex = null;
+      socket.data.clientId = null;
     });
 
+    // Triggered when a visible tab/app returns; validates clientId/code and sends a resync for the matched slot.
+    socket.on('client_heartbeat', payload => {
+      const { room, slot } = findRoomAndSlot(socket, payload);
+      if (!room) return fail(socket, 'Room expired.', 'room_missing');
+      if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
+      bindSocketToPlayer(room, socket, slot);
+      emitResync(room, slot);
+      validateRoomState(room);
+    });
+
+    // Triggered by Socket.IO transport loss; validates the stored slot, starts a grace timer, and emits room:update.
     socket.on('disconnect', () => {
       const room = rooms.get(socket.data.roomCode);
-      const player = room ? findPlayer(room, socket) : null;
-      if (!room || !player) return;
-      player.connected = false;
-      player.socketId = null;
-      room.updatedAt = Date.now();
-      emitRoom(room);
-      setTimeout(() => {
-        const currentRoom = rooms.get(room.code);
-        if (!currentRoom) return;
-        const currentPlayer = currentRoom.players.find(candidate => candidate.id === player.id);
-        if (currentPlayer && !currentPlayer.connected) emitRoom(currentRoom);
-      }, DISCONNECT_GRACE_MS);
+      const slot = room ? findSlotBySocket(room, socket) : -1;
+      if (!room || slot < 0) return;
+      disconnectSlot(room, slot, false);
     });
   });
 }
@@ -414,15 +677,17 @@ function attachSocketHandlers(io) {
 function cleanupRooms() {
   const now = Date.now();
   for (const [code, room] of rooms.entries()) {
-    const connected = room.players.some(player => player.connected);
+    const hasConnected = connectedPlayers(room).some(player => player.connected);
     const idleTooLong = now - room.updatedAt > ROOM_TTL_MS;
-    if (!connected && idleTooLong) rooms.delete(code);
+    if (!hasConnected && idleTooLong) rooms.delete(code);
   }
 }
 
 export function attachMultiplayer(server) {
   const io = new Server(server, {
     cors: { origin: true },
+    pingTimeout: 60000,
+    pingInterval: 25000,
     connectionStateRecovery: {
       maxDisconnectionDuration: DISCONNECT_GRACE_MS,
       skipMiddlewares: true
@@ -435,7 +700,7 @@ export function attachMultiplayer(server) {
     stats() {
       return {
         rooms: rooms.size,
-        players: Array.from(rooms.values()).reduce((count, room) => count + room.players.length, 0)
+        players: Array.from(rooms.values()).reduce((count, room) => count + connectedPlayers(room).length, 0)
       };
     }
   };

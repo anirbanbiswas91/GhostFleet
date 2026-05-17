@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
-    "check": "node --check server/index.js && node --check server/tier-configs.js"
+    "check": "node --check server/index.js && node --check server/tier-configs.js && node --check server/multiplayer.js",
+    "smoke:multiplayer": "node scripts/multiplayer-smoke.mjs"
   },
   "engines": {
     "node": ">=20"
