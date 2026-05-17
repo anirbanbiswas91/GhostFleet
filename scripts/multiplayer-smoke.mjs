@@ -84,7 +84,7 @@ async function waitTurn(socket, slot, timeoutMs = 6000) {
 async function main() {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(PORT), GHOSTFLEET_FREE_ONLY: 'true' },
+    env: { ...process.env, PORT: String(PORT), GHOSTFLEET_FREE_ONLY: 'true', GHOSTFLEET_TURN_TIMEOUT_MS: '1500' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   server.stdout.on('data', chunk => process.stdout.write(chunk));
@@ -112,12 +112,18 @@ async function main() {
 
     const p1Battle = once(p1, 'match:startBattle');
     const p2Battle = once(p2, 'match:startBattle');
+    const opponentReady = once(p2, 'opponent_placement_done');
     emit(p1, 'fleet:submit', { fleet: SHIP_CELLS });
-    await once(p2, 'opponent_placement_done');
+    const duplicateFleet = once(p1, 'error:message');
+    emit(p1, 'fleet:submit', { fleet: SHIP_CELLS });
+    const duplicateFleetError = await duplicateFleet;
+    if (duplicateFleetError.code !== 'fleet_already_submitted') throw new Error('Expected duplicate fleet submit rejection.');
+    await opponentReady;
     emit(p2, 'fleet:submit', { fleet: SHIP_CELLS });
     const battle = await p1Battle;
     await p2Battle;
     if (battle.turnSlot !== 0) throw new Error('Expected slot 0 to start.');
+    if (!battle.turnDeadlineAt || battle.turnDurationMs !== 1500) throw new Error('Expected battle snapshot to include turn deadline.');
 
     const wrongTurn = once(p2, 'error:message');
     emit(p2, 'shot:fire', { idx: 0 });
@@ -182,7 +188,62 @@ async function main() {
       await p1TurnNext;
     }
 
-    [p1r, p2].forEach(socket => socket.disconnect());
+    const exitA = await connectClient('smoke-exit-a');
+    const exitB = await connectClient('smoke-exit-b');
+    const exitJoined = once(exitA, 'room:joined');
+    emit(exitA, 'room:create', { displayName: 'Exit A', boardSize: 8 });
+    const exitRoom = await exitJoined;
+    exitA.roomCode = exitRoom.code;
+    exitA.playerIndex = exitRoom.playerIndex;
+    const exitPlacementA = once(exitA, 'match:startPlacement');
+    const exitPlacementB = once(exitB, 'match:startPlacement');
+    const exitBJoined = once(exitB, 'room:joined');
+    emit(exitB, 'room:join', { code: exitRoom.code, displayName: 'Exit B' });
+    const exitJoinB = await exitBJoined;
+    exitB.roomCode = exitJoinB.code;
+    exitB.playerIndex = exitJoinB.playerIndex;
+    await Promise.all([exitPlacementA, exitPlacementB]);
+    const exitWin = once(exitB, 'match:end');
+    emit(exitA, 'room:leave');
+    const exitEnd = await exitWin;
+    if (exitEnd.winnerSlot !== 1 || exitEnd.endReason !== 'opponent_left') throw new Error('Expected room leave to award opponent_left win.');
+
+    const timerA = await connectClient('smoke-timer-a');
+    const timerB = await connectClient('smoke-timer-b');
+    const timerJoined = once(timerA, 'room:joined');
+    emit(timerA, 'room:create', { displayName: 'Timer A', boardSize: 8 });
+    const timerRoom = await timerJoined;
+    timerA.roomCode = timerRoom.code;
+    timerA.playerIndex = timerRoom.playerIndex;
+    const timerPlacementA = once(timerA, 'match:startPlacement');
+    const timerPlacementB = once(timerB, 'match:startPlacement');
+    const timerBJoined = once(timerB, 'room:joined');
+    emit(timerB, 'room:join', { code: timerRoom.code, displayName: 'Timer B' });
+    const timerJoinB = await timerBJoined;
+    timerB.roomCode = timerJoinB.code;
+    timerB.playerIndex = timerJoinB.playerIndex;
+    await Promise.all([timerPlacementA, timerPlacementB]);
+    const timerBattle = once(timerA, 'match:startBattle');
+    emit(timerA, 'fleet:submit', { fleet: SHIP_CELLS });
+    emit(timerB, 'fleet:submit', { fleet: SHIP_CELLS });
+    await timerBattle;
+    for (let streak = 1; streak <= 2; streak += 1) {
+      const timedOut = await once(timerB, 'turn_timeout', 4000);
+      if (timedOut.previousTurnSlot !== 0 || timedOut.timeoutStreak !== streak) throw new Error(`Expected timeout streak ${streak} for slot 0.`);
+      const nextForA = waitTurn(timerA, 0, 5000);
+      const pass = await fireAndWait(timerB, SAFE_MISS_CELLS[streak]);
+      if (pass.shot.hit) throw new Error('Expected timer pass shot to miss.');
+      await nextForA;
+    }
+    const timeoutEndA = once(timerA, 'match:end', 5000);
+    const timeoutEndB = once(timerB, 'match:end', 5000);
+    const endedA = await timeoutEndA;
+    const endedB = await timeoutEndB;
+    if (endedA.winnerSlot !== 1 || endedB.winnerSlot !== 1 || endedA.endReason !== 'timeout_forfeit') {
+      throw new Error('Expected three consecutive timeouts to forfeit slot 0.');
+    }
+
+    [p1r, p2, exitA, exitB, timerA, timerB].forEach(socket => socket.disconnect());
   } finally {
     server.kill();
   }
