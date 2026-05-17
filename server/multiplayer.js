@@ -12,10 +12,16 @@ const SHIPS = [
 const ROOM_TTL_MS = 30 * 60 * 1000;
 const DISCONNECT_GRACE_MS = 90 * 1000;
 const ENDED_ROOM_GRACE_MS = 60 * 1000;
-const TURN_TIMEOUT_MS = 120 * 1000;
+const TURN_TIMEOUT_MS = positiveIntEnv('GHOSTFLEET_TURN_TIMEOUT_MS', 90 * 1000);
+const TIMEOUT_FORFEIT_LIMIT = 3;
 const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz';
 const PHASES = new Set(['waiting', 'placing', 'battle', 'ended']);
 const rooms = new Map();
+
+function positiveIntEnv(name, fallback) {
+  const value = Number.parseInt(process.env[name] || '', 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 function makeRoomCode() {
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -80,7 +86,8 @@ function publicPlayer(player, slot) {
       shots: [],
       hits: [],
       misses: [],
-      sunkCount: 0
+      sunkCount: 0,
+      timeoutStreak: 0
     };
   }
   return {
@@ -95,7 +102,8 @@ function publicPlayer(player, slot) {
     shots: Array.from(player.shots),
     hits: Array.from(player.hits),
     misses: Array.from(player.misses),
-    sunkCount: player.board ? player.board.ships.filter(ship => ship.sunk).length : 0
+    sunkCount: player.board ? player.board.ships.filter(ship => ship.sunk).length : 0,
+    timeoutStreak: player.timeoutStreak || 0
   };
 }
 
@@ -149,9 +157,12 @@ function playerSnapshot(room, slot) {
     boardSize: room.boardSize,
     turn: room.turn !== null && room.players[room.turn] ? room.players[room.turn].id : null,
     turnSlot: room.turn,
+    turnDeadlineAt: room.turnDeadlineAt || null,
+    turnDurationMs: TURN_TIMEOUT_MS,
     winner: winner ? winner.id : null,
     winnerSlot: room.winnerSlot,
     winnerName: winner ? winner.displayName : '',
+    endReason: room.endReason || '',
     playerIndex: slot,
     opponentName: opponent ? opponent.displayName : '',
     yourBoard: youBoard,
@@ -243,7 +254,8 @@ function createPlayer(socket, slot, clientId, displayName, token = '') {
     board: null,
     shots: new Set(),
     hits: new Set(),
-    misses: new Set()
+    misses: new Set(),
+    timeoutStreak: 0
   };
 }
 
@@ -305,6 +317,7 @@ function clearTurnTimer(room) {
     clearTimeout(room.turnTimer);
     room.turnTimer = null;
   }
+  room.turnDeadlineAt = null;
 }
 
 function scheduleEndedCleanup(room) {
@@ -319,24 +332,37 @@ function scheduleEndedCleanup(room) {
 function scheduleTurnTimer(room) {
   clearTurnTimer(room);
   if (room.phase !== 'battle' || (room.turn !== 0 && room.turn !== 1)) return;
+  room.turnDeadlineAt = Date.now() + TURN_TIMEOUT_MS;
   room.turnTimer = setTimeout(() => {
     const current = rooms.get(room.code);
     if (!current || current.phase !== 'battle') return;
     const previousTurn = current.turn;
-    current.turn = opponentSlot(current.turn);
+    const timedOutPlayer = current.players[previousTurn];
+    if (timedOutPlayer) timedOutPlayer.timeoutStreak = (timedOutPlayer.timeoutStreak || 0) + 1;
+    const nextTurn = opponentSlot(previousTurn);
     current.updatedAt = Date.now();
+    if ((timedOutPlayer && timedOutPlayer.timeoutStreak >= TIMEOUT_FORFEIT_LIMIT)) {
+      finishMatch(current, nextTurn, 'timeout_forfeit');
+      validateRoomState(current);
+      return;
+    }
+    current.turn = nextTurn;
+    scheduleTurnTimer(current);
     const nextPlayer = current.players[current.turn];
     activeSlots(current).forEach(slot => {
       emitToSlot(current, slot, 'turn_timeout', {
         previousTurnSlot: previousTurn,
         turnSlot: current.turn,
         playerName: nextPlayer ? nextPlayer.displayName : `Player ${current.turn + 1}`,
-        msg: 'Turn timed out. Command passes to the other captain.'
+        timeoutStreak: timedOutPlayer ? timedOutPlayer.timeoutStreak : 0,
+        timeoutsRemaining: timedOutPlayer ? Math.max(0, TIMEOUT_FORFEIT_LIMIT - timedOutPlayer.timeoutStreak) : TIMEOUT_FORFEIT_LIMIT,
+        msg: timedOutPlayer
+          ? `${timedOutPlayer.displayName} ran out of time. Command passes to the other captain.`
+          : 'Turn timed out. Command passes to the other captain.'
       });
       emitSnapshotToSlot(current, slot, 'turn:update');
     });
     validateRoomState(current);
-    scheduleTurnTimer(current);
   }, TURN_TIMEOUT_MS);
   room.turnTimer.unref?.();
 }
@@ -370,10 +396,15 @@ function startBattleIfReady(room) {
   if (!room.players.every(player => player && player.placementDone && player.board)) return;
   room.phase = 'battle';
   room.turn = 0;
+  room.winnerSlot = null;
+  room.endReason = '';
+  room.players.forEach(player => {
+    if (player) player.timeoutStreak = 0;
+  });
   room.updatedAt = Date.now();
+  scheduleTurnTimer(room);
   emitRoom(room, 'match:startBattle');
   emitRoom(room, 'turn:update');
-  scheduleTurnTimer(room);
 }
 
 function resetRoomForRematch(room) {
@@ -385,6 +416,7 @@ function resetRoomForRematch(room) {
   room.phase = 'placing';
   room.turn = null;
   room.winnerSlot = null;
+  room.endReason = '';
   room.battleLog = [];
   room.updatedAt = Date.now();
   room.players.forEach(player => {
@@ -395,6 +427,7 @@ function resetRoomForRematch(room) {
     player.shots = new Set();
     player.hits = new Set();
     player.misses = new Set();
+    player.timeoutStreak = 0;
   });
   emitRoom(room, 'match:startPlacement');
 }
@@ -450,11 +483,12 @@ function resolveShot(room, shooterSlot, idx) {
   return { ok: true, shooter, shooterSlot, target, targetSlot, entry, result, sunkShip, won };
 }
 
-function finishMatch(room, winnerSlot) {
+function finishMatch(room, winnerSlot, endReason = 'ships_sunk') {
   clearTurnTimer(room);
   room.phase = 'ended';
   room.turn = null;
   room.winnerSlot = winnerSlot;
+  room.endReason = endReason;
   room.updatedAt = Date.now();
   emitRoom(room, 'match:end');
   scheduleEndedCleanup(room);
@@ -470,11 +504,15 @@ function disconnectSlot(room, slot, explicit = false) {
   clearDisconnectTimer(room, slot);
   if (explicit) {
     const other = opponentSlot(slot);
-    emitToSlot(room, other, 'opponent_disconnected', {
-      playerIndex: slot,
-      msg: `${player.displayName} left the room.`
-    });
-    rooms.delete(room.code);
+    if ((room.phase === 'placing' || room.phase === 'battle') && room.players[other]) {
+      finishMatch(room, other, 'opponent_left');
+    } else {
+      emitToSlot(room, other, 'opponent_disconnected', {
+        playerIndex: slot,
+        msg: `${player.displayName} left the room.`
+      });
+      rooms.delete(room.code);
+    }
     return;
   }
   emitRoom(room);
@@ -507,7 +545,9 @@ function attachSocketHandlers(io) {
         boardSize: normalizeBoardSize(payload && payload.boardSize),
         players: [null, null],
         turn: null,
+        turnDeadlineAt: null,
         winnerSlot: null,
+        endReason: '',
         battleLog: [],
         disconnectTimers: [null, null],
         turnTimer: null,
@@ -573,6 +613,7 @@ function attachSocketHandlers(io) {
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       if (room.phase !== 'placing') return fail(socket, 'Fleet cannot be submitted right now.', 'wrong_phase');
+      if (room.players[slot].placementDone) return fail(socket, 'Your fleet is already submitted for this round.', 'fleet_already_submitted');
       const checked = validateFleet(payload && payload.fleet, room.boardSize);
       if (!checked.ok) return fail(socket, checked.error, 'invalid_fleet');
       const player = room.players[slot];
@@ -612,10 +653,12 @@ function attachSocketHandlers(io) {
       const resolved = resolveShot(room, slot, payload && payload.idx);
       if (!resolved.ok) return fail(socket, resolved.error, 'invalid_shot');
       clearTurnTimer(room);
+      room.players[slot].timeoutStreak = 0;
       if (resolved.won) {
         room.phase = 'ended';
         room.turn = null;
         room.winnerSlot = slot;
+        room.endReason = 'ships_sunk';
         room.updatedAt = Date.now();
       } else {
         room.turn = opponentSlot(slot);
@@ -638,8 +681,8 @@ function attachSocketHandlers(io) {
         emitRoom(room, 'match:end');
         scheduleEndedCleanup(room);
       } else {
-        emitRoom(room, 'turn:update');
         scheduleTurnTimer(room);
+        emitRoom(room, 'turn:update');
       }
       validateRoomState(room);
     });
