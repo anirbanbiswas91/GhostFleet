@@ -949,6 +949,7 @@
     <div class="multiplayer-room-card" id="mpRoomCard">
       <div class="room-code-display" id="mpRoomCode">------</div>
       <div class="room-size-display" id="mpRoomSize">Room size: 8×8</div>
+      <button class="modal-btn" id="mpInviteBtn" type="button" onclick="copyMultiplayerInviteLink()">Copy Invite Link</button>
       <div class="room-player-list" id="mpPlayers"></div>
       <div class="multiplayer-status" id="mpStatus">Waiting for another captain...</div>
     </div>
@@ -1187,11 +1188,18 @@
     myTurn:false,
     waitingForOpponent:false,
     pendingShot:false,
+    placementSubmitted:false,
     rematchRequested:false,
     suppressLobby:false,
     joinMode:false,
-    resumeBound:false
+    resumeBound:false,
+    restoring:false,
+    turnDeadlineAt:null,
+    turnDurationMs:90000,
+    turnCountdownTimer:null,
+    endReason:''
   };
+  let statusState={cls:'placing',msg:'Place your fleet to begin!'};
 
   function syncOpponentMode(){
     MULTIPLAYER_ENABLED=opponentMode==='human'&&MULTIPLAYER_AVAILABLE;
@@ -1278,6 +1286,42 @@
       btn.disabled=humanMatch&&multiplayer.rematchRequested;
     });
     updateExitControls();
+  }
+  function multiplayerTurnTimerText(){
+    if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='playing'||!multiplayer.turnDeadlineAt)return '';
+    const remaining=Math.max(0,Math.ceil((multiplayer.turnDeadlineAt-Date.now())/1000));
+    return remaining+'s';
+  }
+  function refreshStatusReadout(){
+    const m={waiting:'sr-waiting',placing:'sr-placing',
+      yourturn:'sr-yourturn',aiturn:'sr-aiturn',won:'sr-won',lost:'sr-lost'};
+    const el=document.getElementById('statusText');
+    if(!el)return;
+    const timer=multiplayerTurnTimerText();
+    el.className='status-readout '+(m[statusState.cls]||'sr-waiting');
+    el.textContent=statusState.msg+(timer?' · '+timer:'');
+  }
+  function stopMultiplayerCountdown(){
+    if(multiplayer.turnCountdownTimer){
+      clearInterval(multiplayer.turnCountdownTimer);
+      multiplayer.turnCountdownTimer=null;
+    }
+  }
+  function refreshMultiplayerCountdown(){
+    refreshStatusReadout();
+    updateModeUI();
+    if(!multiplayerTurnTimerText())stopMultiplayerCountdown();
+  }
+  function syncMultiplayerTimer(snapshot){
+    multiplayer.turnDeadlineAt=snapshot&&snapshot.turnDeadlineAt?Number(snapshot.turnDeadlineAt):null;
+    multiplayer.turnDurationMs=snapshot&&snapshot.turnDurationMs?Number(snapshot.turnDurationMs):multiplayer.turnDurationMs;
+    if(phase==='playing'&&multiplayer.turnDeadlineAt){
+      if(!multiplayer.turnCountdownTimer)multiplayer.turnCountdownTimer=setInterval(refreshMultiplayerCountdown,1000);
+      refreshMultiplayerCountdown();
+    } else {
+      stopMultiplayerCountdown();
+      refreshStatusReadout();
+    }
   }
   function updateMultiplayerEndState(snapshot){
     if(!MULTIPLAYER_ENABLED||!snapshot||snapshot.phase!=='ended')return;
@@ -1730,6 +1774,18 @@
   function mpStorageKey(){
     return 'ghostfleet-'+(TIER_CONFIG.tier||'free')+'-room';
   }
+  function normalizeRoomCode(value){
+    const code=String(value||'').trim().toLowerCase();
+    return /^[a-z]{6}$/.test(code)?code:'';
+  }
+  function inviteRoomCodeFromUrl(){
+    try{return normalizeRoomCode(new URLSearchParams(window.location.search).get('room'));}
+    catch(_){return '';}
+  }
+  function savedMultiplayerSession(){
+    try{return JSON.parse(localStorage.getItem(mpStorageKey())||'null');}
+    catch(_){return null;}
+  }
   function getMultiplayerClientId(){
     let id=sessionStorage.getItem('gf_clientId');
     if(!id){
@@ -1785,6 +1841,26 @@
     if(el)el.textContent='Room size: '+(multiplayer.roomBoardSize||N)+'×'+(multiplayer.roomBoardSize||N);
     updateMultiplayerSizeButtons();
   }
+  function multiplayerInviteLink(){
+    if(!multiplayer.roomCode)return '';
+    const url=new URL(window.location.href);
+    url.searchParams.set('room',multiplayer.roomCode);
+    return url.toString();
+  }
+  function copyMultiplayerInviteLink(){
+    const link=multiplayerInviteLink();
+    if(!link){setMultiplayerStatus('Create a room first, then copy the invite link.');return;}
+    const done=()=>setMultiplayerStatus('Invite link copied. Share it with player 2.');
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(link).then(done).catch(()=>{
+        window.prompt('Copy this GhostFleet invite link:',link);
+        done();
+      });
+    } else {
+      window.prompt('Copy this GhostFleet invite link:',link);
+      done();
+    }
+  }
   function setMultiplayerSetupSize(size){
     if(multiplayer.joined)return;
     if(!BOARD_SIZES.includes(size))size=8;
@@ -1806,6 +1882,16 @@
     if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
     updateMultiplayerRoomLabel();
     updateMultiplayerRoomSize();
+  }
+  function prefillMultiplayerJoin(code){
+    const normalized=normalizeRoomCode(code);
+    if(!normalized)return;
+    setJoinMode(true);
+    const codeInput=document.getElementById('mpCode');
+    if(codeInput)codeInput.value=normalized;
+    setMultiplayerStatus('Invite loaded. Enter your Player Name, then join room '+normalized+'.');
+    const nameInput=document.getElementById('mpName');
+    if(nameInput)setTimeout(()=>nameInput.focus(),0);
   }
   function hideMultiplayerLobby(){
     const overlay=document.getElementById('multiplayerOverlay');
@@ -1839,8 +1925,9 @@
     socket.on('connect',()=>{
       if(multiplayer.joined){sendMultiplayerHeartbeat();return;}
       setMultiplayerStatus('Connected. Create a room or join with a code.');
-      const saved=JSON.parse(localStorage.getItem(mpStorageKey())||'null');
+      const saved=savedMultiplayerSession();
       if(saved&&saved.code&&saved.clientId===multiplayer.clientId&&!multiplayer.joined){
+        multiplayer.restoring=true;
         socket.emit('match:rejoin',multiplayerPayload({code:saved.code,token:saved.token||''}));
         setMultiplayerStatus('Restoring room '+saved.code+'...');
       }
@@ -1869,8 +1956,23 @@
     });
     socket.on('error:message',payload=>{
       setMultiplayerStatus((payload&&payload.message)||'Multiplayer error.');
+      if(multiplayer.restoring){
+        multiplayer.restoring=false;
+        localStorage.removeItem(mpStorageKey());
+        multiplayer.joined=false;
+        multiplayer.roomCode='';
+        multiplayer.playerIndex=null;
+        multiplayer.token='';
+        if(MODE_SELECTION_ENABLED){
+          opponentMode=null;
+          syncOpponentMode();
+          hideMultiplayerLobby();
+          showOpponentOverlay();
+        }
+        showMultiplayerToast('Room expired');
+      }
       multiplayer.pendingShot=false;
-      inputLocked=false;
+      inputLocked=!!multiplayer.placementSubmitted;
       renderBoards();
     });
     socket.on('disconnect',()=>{
@@ -1965,6 +2067,7 @@
     multiplayer.token=payload.token;
     multiplayer.lobbyReady=false;
     multiplayer.rematchRequested=false;
+    multiplayer.restoring=false;
     saveMultiplayerSession();
     const codeEl=document.getElementById('mpRoomCode');
     if(codeEl)codeEl.textContent=payload.code;
@@ -1990,9 +2093,13 @@
     const opponent=snapshot.opponent;
     if(you)multiplayer.playerName=you.displayName;
     if(you)multiplayer.rematchRequested=!!you.rematchRequested;
+    if(you)multiplayer.placementSubmitted=!!you.placementDone;
+    if(you)multiplayer.waitingForOpponent=snapshot.phase==='placing'&&!!you.placementDone;
+    multiplayer.endReason=snapshot.endReason||'';
     multiplayer.opponentName=opponent&&opponent.displayName?opponent.displayName:'';
     renderMultiplayerPlayers(snapshot.players||[]);
     updateMultiplayerEndState(snapshot);
+    syncMultiplayerTimer(snapshot);
     if(snapshot.phase==='waiting'){
       const occupied=(snapshot.players||[]).filter(player=>player&&player.id).length;
       showMultiplayerLobby(occupied<2?'Share this code with player 2.':'Joined. Preparing ship placement...');
@@ -2079,6 +2186,10 @@
     battleLog=[];battleMoves=[];lastGameWon=false;endedBySurrender=false;
     multiplayer.rematchRequested=false;
     multiplayer.waitingForOpponent=false;
+    multiplayer.placementSubmitted=false;
+    multiplayer.endReason='';
+    multiplayer.turnDeadlineAt=null;
+    stopMultiplayerCountdown();
     document.getElementById('modalOverlay').classList.remove('show');
     document.getElementById('analysisOverlay').classList.remove('show');
     selectedShipId=SHIPS[0].id;selectedSource='dock';selectedOffset=0;orientation='h';hoverCell=-1;currentTurn='placing';previewCellsCurrent=[];
@@ -2101,8 +2212,9 @@
   }
   function submitMultiplayerFleet(){
     if(!multiplayer.joined){showMultiplayerLobby('Create or join a room first.');return;}
-    if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length)return;
+    if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length||multiplayer.placementSubmitted)return;
     multiplayer.waitingForOpponent=true;
+    multiplayer.placementSubmitted=true;
     inputLocked=true;
     document.getElementById('btnShuffle').disabled=true;
     document.getElementById('btnClear').disabled=true;
@@ -2117,9 +2229,11 @@
     hideMultiplayerLobby();
     phase='playing';
     multiplayer.waitingForOpponent=false;
+    multiplayer.placementSubmitted=true;
     inputLocked=false;
     hydrateMultiplayerBoards(snapshot);
     updateMultiplayerTurnState(snapshot);
+    syncMultiplayerTimer(snapshot);
     document.getElementById('btnShuffle').disabled=true;
     document.getElementById('btnClear').disabled=true;
     document.getElementById('btnRotate').disabled=true;
@@ -2134,6 +2248,7 @@
     if(snapshot.phase==='battle')phase='playing';
     if(phase!=='playing')return;
     updateMultiplayerTurnState(snapshot);
+    syncMultiplayerTimer(snapshot);
     multiplayer.pendingShot=false;
     inputLocked=false;
     setStatus(currentTurn==='you'?'yourturn':'aiturn',currentTurn==='you'?'Your turn - fire at enemy waters.':multiplayerOpponentLabel()+' is firing...');
@@ -2213,15 +2328,17 @@
       hideMultiplayerLobby();
       currentTurn='placing';
       activeMobileBoard='your';
-      inputLocked=false;
+      inputLocked=!!multiplayer.placementSubmitted;
       document.getElementById('pickerBox').style.display='';
       document.getElementById('fleetBox').style.display='none';
+      setStatus(multiplayer.placementSubmitted?'waiting':'placing',multiplayer.placementSubmitted?'Fleet submitted. Waiting for '+multiplayerOpponentLabel()+'...':'Place your fleet for room '+multiplayer.roomCode);
       renderShipPicker();renderBoards();updateStartBtn();updateStats();
     } else if(snapshot.phase==='battle'){
       phase='playing';
       hideMultiplayerLobby();
       hydrateMultiplayerBoards(snapshot);
       updateMultiplayerTurnState(snapshot);
+      syncMultiplayerTimer(snapshot);
       inputLocked=false;
       multiplayer.pendingShot=false;
       document.getElementById('pickerBox').style.display='none';
@@ -2243,6 +2360,8 @@
     const won=snapshot.winnerSlot===multiplayer.playerIndex||snapshot.winner===multiplayer.playerId;
     if(won)wins++;else losses++;
     multiplayer.rematchRequested=false;
+    multiplayer.endReason=snapshot.endReason||'ships_sunk';
+    endedBySurrender=!won&&multiplayer.endReason==='timeout_forfeit';
     lastGameWon=won;
     endGame(won);
   }
@@ -2259,8 +2378,12 @@
     multiplayer.lobbyReady=false;
     multiplayer.waitingForOpponent=false;
     multiplayer.pendingShot=false;
+    multiplayer.placementSubmitted=false;
     multiplayer.rematchRequested=false;
     multiplayer.joinMode=false;
+    multiplayer.turnDeadlineAt=null;
+    multiplayer.endReason='';
+    stopMultiplayerCountdown();
     localStorage.removeItem(mpStorageKey());
     const card=document.getElementById('mpRoomCard');
     if(card)card.classList.remove('show');
@@ -2274,6 +2397,9 @@
   }
   function isFleetReady(){
     return !!yourBoard&&yourBoard.ships.length===SHIPS.length;
+  }
+  function isMultiplayerPlacementLocked(){
+    return !!(MULTIPLAYER_ENABLED&&multiplayer.joined&&multiplayer.placementSubmitted&&phase==='placing');
   }
 
   function setMobileBoard(which){
@@ -2425,7 +2551,11 @@
     const totalSunk=enemySunk+playerSunk;
     const totalShips=SHIPS.length*2;
     if(battleFill)battleFill.style.width=Math.round((totalSunk/totalShips)*100)+'%';
-    if(battleText)battleText.textContent=phase==='placing'?(ready?'Ready':'Locked'):(totalSunk+' / '+totalShips+' sunk');
+    if(battleText){
+      const timer=multiplayerTurnTimerText();
+      if(MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='playing')battleText.textContent=(multiplayer.myTurn?'Your turn':'Enemy turn')+(timer?' / '+timer:'');
+      else battleText.textContent=phase==='placing'?(ready?'Ready':'Locked'):(totalSunk+' / '+totalShips+' sunk');
+    }
     if(battleEnemy)battleEnemy.textContent='Enemy: '+(SHIPS.length-enemySunk)+' remain / '+enemySunk+' sunk';
     if(battlePlayer)battlePlayer.textContent='You: '+(SHIPS.length-playerSunk)+' remain / '+playerSunk+' sunk';
     updateArrangeControls();
@@ -2520,7 +2650,7 @@
     renderShipPicker();renderBoards();updateStartBtn();updateModeUI();
   }
   function updateArrangeControls(){
-    const disabled=phase!=='placing';
+    const disabled=phase!=='placing'||isMultiplayerPlacementLocked();
     ['btnShuffle','btnRotate'].forEach(id=>{
       const btn=document.getElementById(id);
       if(btn)btn.disabled=disabled;
@@ -2609,7 +2739,7 @@
     });
   }
   function handleArrangePointerDown(e,cont){
-    if(phase!=='placing'||e.button>0)return;
+    if(phase!=='placing'||isMultiplayerPlacementLocked()||e.button>0)return;
     const t=e.target.closest('.cell');if(!t)return;
     const idx=+t.dataset.idx;
     const ship=yourBoard.ships.find(s=>s.cells.includes(idx));
@@ -2708,7 +2838,7 @@
           const occ=new Set();b.ships.forEach(x=>x.cells.forEach(y=>occ.add(y)));
           if(cells.every(x=>!occ.has(x))){placeShipAt(b,s,cells,h?'h':'v');break;}}}}}
 
-  function selectShip(id){if(phase!=='placing')return;
+  function selectShip(id){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
     const ship=yourBoard.ships.find(s=>s.id===id);
     if(ship)selectPlacedShip(ship,ship.cells[0]);
@@ -2718,7 +2848,7 @@
       if(next)setStatus('placing','Selected '+next.name);
     }
     renderShipPicker();renderBoards();updateStartBtn();}
-  function autoPlace(){if(phase!=='placing')return;
+  function autoPlace(){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
     clearArrangeDrag();
     yourBoard.ships=[];
@@ -2727,7 +2857,7 @@
     renderShipPicker();renderBoards();
     flashPlacementFeedback(yourBoard.ships.flatMap(s=>s.cells),true);
     updateStartBtn();}
-  function clearSelectedShip(){if(phase!=='placing')return;
+  function clearSelectedShip(){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
     const ship=selectedSource==='grid'?placedShipById(selectedShipId):null;
     if(!ship){
@@ -2745,13 +2875,14 @@
     setStatus('placing',removedDef.name+' cleared. Place it again.');
     renderShipPicker();renderBoards();updateStartBtn();}
   function clearFleet(){clearSelectedShip();}
-  function rotateOrientation(){if(phase==='placing'){
+  function rotateOrientation(){if(isMultiplayerPlacementLocked())return;
+    if(phase==='placing'){
       if(selectedSource==='grid'&&selectedShipId!==null)return rotatePlacedShip(selectedShipId);
     }
     orientation=(orientation==='h'?'v':'h');
     setStatus('placing','Orientation: '+(orientation==='h'?'horizontal':'vertical'));
     updateHoverPreview();updateModeUI();}
-  function tryPlaceShip(idx,shipId){if(phase!=='placing')return;
+  function tryPlaceShip(idx,shipId){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
     clearArrangeDrag();
     const id=(shipId!==undefined&&shipId!==null)?shipId:selectedShipId;if(id===null)return;
@@ -2770,7 +2901,7 @@
     const btn=document.getElementById('btnStart');
     if(!btn)return;
     const ready=!!yourBoard&&yourBoard.ships.length===SHIPS.length;
-    btn.disabled=!ready||(MULTIPLAYER_ENABLED&&multiplayer.waitingForOpponent);
+    btn.disabled=!ready||(MULTIPLAYER_ENABLED&&(multiplayer.waitingForOpponent||multiplayer.placementSubmitted));
     btn.classList.toggle('ready',phase==='placing'&&ready);
     if(phase==='placing')btn.textContent=MULTIPLAYER_ENABLED?(ready?(multiplayer.waitingForOpponent?'Waiting':'Ready'):'Place Ships'):(ready?'Confirm':'Place Ships');
     else btn.textContent='Battle';
@@ -2778,6 +2909,7 @@
   }
 
   function newGame(){clearBattleAutoStart();clearArrangeDrag();phase='placing';
+    stopMultiplayerCountdown();
     syncOpponentMode();
     if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
     yourBoard=emptyBoard();enemyBoard=emptyBoard();
@@ -2788,6 +2920,9 @@
     activeMobileBoard='your';
     aiTargetQueue=[];aiHitChain=[];aiOrientation=null;aiKnownEmpty=new Set();
     inputLocked=false;
+    multiplayer.placementSubmitted=false;
+    multiplayer.turnDeadlineAt=null;
+    multiplayer.endReason='';
     document.getElementById('btnShuffle').disabled=false;
     document.getElementById('btnClear').disabled=false;
     document.getElementById('btnRotate').disabled=false;
@@ -3239,10 +3374,9 @@
     document.getElementById('statAIShots').textContent=aiShots;
     document.getElementById('statAIHits').textContent=aiHits;
     document.getElementById('statWL').textContent=wins+' / '+losses;}
-  function setStatus(cls,msg){const m={waiting:'sr-waiting',placing:'sr-placing',
-    yourturn:'sr-yourturn',aiturn:'sr-aiturn',won:'sr-won',lost:'sr-lost'};
-    const el=document.getElementById('statusText');
-    if(el){el.className='status-readout '+(m[cls]||'sr-waiting');el.textContent=msg;}
+  function setStatus(cls,msg){
+    statusState={cls,msg};
+    refreshStatusReadout();
     updateExitControls();}
   function coord(i){return String.fromCharCode(65+(i%N))+(Math.floor(i/N)+1);}
   function log(msg,cls){const lg=document.getElementById('moveLog');
@@ -3503,7 +3637,23 @@
     modal.classList.toggle('lose',!won);
     document.getElementById('modalIcon').textContent=won?'🏆':(endedBySurrender?'🏳':'💀');
     document.getElementById('modalTitle').textContent=won?'GhostFleet Victory!':(endedBySurrender?'GhostFleet Surrendered':'GhostFleet Defeated');
-    document.getElementById('modalSubtitle').textContent=won?'You sank the entire enemy fleet.':(endedBySurrender?'You withdrew before the fleet was destroyed.':'The enemy destroyed your fleet.');
+    let modalSubtitle=won?'You sank the entire enemy fleet.':(endedBySurrender?'You withdrew before the fleet was destroyed.':'The enemy destroyed your fleet.');
+    let specialResultMsg='';
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined){
+      if(multiplayer.endReason==='opponent_left'&&won){
+        modalSubtitle='Opponent left the room. You win by surrender.';
+        specialResultMsg=multiplayerOpponentLabel()+' left the room. Victory awarded.';
+      } else if(multiplayer.endReason==='timeout_forfeit'){
+        if(won){
+          modalSubtitle='Opponent missed three turn timers. You win by surrender.';
+          specialResultMsg=multiplayerOpponentLabel()+' timed out three turns in a row.';
+        } else {
+          modalSubtitle='You missed three turn timers and forfeited the battle.';
+          specialResultMsg='Timer forfeit logged. Keep an eye on the turn countdown next battle.';
+        }
+      }
+    }
+    document.getElementById('modalSubtitle').textContent=modalSubtitle;
     document.getElementById('modalShots').textContent=shots;
     const finalAcc=shots>0?Math.round(hits/shots*100):0;
     document.getElementById('modalAcc').textContent=finalAcc+'%';
@@ -3518,7 +3668,7 @@
     const lm=endedBySurrender
       ? ['Withdrawal logged. Rebuild the opening pattern.','Fleet recalled. The analysis can still sharpen the next run.','Retreat accepted. Review the pressure points.','Command paused. Come back with wider search lanes.']
       : ['Regroup and try again.','Honor in defeat — fight on!','Better luck next battle.','Outsmart them next time!'];
-    document.getElementById('modalMsg').textContent=(won?wm:lm)[Math.floor(Math.random()*4)]+(unlocked.length?' Achievements: '+unlocked.join(', ')+'.':'');
+    document.getElementById('modalMsg').textContent=(specialResultMsg||((won?wm:lm)[Math.floor(Math.random()*4)]))+(unlocked.length?' Achievements: '+unlocked.join(', ')+'.':'');
     updatePostGameActions();
     setTimeout(()=>{document.getElementById('modalOverlay').classList.add('show');if(won)startConfetti();},700);}
   function openAnalysis(){
@@ -3586,10 +3736,31 @@
     particles=particles.filter(p=>p.op>0&&p.y<canvas.height+20);
     confettiAnim=requestAnimationFrame(anim);}
 
-  applyTierConfig();
-  renderHowTo();
-  newGame();
-  applyAudioState();
+  function initializeGhostFleet(){
+    applyTierConfig();
+    renderHowTo();
+    const inviteCode=inviteRoomCodeFromUrl();
+    const saved=savedMultiplayerSession();
+    if(inviteCode&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
+      localStorage.removeItem(mpStorageKey());
+      opponentMode='human';
+      syncOpponentMode();
+      multiplayer.roomCode='';
+      newGame();
+      prefillMultiplayerJoin(inviteCode);
+    } else if(saved&&saved.code&&saved.clientId===getMultiplayerClientId()&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
+      opponentMode='human';
+      syncOpponentMode();
+      multiplayer.roomCode=saved.code;
+      multiplayer.token=saved.token||'';
+      multiplayer.playerIndex=Number.isInteger(saved.playerIndex)?saved.playerIndex:null;
+      newGame();
+    } else {
+      newGame();
+    }
+    applyAudioState();
+  }
+  initializeGhostFleet();
 </script>
 </body>
 </html>
