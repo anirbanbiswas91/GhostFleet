@@ -26,8 +26,8 @@
 </script>
 <style>
   :root{
-    --ocean-bg:url("assets/ghostfleet-ocean-cliff.jpg");
-    --crest-img:url("assets/ghostfleet-crest.png");
+    --ocean-bg:url("/assets/ghostfleet-ocean-cliff.jpg");
+    --crest-img:url("/assets/ghostfleet-crest.png");
     --board-frame-bg:rgba(27,52,83,.62);
     --board-frame-border:rgba(27,52,83,.9);
     --grid-cell-bg:#0d1c23;
@@ -85,6 +85,10 @@
   .multiplayer-brand{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px;}
   .multiplayer-brand img{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#041019;
     box-shadow:0 0 0 2px rgba(226,185,111,.72),0 0 22px rgba(94,234,212,.28);}
+  img.asset-failed{display:none!important;}
+  body.asset-bg-failed{background-image:
+      linear-gradient(180deg,rgba(2,8,13,.08),rgba(2,10,16,.48) 58%,rgba(2,8,13,.74)),
+      radial-gradient(ellipse at 50% 18%,rgba(27,52,83,.62),rgba(6,18,26,.96) 72%);}
   .multiplayer-brand h2{margin:0;font-size:1.85rem;}
   .opponent-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px;}
   .opponent-ai-step{display:none;margin-top:16px;}
@@ -921,7 +925,7 @@
 <div class="modal-overlay" id="opponentOverlay">
   <div class="modal opponent-modal landing-modal" id="opponentDialog">
     <div class="multiplayer-brand">
-      <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+      <img src="/assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
       <h2>GhostFleet</h2>
     </div>
     <p id="opponentIntro">Command a haunted fleet across stormy-dark waters.</p>
@@ -953,7 +957,7 @@
 <div class="modal-overlay" id="multiplayerOverlay">
   <div class="modal multiplayer-modal" id="multiplayerDialog">
     <div class="multiplayer-brand">
-      <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+      <img src="/assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
       <h2>GhostFleet</h2>
     </div>
     <p>Create a room or join a captain with a 6-letter code.</p>
@@ -994,7 +998,7 @@
 <div class="modal-overlay" id="shareRoomOverlay">
   <div class="modal share-modal">
     <div class="multiplayer-brand">
-      <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+      <img src="/assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
       <h2>GhostFleet Room</h2>
     </div>
     <p>Share this battle link with another captain.</p>
@@ -1017,7 +1021,7 @@
 <div class="modal-overlay" id="inviteOverlay">
   <div class="modal invite-modal">
     <div class="multiplayer-brand">
-      <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+      <img src="/assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
       <h2>GhostFleet</h2>
     </div>
     <p>You've been invited to a battle.</p>
@@ -1063,7 +1067,7 @@
     </div>
     <div class="title-copy">
       <span class="brand-crest" aria-hidden="true">
-        <img class="brand-mark" src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+        <img class="brand-mark" src="/assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
       </span>
       <div class="brand-text">
         <h1>GhostFleet</h1>
@@ -1180,11 +1184,11 @@
 
 <script>
   const SHIPS=[
-    {id:0,name:'Carrier',short:'CV',cls:'cv',len:5,icoId:'ship-mark-cv',logoId:'ship-logo-cv',img:'assets/ships-grid/ship-grid-cv.png'},
-    {id:1,name:'Battleship',short:'BB',cls:'bb',len:4,icoId:'ship-mark-bb',logoId:'ship-logo-bb',img:'assets/ships-grid/ship-grid-bb.png'},
-    {id:2,name:'Cruiser',short:'CA',cls:'ca',len:3,icoId:'ship-mark-ca',logoId:'ship-logo-ca',img:'assets/ships-grid/ship-grid-ca.png'},
-    {id:3,name:'Submarine',short:'SS',cls:'ss',len:3,icoId:'ship-mark-ss',logoId:'ship-logo-ss',img:'assets/ships-grid/ship-grid-ss.png'},
-    {id:4,name:'Destroyer',short:'DD',cls:'dd',len:2,icoId:'ship-mark-dd',logoId:'ship-logo-dd',img:'assets/ships-grid/ship-grid-dd.png'}
+    {id:0,name:'Carrier',short:'CV',cls:'cv',len:5,icoId:'ship-mark-cv',logoId:'ship-logo-cv',img:'/assets/ships-grid/ship-grid-cv.png'},
+    {id:1,name:'Battleship',short:'BB',cls:'bb',len:4,icoId:'ship-mark-bb',logoId:'ship-logo-bb',img:'/assets/ships-grid/ship-grid-bb.png'},
+    {id:2,name:'Cruiser',short:'CA',cls:'ca',len:3,icoId:'ship-mark-ca',logoId:'ship-logo-ca',img:'/assets/ships-grid/ship-grid-ca.png'},
+    {id:3,name:'Submarine',short:'SS',cls:'ss',len:3,icoId:'ship-mark-ss',logoId:'ship-logo-ss',img:'/assets/ships-grid/ship-grid-ss.png'},
+    {id:4,name:'Destroyer',short:'DD',cls:'dd',len:2,icoId:'ship-mark-dd',logoId:'ship-logo-dd',img:'/assets/ships-grid/ship-grid-dd.png'}
   ];
   const DIFF_LABELS={easy:'Easy',hard:'Med',expert:'Hard'};
   const BOARD_SIZES=[8,10,12];
@@ -1192,9 +1196,9 @@
   const TURN_WAIT_SCALE=1.35;
   const BANNER_WAIT_SCALE=.75;
   const ACHIEVEMENT_ICONS={
-    firstBlood:'assets/achievement-first-blood-gold.png',
-    precisionStriker:'assets/achievement-precision-striker-gold.png',
-    unsinkable:'assets/achievement-unsinkable-gold.png'
+    firstBlood:'/assets/achievement-first-blood-gold.png',
+    precisionStriker:'/assets/achievement-precision-striker-gold.png',
+    unsinkable:'/assets/achievement-unsinkable-gold.png'
   };
   const TIER_CONFIG=window.GHOSTFLEET_BOOTSTRAP||{};
   const MULTIPLAYER_AVAILABLE=!!(TIER_CONFIG.features&&TIER_CONFIG.features.roomCodeMultiplayer);
@@ -1233,6 +1237,88 @@
     ]
   };
 
+  const CORE_VISUAL_ASSETS=[
+    '/assets/ghostfleet-ocean-cliff.jpg',
+    '/assets/ghostfleet-crest.png'
+  ];
+  const failedAssets=new Set();
+  let assetFallbackRefreshQueued=false;
+
+  function normalizeAssetUrl(value){
+    const raw=String(value||'').trim();
+    if(!raw)return raw;
+    const cssUrlMatch=raw.match(/^url\((['"]?)(.*?)\1\)$/i);
+    if(cssUrlMatch)return `url("${normalizeAssetUrl(cssUrlMatch[2])}")`;
+    if(/^(?:https?:|data:|blob:|\/|#)/i.test(raw))return raw;
+    return '/'+raw.replace(/^\.?\//,'').replace(/^\/+/,'');
+  }
+  function normalizeCssAssetValue(value){
+    if(typeof value!=='string')return value;
+    if(value.includes('assets/')||/^url\(/i.test(value))return normalizeAssetUrl(value);
+    return value;
+  }
+  function canonicalAssetUrl(value){
+    const normalized=normalizeAssetUrl(value);
+    try{
+      const url=new URL(normalized,window.location.origin);
+      if(url.origin===window.location.origin)return url.pathname+url.search;
+      return url.href;
+    }catch(_err){return normalized;}
+  }
+  function isFailedAsset(value){
+    return failedAssets.has(canonicalAssetUrl(value));
+  }
+  function scheduleAssetFallbackRefresh(){
+    if(assetFallbackRefreshQueued)return;
+    assetFallbackRefreshQueued=true;
+    setTimeout(()=>{
+      assetFallbackRefreshQueued=false;
+      refreshVisualAssetFallbacks();
+      if(yourBoard&&enemyBoard){
+        renderBoards();
+        renderShipPicker();
+        renderShipLists();
+      }
+    },0);
+  }
+  function reportAssetFailure(url,element){
+    const canonical=canonicalAssetUrl(url);
+    if(!canonical||failedAssets.has(canonical))return;
+    failedAssets.add(canonical);
+    console.warn('Failed to load asset:',canonical);
+    if(element&&element.classList)element.classList.add('asset-failed');
+    if(canonical.includes('/assets/ghostfleet-ocean-cliff.jpg'))document.body.classList.add('asset-bg-failed');
+    scheduleAssetFallbackRefresh();
+  }
+  function preloadVisualAsset(url){
+    const normalized=normalizeAssetUrl(url);
+    if(!normalized||normalized.startsWith('#'))return;
+    const img=new Image();
+    img.onload=()=>failedAssets.delete(canonicalAssetUrl(normalized));
+    img.onerror=()=>reportAssetFailure(normalized);
+    img.src=normalized;
+  }
+  function collectVisualAssetUrls(){
+    const urls=[...CORE_VISUAL_ASSETS,...SHIPS.map(ship=>ship.img),...Object.values(ACHIEVEMENT_ICONS)];
+    const themeAssets=(TIER_CONFIG.theme&&TIER_CONFIG.theme.assets)||{};
+    if(themeAssets.gridTexture)urls.push(themeAssets.gridTexture);
+    if(themeAssets.panelAccent)urls.push(themeAssets.panelAccent);
+    Object.values(themeAssets.shipMarks||{}).forEach(url=>urls.push(url));
+    return [...new Set(urls.filter(Boolean).map(normalizeAssetUrl))];
+  }
+  function refreshVisualAssetFallbacks(){
+    document.querySelectorAll('img').forEach(img=>{
+      if(isFailedAsset(img.currentSrc||img.src||img.getAttribute('src')))img.classList.add('asset-failed');
+    });
+  }
+  function validateVisualAssets(){
+    collectVisualAssetUrls().forEach(preloadVisualAsset);
+    window.addEventListener('error',event=>{
+      const target=event.target;
+      if(target&&target.tagName==='IMG')reportAssetFailure(target.currentSrc||target.src||target.getAttribute('src'),target);
+    },true);
+  }
+
   function applyTierConfig(){
     const theme=TIER_CONFIG.theme||{};
     document.documentElement.dataset.tier=TIER_CONFIG.tier||'free';
@@ -1241,13 +1327,13 @@
     document.body.classList.remove('theme-classic');
     if(theme.bodyClass)document.body.classList.add(theme.bodyClass);
     Object.entries(theme.cssVars||{}).forEach(([key,value])=>{
-      document.documentElement.style.setProperty(key,value);
+      document.documentElement.style.setProperty(key,normalizeCssAssetValue(value));
     });
     const subtitle=document.querySelector('.subtitle');
     if(subtitle&&theme.subtitle)subtitle.textContent=theme.subtitle;
     const shipMarks=(theme.assets&&theme.assets.shipMarks)||{};
     SHIPS.forEach(ship=>{
-      if(shipMarks[ship.cls])ship.img=shipMarks[ship.cls];
+      if(shipMarks[ship.cls])ship.img=normalizeAssetUrl(shipMarks[ship.cls]);
     });
   }
 
@@ -3633,9 +3719,11 @@
     svg.setAttribute('class','ship-icon');
     svg.setAttribute('viewBox','0 0 100 100');
     svg.setAttribute('preserveAspectRatio','none');
-    const art=document.createElementNS('http://www.w3.org/2000/svg',ship.img?'image':'use');
-    if(ship.img){
-      art.setAttribute('href',ship.img);
+    const shipImg=normalizeAssetUrl(ship.img||'');
+    const useImage=!!shipImg&&!isFailedAsset(shipImg);
+    const art=document.createElementNS('http://www.w3.org/2000/svg',useImage?'image':'use');
+    if(useImage){
+      art.setAttribute('href',shipImg);
       art.setAttribute('preserveAspectRatio','none');
     } else {
       art.setAttribute('href','#'+ship.icoId);
@@ -3897,9 +3985,10 @@
       const card=document.createElement('div');
       card.className='achievement-badge';
       const icon=document.createElement('img');
-      icon.src=a.icon;
+      icon.src=normalizeAssetUrl(a.icon);
       icon.alt='';
       icon.setAttribute('aria-hidden','true');
+      icon.onerror=()=>reportAssetFailure(icon.currentSrc||icon.src,icon);
       const name=document.createElement('strong');
       name.textContent=a.name;
       const detail=document.createElement('span');
@@ -4198,6 +4287,7 @@
   }
   function initializeGhostFleet(){
     applyTierConfig();
+    validateVisualAssets();
     renderHowTo();
     bindPlayerNameValidation();
     const inviteCode=inviteRoomCodeFromUrl();

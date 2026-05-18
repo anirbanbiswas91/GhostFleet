@@ -41,6 +41,7 @@ function serveTier(tierName) {
     if (tierName === 'premium' && !isPremiumAllowed(req)) {
       return res.redirect('/?premium=required');
     }
+    res.set('Cache-Control', 'no-cache');
     res.type('html').send(renderGame(tierName));
   };
 }

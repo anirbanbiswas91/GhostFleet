@@ -20,14 +20,14 @@
     "--premium-red": "#ff6b8a"
   },
   "assets": {
-    "gridTexture": "assets/premium/abyssal-grid-texture.svg",
-    "panelAccent": "assets/premium/abyssal-panel-accent.svg",
+    "gridTexture": "/assets/premium/abyssal-grid-texture.svg",
+    "panelAccent": "/assets/premium/abyssal-panel-accent.svg",
     "shipMarks": {
-      "cv": "assets/premium/ships-grid/ship-grid-cv.png",
-      "bb": "assets/premium/ships-grid/ship-grid-bb.png",
-      "ca": "assets/premium/ships-grid/ship-grid-ca.png",
-      "ss": "assets/premium/ships-grid/ship-grid-ss.png",
-      "dd": "assets/premium/ships-grid/ship-grid-dd.png"
+      "cv": "/assets/premium/ships-grid/ship-grid-cv.png",
+      "bb": "/assets/premium/ships-grid/ship-grid-bb.png",
+      "ca": "/assets/premium/ships-grid/ship-grid-ca.png",
+      "ss": "/assets/premium/ships-grid/ship-grid-ss.png",
+      "dd": "/assets/premium/ships-grid/ship-grid-dd.png"
     }
   }
 }
