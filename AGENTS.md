@@ -9,7 +9,9 @@ This file is the living handoff for coding agents working on the GhostFleet Rail
 - `/free` is a legacy redirect to `/`.
 - `/room/:roomId` serves the same free game shell and lets players open shareable Human multiplayer room links directly.
 - `/premium` still exists for future premium work, but current production uses `GHOSTFLEET_FREE_ONLY=true`.
-- Free mode includes AI and Human multiplayer. The player chooses the opponent in-game.
+- Free mode starts with a full-screen landing overlay: How to Play, Play vs AI, and Play vs Human.
+- AI setup uses user-facing labels `Easy`, `Med`, and `Hard`; internally these still map to `easy`, `hard`, and `expert`.
+- AI and Human setup both support `8x8`, `10x10`, and `12x12` boards.
 - Human multiplayer uses Socket.IO, fixed two-player slots, persistent `clientId` session identity, reconnect/resync, invite links, placement locking, rematch/exit flow, turn timers, and timeout surrender handling.
 - Premium is currently classic/free visual parity plus dormant config. Do not reintroduce Abyssal Radar visuals unless the user explicitly starts that theme pass again.
 
@@ -104,7 +106,10 @@ Socket.IO must remain enabled even when `GHOSTFLEET_FREE_ONLY=true`, because Hum
 
 - GhostFleet’s core objective: guess enemy ship locations, fire one cell per turn, use hits/misses to find ships, and sink the enemy fleet before yours is destroyed.
 - AI mode keeps the difficulty selector.
-- Human mode uses create/share/join room flow and direct room links.
+- Human mode uses a dedicated setup flow with player name, host-selected board size, create/share/join room flow, two-slot waiting lobby, and direct room links.
+- Direct `/room/:roomId` invite links skip the landing overlay and open the join/reconnect flow.
+- Post-game screens must keep the full action contract available: View Analysis, Rematch for Human or New Game for AI, and Exit Room/Game. Analysis Back returns to the result modal.
+- Forfeit, opponent-left, and timeout-surrender results must not award or display achievements.
 - Ads are enabled for the free tier configuration, but production layout must stay non-interruptive.
 - Premium is reserved for future work. Current premium visuals should remain classic/free parity unless a new premium design task says otherwise.
 - Random matchmaking, Stripe payments, and Abyssal Radar premium theming are future milestones.
@@ -129,7 +134,8 @@ For route changes, smoke test:
 For UI changes:
 
 - Inspect desktop and mobile widths.
-- Check 8x8 and 10x10 boards.
+- Check 8x8, 10x10, and 12x12 boards.
+- Check landing, AI setup, Human setup, waiting lobby, result modal, and analysis Back flow.
 - Check AI and Human paths separately.
 - Verify hit, miss, sunk, turn-lock, modal, and battle-log states.
 - Use browser/screenshot testing when layout or playfield visibility changes.
