@@ -46,6 +46,7 @@ function serveTier(tierName) {
 }
 
 app.get('/', serveTier('free'));
+app.get('/room/:roomId', serveTier('free'));
 app.get('/free', (req, res) => {
   const query = new URLSearchParams(req.query).toString();
   res.redirect(301, `/${query ? `?${query}` : ''}`);

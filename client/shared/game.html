@@ -102,7 +102,7 @@
   .multiplayer-field input{width:100%;border:1px solid rgba(125,211,252,.24);border-radius:8px;background:rgba(5,12,18,.84);
     color:#ecfeff;padding:11px 12px;font:700 .9rem inherit;outline:none;text-transform:none;}
   .multiplayer-field input:focus{border-color:#5eead4;box-shadow:0 0 0 2px rgba(94,234,212,.18);}
-  .multiplayer-field.room-code input{text-transform:lowercase;letter-spacing:3px;text-align:center;}
+  .multiplayer-field.room-code input{text-transform:uppercase;letter-spacing:3px;text-align:center;}
   .multiplayer-field.room-code{display:none;}
   .multiplayer-field.room-code.show{display:grid;}
   .multiplayer-field.hidden{display:none;}
@@ -127,6 +127,25 @@
   .room-player span{color:#94a3b8;text-transform:uppercase;letter-spacing:.8px;font-size:.62rem;font-weight:900;}
   .room-player.ready span{color:#6ee7b7;}
   .multiplayer-status{min-height:20px;color:#a7f3f0;font-size:.78rem;text-align:center;margin-top:8px;}
+  .share-modal,.invite-modal,.reconnect-modal,.room-status-modal{max-width:680px;text-align:center;}
+  .share-panel{display:grid;gap:12px;margin-top:14px;}
+  .share-code{font-family:'Courier New',monospace;font-size:2.4rem;letter-spacing:7px;color:#f4c86f;font-weight:900;
+    text-shadow:0 0 22px rgba(244,200,111,.38);background:rgba(2,8,12,.62);border:1px solid rgba(226,185,111,.35);border-radius:10px;padding:14px;}
+  .share-url{width:100%;border:1px solid rgba(94,234,212,.32);border-radius:8px;background:rgba(5,12,18,.9);
+    color:#dffbff;padding:11px 12px;font:800 .84rem 'Courier New',monospace;text-align:center;overflow:hidden;text-overflow:ellipsis;}
+  .share-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+  .sonar-wait{display:flex;align-items:center;justify-content:center;gap:10px;color:#a7f3f0;font-weight:900;font-size:.85rem;letter-spacing:.4px;}
+  .sonar-dot{width:14px;height:14px;border-radius:50%;background:#5eead4;box-shadow:0 0 0 0 rgba(94,234,212,.6);animation:sonarPing 1.45s infinite;}
+  @keyframes sonarPing{70%{box-shadow:0 0 0 16px rgba(94,234,212,0);}100%{box-shadow:0 0 0 0 rgba(94,234,212,0);}}
+  .compass-spin{width:56px;height:56px;margin:10px auto;border:2px solid rgba(94,234,212,.22);border-top-color:#e2b96f;border-radius:50%;animation:spinCompass 1s linear infinite;}
+  @keyframes spinCompass{to{transform:rotate(360deg);}}
+  .disconnect-banner{display:none;position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:900;
+    background:rgba(13,20,27,.94);border:1px solid rgba(226,185,111,.55);border-radius:999px;padding:8px 14px;color:#f8fafc;
+    box-shadow:0 12px 30px rgba(0,0,0,.42);font-weight:850;font-size:.78rem;}
+  .disconnect-banner.show{display:block;}
+  body.turn-warning #enemyWrap{box-shadow:0 0 0 3px rgba(239,68,68,.75),0 0 35px rgba(239,68,68,.35);}
+  .turn-warning-note{display:none;color:#fecaca;font-weight:900;text-align:center;font-size:.76rem;margin-top:4px;}
+  body.turn-warning .turn-warning-note{display:block;}
   html[data-game-mode="human"] .premium-ai-panel{display:none;}
   html[data-game-mode="human"] .premium-label-difficulty{display:none;}
   html[data-game-mode="human"] .premium-label-room{display:flex;}
@@ -141,6 +160,7 @@
   .modal-close:hover{border-color:#e2b96f;color:#e2b96f;}
 @media(max-width:700px){.howto-body{grid-template-columns:1fr;}}
   @media(max-width:520px){
+    .share-actions{grid-template-columns:1fr;}
     .multiplayer-actions{grid-template-columns:1fr;}
     .opponent-actions{grid-template-columns:1fr;}
     .opponent-ai-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
@@ -943,7 +963,7 @@
       <button class="modal-btn mp-opponent-back" id="mpBackBtn" type="button" onclick="returnToOpponentChoice()">Back to Opponent Choice</button>
       <div class="multiplayer-field room-code" id="mpCodeField">
         <label for="mpCode">Room code</label>
-        <input id="mpCode" maxlength="6" autocomplete="off" placeholder="abcdef"/>
+        <input id="mpCode" maxlength="6" autocomplete="off" placeholder="XK4BNM"/>
       </div>
     </div>
     <div class="multiplayer-room-card" id="mpRoomCard">
@@ -955,6 +975,69 @@
     </div>
   </div>
 </div>
+
+<div class="modal-overlay" id="shareRoomOverlay">
+  <div class="modal share-modal">
+    <div class="multiplayer-brand">
+      <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+      <h2>GhostFleet Room</h2>
+    </div>
+    <p>Share this battle link with another captain.</p>
+    <div class="share-panel">
+      <div class="share-code" id="shareRoomCode">------</div>
+      <input class="share-url" id="shareRoomUrl" readonly value="" onclick="copyRoomLink()"/>
+      <div class="share-actions">
+        <button class="modal-btn" id="copyRoomBtn" type="button" onclick="copyRoomLink()">Copy Link</button>
+        <button class="modal-btn" type="button" onclick="shareRoomLink()">Share</button>
+        <button class="modal-btn" type="button" onclick="shareRoomWhatsApp()">WhatsApp</button>
+      </div>
+      <div class="sonar-wait"><span class="sonar-dot"></span><span>Waiting for opponent to join...</span></div>
+      <button class="modal-btn mp-opponent-back" type="button" onclick="cancelMultiplayerRoom()">Cancel Room</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="inviteOverlay">
+  <div class="modal invite-modal">
+    <div class="multiplayer-brand">
+      <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
+      <h2>GhostFleet</h2>
+    </div>
+    <p>You've been invited to a battle.</p>
+    <div class="multiplayer-form">
+      <div class="multiplayer-field">
+        <label for="inviteName">Player Name</label>
+        <input id="inviteName" maxlength="18" autocomplete="nickname" placeholder="Captain"/>
+      </div>
+      <button class="modal-btn" type="button" onclick="joinInviteRoom()">Join Battle</button>
+      <button class="modal-btn mp-opponent-back" type="button" onclick="startNewBattle()">Start New Game</button>
+    </div>
+    <div class="multiplayer-status" id="inviteStatus"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="reconnectOverlay">
+  <div class="modal reconnect-modal">
+    <div class="compass-spin"></div>
+    <h2 id="reconnectTitle">Reconnecting to battle...</h2>
+    <p id="reconnectMsg">Restoring your GhostFleet room.</p>
+    <div class="modal-buttons" id="reconnectActions" style="display:none;">
+      <button class="modal-btn" type="button" onclick="retryRoomReconnect()">Try Again</button>
+      <button class="modal-btn" type="button" onclick="startNewBattle()">New Game</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="roomStatusOverlay">
+  <div class="modal room-status-modal">
+    <span class="modal-icon" id="roomStatusIcon">⚓</span>
+    <h2 id="roomStatusTitle">Room Expired</h2>
+    <p id="roomStatusMsg">This game has ended.</p>
+    <button class="modal-btn" type="button" onclick="startNewBattle()">Start a New Game</button>
+  </div>
+</div>
+
+<div class="disconnect-banner" id="disconnectBanner"></div>
 
 <div class="page-wrap">
   <div class="title-pane">
@@ -1123,8 +1206,8 @@
     ],
     multiplayer:[
       ['Objective','Guess where the other captain hid their ships. Fire one cell per turn, use hits and misses to hunt them down, and sink every enemy ship before your fleet is destroyed. Whoever survives wins.'],
-      ['Create or join','Enter your Player Name, choose 8×8 or 10×10 before creating a room, then share the 6-letter room code. The second captain joins with that code and uses the host room size.'],
-      ['Room flow','Player 2 joins with the shared code, then both captains move into ship placement automatically.'],
+      ['Create or join','Choose Human to create a room link instantly. Share the /room/XXXXXX link so another captain can join without typing a code.'],
+      ['Room flow','Player 2 opens the shared link, enters a name, then both captains move into ship placement automatically.'],
       ['Place ships','Place your fleet normally. When all ships are placed, press Ready above the board to submit your fleet.'],
       ['Battle','Turns are controlled online. You can fire only when the turn banner says it is your turn.'],
       ['Privacy','Enemy ships stay hidden until they are sunk or the match ends.'],
@@ -1195,8 +1278,12 @@
     resumeBound:false,
     restoring:false,
     turnDeadlineAt:null,
-    turnDurationMs:90000,
+    turnDurationMs:120000,
     turnCountdownTimer:null,
+    reconnectFailTimer:null,
+    opponentDisconnectTimer:null,
+    opponentDisconnectUntil:null,
+    lastWarningSecond:null,
     endReason:''
   };
   let statusState={cls:'placing',msg:'Place your fleet to begin!'};
@@ -1245,10 +1332,20 @@
     multiplayer.roomBoardSize=N;
     updateMultiplayerRoomSize();
     hideOpponentOverlay();
+    multiplayer.suppressLobby=true;
     newGame();
+    multiplayer.suppressLobby=false;
+    multiplayer.playerName=sessionStorage.getItem('ghostfleet-player-name')||'Captain';
+    sendMultiplayerEvent('create_room',{playerName:multiplayer.playerName,gridSize:multiplayer.roomBoardSize||N},'Creating room...');
   }
   function startNewBattle(){
     if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
+    sessionStorage.removeItem(mpStorageKey());
+    if(window.location.pathname.startsWith('/room/'))history.pushState({},'','/');
+    hideShareRoomScreen?.();
+    hideInviteOverlay?.();
+    hideReconnectOverlay?.();
+    hideRoomStatus?.();
     if(MODE_SELECTION_ENABLED){
       opponentMode=null;
       syncOpponentMode();
@@ -1287,10 +1384,13 @@
     });
     updateExitControls();
   }
+  function multiplayerTurnSecondsRemaining(){
+    if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='playing'||!multiplayer.turnDeadlineAt)return null;
+    return Math.max(0,Math.ceil((multiplayer.turnDeadlineAt-Date.now())/1000));
+  }
   function multiplayerTurnTimerText(){
-    if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='playing'||!multiplayer.turnDeadlineAt)return '';
-    const remaining=Math.max(0,Math.ceil((multiplayer.turnDeadlineAt-Date.now())/1000));
-    return remaining+'s';
+    const remaining=multiplayerTurnSecondsRemaining();
+    return remaining===null?'':remaining+'s';
   }
   function refreshStatusReadout(){
     const m={waiting:'sr-waiting',placing:'sr-placing',
@@ -1299,15 +1399,25 @@
     if(!el)return;
     const timer=multiplayerTurnTimerText();
     el.className='status-readout '+(m[statusState.cls]||'sr-waiting');
-    el.textContent=statusState.msg+(timer?' · '+timer:'');
+    el.textContent=statusState.msg+(timer?' / '+timer:'');
   }
   function stopMultiplayerCountdown(){
     if(multiplayer.turnCountdownTimer){
       clearInterval(multiplayer.turnCountdownTimer);
       multiplayer.turnCountdownTimer=null;
     }
+    document.body.classList.remove('turn-warning');
+    multiplayer.lastWarningSecond=null;
   }
   function refreshMultiplayerCountdown(){
+    const remaining=multiplayerTurnSecondsRemaining();
+    const warn=multiplayer.myTurn&&remaining!==null&&remaining<=30&&phase==='playing';
+    document.body.classList.toggle('turn-warning',!!warn);
+    if(warn)statusState={cls:'yourturn',msg:'Fire now - '+remaining+' seconds remaining'};
+    if(warn&&remaining<=10&&remaining!==multiplayer.lastWarningSecond){
+      multiplayer.lastWarningSecond=remaining;
+      playUrgentTick();
+    }
     refreshStatusReadout();
     updateModeUI();
     if(!multiplayerTurnTimerText())stopMultiplayerCountdown();
@@ -1421,6 +1531,13 @@
       g.gain.setValueAtTime(0,t+d);g.gain.linearRampToValueAtTime(0.25,t+d+0.02);
       g.gain.exponentialRampToValueAtTime(0.001,t+d+0.18);
       o.connect(g).connect(audioOutput());o.start(t+d);o.stop(t+d+0.2);});}
+
+  function playUrgentTick(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type='square';o.frequency.value=1180;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.14,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
+    o.connect(g).connect(audioOutput());o.start(t);o.stop(t+0.1);}
 
   // Soft descending two-note chime for enemy turn
   function playEnemyTurnStinger(){
@@ -1772,18 +1889,21 @@
   function closeHowTo(){document.getElementById('howToOverlay').classList.remove('show');}
 
   function mpStorageKey(){
-    return 'ghostfleet-'+(TIER_CONFIG.tier||'free')+'-room';
+    return 'gf_session';
   }
   function normalizeRoomCode(value){
-    const code=String(value||'').trim().toLowerCase();
-    return /^[a-z]{6}$/.test(code)?code:'';
+    const code=String(value||'').trim().toUpperCase();
+    return /^[A-HJ-NP-Z2-9]{6}$/.test(code)?code:'';
   }
   function inviteRoomCodeFromUrl(){
-    try{return normalizeRoomCode(new URLSearchParams(window.location.search).get('room'));}
+    try{
+      const match=window.location.pathname.match(/^\/room\/([A-HJ-NP-Z2-9]{6})$/i);
+      return match?normalizeRoomCode(match[1]):'';
+    }
     catch(_){return '';}
   }
   function savedMultiplayerSession(){
-    try{return JSON.parse(localStorage.getItem(mpStorageKey())||'null');}
+    try{return JSON.parse(sessionStorage.getItem(mpStorageKey())||'null');}
     catch(_){return null;}
   }
   function getMultiplayerClientId(){
@@ -1803,11 +1923,14 @@
   }
   function saveMultiplayerSession(){
     if(!multiplayer.roomCode)return;
-    localStorage.setItem(mpStorageKey(),JSON.stringify({
+    sessionStorage.setItem(mpStorageKey(),JSON.stringify({
+      roomId:multiplayer.roomCode,
       code:multiplayer.roomCode,
       token:multiplayer.token,
       playerIndex:multiplayer.playerIndex,
-      clientId:multiplayer.clientId
+      playerName:multiplayer.playerName,
+      clientId:multiplayer.clientId,
+      savedAt:Date.now()
     }));
   }
   function showMultiplayerToast(message){
@@ -1843,9 +1966,12 @@
   }
   function multiplayerInviteLink(){
     if(!multiplayer.roomCode)return '';
-    const url=new URL(window.location.href);
-    url.searchParams.set('room',multiplayer.roomCode);
-    return url.toString();
+    return window.location.origin+'/room/'+multiplayer.roomCode;
+  }
+  function syncRoomUrl(){
+    if(!multiplayer.roomCode)return;
+    const path='/room/'+multiplayer.roomCode;
+    if(window.location.pathname!==path)history.pushState({},'',path);
   }
   function copyMultiplayerInviteLink(){
     const link=multiplayerInviteLink();
@@ -1861,6 +1987,39 @@
       done();
     }
   }
+  function showShareRoomScreen(){
+    hideMultiplayerLobby();
+    const overlay=document.getElementById('shareRoomOverlay');
+    const code=document.getElementById('shareRoomCode');
+    const url=document.getElementById('shareRoomUrl');
+    if(code)code.textContent=multiplayer.roomCode||'------';
+    if(url)url.value=multiplayerInviteLink();
+    if(overlay)overlay.classList.add('show');
+  }
+  function hideShareRoomScreen(){
+    const overlay=document.getElementById('shareRoomOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function copyRoomLink(){
+    const link=multiplayerInviteLink();
+    const btn=document.getElementById('copyRoomBtn');
+    const done=()=>{if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy Link',2000);}};
+    if(!link)return;
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(done).catch(()=>{window.prompt('Copy this GhostFleet invite link:',link);done();});
+    else {window.prompt('Copy this GhostFleet invite link:',link);done();}
+  }
+  function shareRoomLink(){
+    const link=multiplayerInviteLink();
+    if(!link)return;
+    if(navigator.share){
+      navigator.share({title:'GhostFleet',text:'Join my naval battle!',url:link}).catch(()=>copyRoomLink());
+    } else copyRoomLink();
+  }
+  function shareRoomWhatsApp(){
+    const link=multiplayerInviteLink();
+    if(!link)return;
+    window.open('https://wa.me/?text='+encodeURIComponent('Join my GhostFleet battle! '+link),'_blank','noopener');
+  }
   function setMultiplayerSetupSize(size){
     if(multiplayer.joined)return;
     if(!BOARD_SIZES.includes(size))size=8;
@@ -1874,7 +2033,7 @@
     const overlay=document.getElementById('multiplayerOverlay');
     if(overlay)overlay.classList.add('show');
     setMultiplayerStatus(message||'Create a room or join a captain with a 6-letter code.');
-    const savedName=localStorage.getItem('ghostfleet-player-name')||'';
+    const savedName=sessionStorage.getItem('ghostfleet-player-name')||'';
     const nameInput=document.getElementById('mpName');
     if(nameInput&&!nameInput.value)nameInput.value=savedName;
     if(!multiplayer.joined)setJoinMode(false);
@@ -1896,6 +2055,85 @@
   function hideMultiplayerLobby(){
     const overlay=document.getElementById('multiplayerOverlay');
     if(overlay)overlay.classList.remove('show');
+  }
+  function showInviteOverlay(code,message){
+    const room=normalizeRoomCode(code);
+    if(!room)return;
+    multiplayer.roomCode=room;
+    hideOpponentOverlay();hideMultiplayerLobby();hideShareRoomScreen();
+    const overlay=document.getElementById('inviteOverlay');
+    const input=document.getElementById('inviteName');
+    const saved=sessionStorage.getItem('ghostfleet-player-name')||'';
+    if(input&&!input.value)input.value=saved;
+    const status=document.getElementById('inviteStatus');
+    if(status)status.textContent=message||('Room '+room+' is waiting for your callsign.');
+    if(overlay)overlay.classList.add('show');
+    if(input)setTimeout(()=>input.focus(),0);
+  }
+  function hideInviteOverlay(){
+    const overlay=document.getElementById('inviteOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function showReconnectOverlay(message){
+    const overlay=document.getElementById('reconnectOverlay');
+    const msg=document.getElementById('reconnectMsg');
+    const actions=document.getElementById('reconnectActions');
+    if(msg)msg.textContent=message||'Restoring your GhostFleet room.';
+    if(actions)actions.style.display='none';
+    if(overlay)overlay.classList.add('show');
+    clearTimeout(multiplayer.reconnectFailTimer);
+    multiplayer.reconnectFailTimer=setTimeout(()=>{
+      if(!multiplayer.joined){
+        if(msg)msg.textContent='Could not reconnect. The room may have expired.';
+        if(actions)actions.style.display='flex';
+      }
+    },10000);
+  }
+  function hideReconnectOverlay(){
+    clearTimeout(multiplayer.reconnectFailTimer);
+    const overlay=document.getElementById('reconnectOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function showRoomStatus(title,message){
+    hideOpponentOverlay();hideMultiplayerLobby();hideShareRoomScreen();hideInviteOverlay();hideReconnectOverlay();
+    const overlay=document.getElementById('roomStatusOverlay');
+    const titleEl=document.getElementById('roomStatusTitle');
+    const msgEl=document.getElementById('roomStatusMsg');
+    if(titleEl)titleEl.textContent=title||'Room Expired';
+    if(msgEl)msgEl.textContent=message||'This game has ended.';
+    if(overlay)overlay.classList.add('show');
+  }
+  function hideRoomStatus(){
+    const overlay=document.getElementById('roomStatusOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function retryRoomReconnect(){
+    const code=multiplayer.roomCode||inviteRoomCodeFromUrl();
+    if(code)sendMultiplayerEvent('reconnect_room',{roomId:code},'Reconnecting to battle...');
+  }
+  function stopOpponentDisconnectBanner(){
+    if(multiplayer.opponentDisconnectTimer){
+      clearInterval(multiplayer.opponentDisconnectTimer);
+      multiplayer.opponentDisconnectTimer=null;
+    }
+    multiplayer.opponentDisconnectUntil=null;
+    const banner=document.getElementById('disconnectBanner');
+    if(banner)banner.classList.remove('show');
+  }
+  function showOpponentDisconnectBanner(payload){
+    const banner=document.getElementById('disconnectBanner');
+    if(!banner)return;
+    multiplayer.opponentDisconnectUntil=Number(payload&&payload.expiresAt)||Date.now()+90000;
+    const name=(payload&&payload.name)||multiplayerOpponentLabel();
+    const tick=()=>{
+      const left=Math.max(0,Math.ceil((multiplayer.opponentDisconnectUntil-Date.now())/1000));
+      banner.textContent=name+' disconnected - waiting '+left+'s for reconnect';
+      banner.classList.add('show');
+      if(left<=0)stopOpponentDisconnectBanner();
+    };
+    tick();
+    if(multiplayer.opponentDisconnectTimer)clearInterval(multiplayer.opponentDisconnectTimer);
+    multiplayer.opponentDisconnectTimer=setInterval(tick,1000);
   }
   function sendMultiplayerHeartbeat(){
     const socket=multiplayer.socket;
@@ -1926,19 +2164,31 @@
       if(multiplayer.joined){sendMultiplayerHeartbeat();return;}
       setMultiplayerStatus('Connected. Create a room or join with a code.');
       const saved=savedMultiplayerSession();
-      if(saved&&saved.code&&saved.clientId===multiplayer.clientId&&!multiplayer.joined){
+      if(saved&&(saved.roomId||saved.code)&&saved.clientId===multiplayer.clientId&&!multiplayer.joined&&!multiplayer.restoring){
         multiplayer.restoring=true;
-        socket.emit('match:rejoin',multiplayerPayload({code:saved.code,token:saved.token||''}));
-        setMultiplayerStatus('Restoring room '+saved.code+'...');
+        const roomId=normalizeRoomCode(saved.roomId||saved.code);
+        multiplayer.roomCode=roomId;
+        socket.emit('reconnect_room',multiplayerPayload({roomId,token:saved.token||''}));
+        setMultiplayerStatus('Restoring room '+roomId+'...');
       }
     });
-    socket.on('room:joined',handleMultiplayerJoined);
+    socket.on('room_created',payload=>handleMultiplayerJoined(payload,{created:true}));
+    socket.on('joined_room',payload=>handleMultiplayerJoined(payload,{joined:true}));
+    socket.on('room:joined',payload=>{
+      if(payload&&payload.roomId&&payload.roomId===multiplayer.roomCode)return;
+      handleMultiplayerJoined(payload,{legacy:true});
+    });
     socket.on('room:update',applyMultiplayerSnapshot);
+    socket.on('room_ready',snapshot=>{
+      hideShareRoomScreen();
+      applyMultiplayerSnapshot(snapshot);
+    });
     socket.on('match:startPlacement',beginMultiplayerPlacement);
     socket.on('match:startBattle',beginMultiplayerBattle);
     socket.on('turn:update',handleMultiplayerTurn);
     socket.on('shot:result',handleMultiplayerShot);
     socket.on('match:end',finishMultiplayerMatch);
+    socket.on('game_over',finishMultiplayerMatch);
     socket.on('resync',handleMultiplayerResync);
     socket.on('opponent_placement_done',payload=>{
       setMultiplayerStatus((payload&&payload.msg)||'Opponent is ready. Waiting for you.');
@@ -1947,18 +2197,36 @@
     socket.on('turn_timeout',payload=>{
       setMultiplayerStatus((payload&&payload.msg)||'Turn timed out.');
     });
+    socket.on('opponent_temporarily_disconnected',payload=>{
+      showOpponentDisconnectBanner(payload);
+    });
+    socket.on('opponent_reconnected',payload=>{
+      stopOpponentDisconnectBanner();
+      showMultiplayerToast((payload&&payload.msg)||'Opponent reconnected');
+    });
     socket.on('opponent_disconnected',payload=>{
       multiplayer.pendingShot=false;
       inputLocked=true;
       setMultiplayerStatus((payload&&payload.msg)||'Opponent disconnected. Exit the room to start again.');
       setStatus('waiting','Opponent disconnected.');
-      localStorage.removeItem(mpStorageKey());
+      sessionStorage.removeItem(mpStorageKey());
+    });
+    socket.on('room_expired',payload=>{
+      sessionStorage.removeItem(mpStorageKey());
+      multiplayer.joined=false;
+      showRoomStatus('Room Expired',(payload&&payload.msg)||'This game has ended. Both players left the room.');
     });
     socket.on('error:message',payload=>{
       setMultiplayerStatus((payload&&payload.message)||'Multiplayer error.');
+      if(payload&&(payload.code==='ROOM_NOT_FOUND'||payload.code==='room_not_found')){
+        sessionStorage.removeItem(mpStorageKey());
+        multiplayer.restoring=false;
+        showRoomStatus('Room Not Found','Room not found or has expired.');
+        return;
+      }
       if(multiplayer.restoring){
         multiplayer.restoring=false;
-        localStorage.removeItem(mpStorageKey());
+        sessionStorage.removeItem(mpStorageKey());
         multiplayer.joined=false;
         multiplayer.roomCode='';
         multiplayer.playerIndex=null;
@@ -2040,7 +2308,7 @@
   function multiplayerName(){
     const el=document.getElementById('mpName');
     const name=(el&&el.value.trim())||'Captain';
-    localStorage.setItem('ghostfleet-player-name',name);
+    sessionStorage.setItem('ghostfleet-player-name',name);
     return name;
   }
   function createMultiplayerRoom(){
@@ -2049,18 +2317,37 @@
     multiplayer.playerName=multiplayerName();
     N=multiplayer.roomBoardSize||N;
     updateSizeButtons();
-    sendMultiplayerEvent('room:create',{displayName:multiplayer.playerName,boardSize:N},'Creating room...');
+    sendMultiplayerEvent('create_room',{playerName:multiplayer.playerName,gridSize:N},'Creating room...');
   }
   function joinMultiplayerRoom(){
     if(!multiplayer.joinMode){setJoinMode(true);return;}
-    const code=(document.getElementById('mpCode').value||'').trim().toLowerCase();
-    if(!/^[a-z]{6}$/.test(code)){setMultiplayerStatus('Enter the 6-letter room code from player 1.');return;}
+    const code=normalizeRoomCode(document.getElementById('mpCode').value||'');
+    if(!code){setMultiplayerStatus('Enter the 6-letter room code from player 1.');return;}
     multiplayer.playerName=multiplayerName();
-    sendMultiplayerEvent('room:join',{code,displayName:multiplayer.playerName},'Joined. Preparing ship placement...');
+    sendMultiplayerEvent('join_room',{roomId:code,playerName:multiplayer.playerName},'Joined. Preparing ship placement...');
   }
-  function handleMultiplayerJoined(payload){
+  function joinInviteRoom(){
+    const code=normalizeRoomCode(multiplayer.roomCode||inviteRoomCodeFromUrl());
+    const input=document.getElementById('inviteName');
+    const name=(input&&input.value.trim())||'Captain';
+    if(!code){
+      const status=document.getElementById('inviteStatus');
+      if(status)status.textContent='Room link is not valid.';
+      return;
+    }
+    sessionStorage.setItem('ghostfleet-player-name',name);
+    multiplayer.playerName=name;
+    sendMultiplayerEvent('join_room',{roomId:code,playerName:name},'Joining battle...');
+  }
+  function cancelMultiplayerRoom(){
+    if(!multiplayer.roomCode){startNewBattle();return;}
+    sendMultiplayerEvent('cancel_room',{roomId:multiplayer.roomCode},'Cancelling room...');
+    leaveMultiplayerRoom(false);
+    startNewBattle();
+  }
+  function handleMultiplayerJoined(payload,meta={}){
     multiplayer.joined=true;
-    multiplayer.roomCode=payload.code;
+    multiplayer.roomCode=normalizeRoomCode(payload.roomId||payload.code);
     multiplayer.playerId=payload.playerId;
     multiplayer.playerIndex=Number.isInteger(payload.playerIndex)?payload.playerIndex:null;
     multiplayer.clientId=payload.clientId||multiplayer.clientId||getMultiplayerClientId();
@@ -2069,22 +2356,27 @@
     multiplayer.rematchRequested=false;
     multiplayer.restoring=false;
     saveMultiplayerSession();
+    syncRoomUrl();
+    hideReconnectOverlay();
+    hideInviteOverlay();
+    hideRoomStatus();
     const codeEl=document.getElementById('mpRoomCode');
-    if(codeEl)codeEl.textContent=payload.code;
+    if(codeEl)codeEl.textContent=multiplayer.roomCode;
     const card=document.getElementById('mpRoomCard');
     if(card)card.classList.add('show');
     setJoinMode(false);
     updateMultiplayerRoomLabel();
     updateMultiplayerRoomSize();
     applyMultiplayerSnapshot(payload.snapshot);
+    if(meta.created&&payload.snapshot&&payload.snapshot.phase==='waiting')showShareRoomScreen();
   }
   function applyMultiplayerSnapshot(snapshot){
     if(!snapshot)return;
     multiplayer.roomPhase=snapshot.phase||multiplayer.roomPhase;
-    multiplayer.roomCode=snapshot.code||multiplayer.roomCode;
+    multiplayer.roomCode=normalizeRoomCode(snapshot.roomId||snapshot.code)||multiplayer.roomCode;
     if(Number.isInteger(snapshot.playerIndex))multiplayer.playerIndex=snapshot.playerIndex;
     if(snapshot.turnSlot===0||snapshot.turnSlot===1)multiplayer.turnSlot=snapshot.turnSlot;
-    N=snapshot.boardSize||N;
+    N=snapshot.gridSize||snapshot.boardSize||N;
     multiplayer.roomBoardSize=N;
     updateSizeButtons();
     updateMultiplayerRoomLabel();
@@ -2100,6 +2392,7 @@
     renderMultiplayerPlayers(snapshot.players||[]);
     updateMultiplayerEndState(snapshot);
     syncMultiplayerTimer(snapshot);
+    if(multiplayer.joined)saveMultiplayerSession();
     if(snapshot.phase==='waiting'){
       const occupied=(snapshot.players||[]).filter(player=>player&&player.id).length;
       showMultiplayerLobby(occupied<2?'Share this code with player 2.':'Joined. Preparing ship placement...');
@@ -2208,6 +2501,8 @@
   function beginMultiplayerPlacement(snapshot){
     applyMultiplayerSnapshot(snapshot);
     hideMultiplayerLobby();
+    hideShareRoomScreen();
+    hideInviteOverlay();
     resetLocalMultiplayerPlacement(snapshot);
   }
   function submitMultiplayerFleet(){
@@ -2227,6 +2522,8 @@
   function beginMultiplayerBattle(snapshot){
     applyMultiplayerSnapshot(snapshot);
     hideMultiplayerLobby();
+    hideShareRoomScreen();
+    hideInviteOverlay();
     phase='playing';
     multiplayer.waitingForOpponent=false;
     multiplayer.placementSubmitted=true;
@@ -2322,6 +2619,9 @@
   }
   function handleMultiplayerResync(snapshot){
     applyMultiplayerSnapshot(snapshot);
+    hideReconnectOverlay();
+    hideShareRoomScreen();
+    hideInviteOverlay();
     if(snapshot.phase==='placing'){
       phase='placing';
       if(snapshot.you&&snapshot.you.ships&&snapshot.you.ships.length)hydrateMultiplayerBoards(snapshot);
@@ -2361,12 +2661,15 @@
     if(won)wins++;else losses++;
     multiplayer.rematchRequested=false;
     multiplayer.endReason=snapshot.endReason||'ships_sunk';
-    endedBySurrender=!won&&multiplayer.endReason==='timeout_forfeit';
+    endedBySurrender=!won&&multiplayer.endReason==='timeout_surrender';
     lastGameWon=won;
+    stopMultiplayerCountdown();
+    stopOpponentDisconnectBanner();
+    saveMultiplayerSession();
     endGame(won);
   }
-  function leaveMultiplayerRoom(){
-    if(multiplayer.socket&&multiplayer.joined)multiplayer.socket.emit('room:leave',multiplayerPayload({}));
+  function leaveMultiplayerRoom(emitLeave=true){
+    if(emitLeave&&multiplayer.socket&&multiplayer.joined)multiplayer.socket.emit('room:leave',multiplayerPayload({}));
     multiplayer.joined=false;
     multiplayer.roomCode='';
     multiplayer.playerId='';
@@ -2384,7 +2687,8 @@
     multiplayer.turnDeadlineAt=null;
     multiplayer.endReason='';
     stopMultiplayerCountdown();
-    localStorage.removeItem(mpStorageKey());
+    stopOpponentDisconnectBanner();
+    sessionStorage.removeItem(mpStorageKey());
     const card=document.getElementById('mpRoomCard');
     if(card)card.classList.remove('show');
     setJoinMode(false);
@@ -3643,7 +3947,7 @@
       if(multiplayer.endReason==='opponent_left'&&won){
         modalSubtitle='Opponent left the room. You win by surrender.';
         specialResultMsg=multiplayerOpponentLabel()+' left the room. Victory awarded.';
-      } else if(multiplayer.endReason==='timeout_forfeit'){
+      } else if(multiplayer.endReason==='timeout_surrender'){
         if(won){
           modalSubtitle='Opponent missed three turn timers. You win by surrender.';
           specialResultMsg=multiplayerOpponentLabel()+' timed out three turns in a row.';
@@ -3681,6 +3985,11 @@
   function closeAnalysis(){document.getElementById('analysisOverlay').classList.remove('show');}
   function closeModal(n){
     if(n&&MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='ended'){
+      if(multiplayer.endReason==='timeout_surrender'){
+        leaveMultiplayerRoom(false);
+        startNewBattle();
+        return;
+      }
       requestMultiplayerRematch();
       return;
     }
@@ -3736,25 +4045,46 @@
     particles=particles.filter(p=>p.op>0&&p.y<canvas.height+20);
     confettiAnim=requestAnimationFrame(anim);}
 
+  function startUrlRoomReconnect(roomId,saved){
+    opponentMode='human';
+    syncOpponentMode();
+    multiplayer.roomCode=roomId;
+    multiplayer.token=(saved&&saved.token)||'';
+    multiplayer.playerIndex=saved&&Number.isInteger(saved.playerIndex)?saved.playerIndex:null;
+    multiplayer.playerName=(saved&&saved.playerName)||sessionStorage.getItem('ghostfleet-player-name')||'Captain';
+    multiplayer.restoring=true;
+    multiplayer.suppressLobby=true;
+    newGame();
+    multiplayer.suppressLobby=false;
+    showReconnectOverlay('Reconnecting to room '+roomId+'...');
+    sendMultiplayerEvent('reconnect_room',{roomId,token:multiplayer.token},'Reconnecting to battle...');
+  }
   function initializeGhostFleet(){
     applyTierConfig();
     renderHowTo();
     const inviteCode=inviteRoomCodeFromUrl();
     const saved=savedMultiplayerSession();
     if(inviteCode&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
-      localStorage.removeItem(mpStorageKey());
-      opponentMode='human';
-      syncOpponentMode();
-      multiplayer.roomCode='';
-      newGame();
-      prefillMultiplayerJoin(inviteCode);
-    } else if(saved&&saved.code&&saved.clientId===getMultiplayerClientId()&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
-      opponentMode='human';
-      syncOpponentMode();
-      multiplayer.roomCode=saved.code;
-      multiplayer.token=saved.token||'';
-      multiplayer.playerIndex=Number.isInteger(saved.playerIndex)?saved.playerIndex:null;
-      newGame();
+      const savedRoom=normalizeRoomCode(saved&&(saved.roomId||saved.code));
+      const sameSaved=saved&&saved.clientId===getMultiplayerClientId()&&savedRoom===inviteCode;
+      if(sameSaved)startUrlRoomReconnect(inviteCode,saved);
+      else if(savedRoom&&savedRoom!==inviteCode&&!window.confirm('You have an active GhostFleet room. Join this new room instead?')){
+        history.pushState({},'','/room/'+savedRoom);
+        startUrlRoomReconnect(savedRoom,saved);
+      } else {
+        sessionStorage.removeItem(mpStorageKey());
+        opponentMode='human';
+        syncOpponentMode();
+        multiplayer.roomCode=inviteCode;
+        multiplayer.suppressLobby=true;
+        newGame();
+        multiplayer.suppressLobby=false;
+        showInviteOverlay(inviteCode);
+      }
+    } else if(saved&&saved.clientId===getMultiplayerClientId()&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE&&window.location.pathname.startsWith('/room/')){
+      const savedRoom=normalizeRoomCode(saved.roomId||saved.code);
+      if(savedRoom)startUrlRoomReconnect(savedRoom,saved);
+      else newGame();
     } else {
       newGame();
     }

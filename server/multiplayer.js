@@ -12,11 +12,13 @@ const SHIPS = [
 const ROOM_TTL_MS = 30 * 60 * 1000;
 const DISCONNECT_GRACE_MS = 90 * 1000;
 const ENDED_ROOM_GRACE_MS = 60 * 1000;
-const TURN_TIMEOUT_MS = positiveIntEnv('GHOSTFLEET_TURN_TIMEOUT_MS', 90 * 1000);
+const EXPIRED_ROOM_TTL_MS = 10 * 60 * 1000;
+const TURN_TIMEOUT_MS = positiveIntEnv('GHOSTFLEET_TURN_TIMEOUT_MS', 120 * 1000);
 const TIMEOUT_FORFEIT_LIMIT = 3;
-const ROOM_CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz';
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PHASES = new Set(['waiting', 'placing', 'battle', 'ended']);
 const rooms = new Map();
+const expiredRooms = new Map();
 
 function positiveIntEnv(name, fallback) {
   const value = Number.parseInt(process.env[name] || '', 10);
@@ -32,6 +34,30 @@ function makeRoomCode() {
     if (!rooms.has(code)) return code;
   }
   throw new Error('Unable to allocate room code');
+}
+
+function normalizeRoomCode(value) {
+  const code = String(value || '').trim().toUpperCase();
+  return code.length === 6 && [...code].every(char => ROOM_CODE_ALPHABET.includes(char)) ? code : '';
+}
+
+function roomUrl(code) {
+  return `/room/${code}`;
+}
+
+function tombstoneRoom(code, reason = 'expired') {
+  if (!code) return;
+  expiredRooms.set(code, { reason, expiresAt: Date.now() + EXPIRED_ROOM_TTL_MS });
+}
+
+function roomExpired(code) {
+  const entry = expiredRooms.get(code);
+  if (!entry) return false;
+  if (entry.expiresAt <= Date.now()) {
+    expiredRooms.delete(code);
+    return false;
+  }
+  return true;
 }
 
 function makeId(prefix) {
@@ -153,16 +179,22 @@ function playerSnapshot(room, slot) {
   const opponentBoard = sanitizeBoardForOpponent(opponent, room);
   return {
     code: room.code,
+    roomId: room.code,
+    roomUrl: roomUrl(room.code),
     phase: room.phase,
     boardSize: room.boardSize,
+    gridSize: room.boardSize,
     turn: room.turn !== null && room.players[room.turn] ? room.players[room.turn].id : null,
     turnSlot: room.turn,
     turnDeadlineAt: room.turnDeadlineAt || null,
     turnDurationMs: TURN_TIMEOUT_MS,
     winner: winner ? winner.id : null,
     winnerSlot: room.winnerSlot,
+    winnerId: room.winnerSlot,
     winnerName: winner ? winner.displayName : '',
+    reason: room.endReason || '',
     endReason: room.endReason || '',
+    consecutiveTimeouts: viewer ? viewer.timeoutStreak || 0 : 0,
     playerIndex: slot,
     opponentName: opponent ? opponent.displayName : '',
     yourBoard: youBoard,
@@ -262,13 +294,27 @@ function createPlayer(socket, slot, clientId, displayName, token = '') {
 function bindSocketToPlayer(room, socket, slot) {
   const player = room.players[slot];
   if (!player) return null;
+  const wasDisconnected = !player.connected;
   player.socketId = socket.id;
   player.connected = true;
+  if (room.clientMap) {
+    room.clientMap[player.clientId] = { slot, socketId: socket.id, name: player.displayName };
+  }
   socket.data.roomCode = room.code;
   socket.data.playerIndex = slot;
   socket.data.clientId = player.clientId;
   socket.join(room.code);
   clearDisconnectTimer(room, slot);
+  if (wasDisconnected) {
+    emitToSlot(room, opponentSlot(slot), 'opponent_reconnected', {
+      playerIndex: slot,
+      name: player.displayName,
+      msg: `${player.displayName} reconnected.`
+    });
+  }
+  if (room.turnTimerPaused && room.turn === slot) {
+    scheduleTurnTimer(room, room.pausedTurnRemainingMs || TURN_TIMEOUT_MS);
+  }
   return player;
 }
 
@@ -286,7 +332,7 @@ function findSlotBySocket(room, socket) {
 }
 
 function findRoomAndSlot(socket, payload = {}) {
-  const code = String(payload.code || socket.data.roomCode || '').trim().toLowerCase();
+  const code = normalizeRoomCode(payload.roomId || payload.code || socket.data.roomCode || '');
   const room = rooms.get(code);
   if (!room) return { room: null, slot: -1 };
   let slot = findSlotBySocket(room, socket);
@@ -301,6 +347,9 @@ function findRoomAndSlot(socket, payload = {}) {
 function addPlayerToSlot(room, socket, slot, clientId, displayName) {
   const player = createPlayer(socket, slot, clientId, displayName);
   room.players[slot] = player;
+  if (room.clientMap) {
+    room.clientMap[clientId] = { slot, socketId: socket.id, name: player.displayName };
+  }
   bindSocketToPlayer(room, socket, slot);
   return player;
 }
@@ -324,15 +373,20 @@ function scheduleEndedCleanup(room) {
   if (room.endCleanupTimer) clearTimeout(room.endCleanupTimer);
   room.endCleanupTimer = setTimeout(() => {
     const current = rooms.get(room.code);
-    if (current && current.phase === 'ended') rooms.delete(room.code);
+    if (current && current.phase === 'ended') {
+      tombstoneRoom(room.code, current.endReason || 'ended');
+      rooms.delete(room.code);
+    }
   }, ENDED_ROOM_GRACE_MS);
   room.endCleanupTimer.unref?.();
 }
 
-function scheduleTurnTimer(room) {
+function scheduleTurnTimer(room, durationMs = TURN_TIMEOUT_MS) {
   clearTurnTimer(room);
   if (room.phase !== 'battle' || (room.turn !== 0 && room.turn !== 1)) return;
-  room.turnDeadlineAt = Date.now() + TURN_TIMEOUT_MS;
+  room.turnTimerPaused = false;
+  room.pausedTurnRemainingMs = null;
+  room.turnDeadlineAt = Date.now() + durationMs;
   room.turnTimer = setTimeout(() => {
     const current = rooms.get(room.code);
     if (!current || current.phase !== 'battle') return;
@@ -340,9 +394,10 @@ function scheduleTurnTimer(room) {
     const timedOutPlayer = current.players[previousTurn];
     if (timedOutPlayer) timedOutPlayer.timeoutStreak = (timedOutPlayer.timeoutStreak || 0) + 1;
     const nextTurn = opponentSlot(previousTurn);
+    if (current.players[nextTurn]) current.players[nextTurn].timeoutStreak = 0;
     current.updatedAt = Date.now();
     if ((timedOutPlayer && timedOutPlayer.timeoutStreak >= TIMEOUT_FORFEIT_LIMIT)) {
-      finishMatch(current, nextTurn, 'timeout_forfeit');
+      finishMatch(current, nextTurn, 'timeout_surrender');
       validateRoomState(current);
       return;
     }
@@ -352,10 +407,13 @@ function scheduleTurnTimer(room) {
     activeSlots(current).forEach(slot => {
       emitToSlot(current, slot, 'turn_timeout', {
         previousTurnSlot: previousTurn,
+        timedOutSlot: previousTurn,
         turnSlot: current.turn,
         playerName: nextPlayer ? nextPlayer.displayName : `Player ${current.turn + 1}`,
         timeoutStreak: timedOutPlayer ? timedOutPlayer.timeoutStreak : 0,
+        consecutiveCount: timedOutPlayer ? timedOutPlayer.timeoutStreak : 0,
         timeoutsRemaining: timedOutPlayer ? Math.max(0, TIMEOUT_FORFEIT_LIMIT - timedOutPlayer.timeoutStreak) : TIMEOUT_FORFEIT_LIMIT,
+        remainingAllowed: timedOutPlayer ? Math.max(0, TIMEOUT_FORFEIT_LIMIT - timedOutPlayer.timeoutStreak) : TIMEOUT_FORFEIT_LIMIT,
         msg: timedOutPlayer
           ? `${timedOutPlayer.displayName} ran out of time. Command passes to the other captain.`
           : 'Turn timed out. Command passes to the other captain.'
@@ -363,8 +421,16 @@ function scheduleTurnTimer(room) {
       emitSnapshotToSlot(current, slot, 'turn:update');
     });
     validateRoomState(current);
-  }, TURN_TIMEOUT_MS);
+  }, durationMs);
   room.turnTimer.unref?.();
+}
+
+function pauseTurnTimer(room) {
+  if (!room.turnTimer || room.phase !== 'battle') return;
+  room.pausedTurnRemainingMs = Math.max(1000, (room.turnDeadlineAt || Date.now()) - Date.now());
+  clearTimeout(room.turnTimer);
+  room.turnTimer = null;
+  room.turnTimerPaused = true;
 }
 
 function validateRoomState(room) {
@@ -387,6 +453,7 @@ function startPlacementIfReady(room) {
   if (!room.players[0].connected || !room.players[1].connected) return;
   room.phase = 'placing';
   room.updatedAt = Date.now();
+  emitRoom(room, 'room_ready');
   emitRoom(room, 'match:startPlacement');
 }
 
@@ -491,6 +558,7 @@ function finishMatch(room, winnerSlot, endReason = 'ships_sunk') {
   room.endReason = endReason;
   room.updatedAt = Date.now();
   emitRoom(room, 'match:end');
+  emitRoom(room, 'game_over');
   scheduleEndedCleanup(room);
 }
 
@@ -500,6 +568,9 @@ function disconnectSlot(room, slot, explicit = false) {
   player.connected = false;
   player.socketId = null;
   player.rematchRequested = false;
+  if (room.clientMap && room.clientMap[player.clientId]) {
+    room.clientMap[player.clientId].socketId = null;
+  }
   room.updatedAt = Date.now();
   clearDisconnectTimer(room, slot);
   if (explicit) {
@@ -511,10 +582,20 @@ function disconnectSlot(room, slot, explicit = false) {
         playerIndex: slot,
         msg: `${player.displayName} left the room.`
       });
+      tombstoneRoom(room.code, 'cancelled');
       rooms.delete(room.code);
     }
     return;
   }
+  if (room.phase === 'battle' && room.turn === slot) pauseTurnTimer(room);
+  const expiresAt = Date.now() + DISCONNECT_GRACE_MS;
+  emitToSlot(room, opponentSlot(slot), 'opponent_temporarily_disconnected', {
+    playerIndex: slot,
+    name: player.displayName,
+    reconnectWindowSeconds: Math.round(DISCONNECT_GRACE_MS / 1000),
+    expiresAt,
+    msg: `${player.displayName} disconnected. Waiting for reconnect.`
+  });
   emitRoom(room);
   room.disconnectTimers[slot] = setTimeout(() => {
     const current = rooms.get(room.code);
@@ -522,79 +603,185 @@ function disconnectSlot(room, slot, explicit = false) {
     const stale = current.players[slot];
     if (!stale || stale.connected) return;
     const other = opponentSlot(slot);
-    emitToSlot(current, other, 'opponent_disconnected', {
-      playerIndex: slot,
-      msg: `${stale.displayName} disconnected. The room has closed.`
-    });
+    if (current.players[other] && !current.players[other].connected && current.disconnectTimers[other]) return;
+    if (current.players[other] && current.players[other].connected) {
+      emitToSlot(current, other, 'opponent_disconnected', {
+        playerIndex: slot,
+        msg: `${stale.displayName} disconnected. The room has closed.`
+      });
+    }
+    tombstoneRoom(current.code, connectedPlayers(current).some(candidate => candidate.connected) ? 'opponent_left' : 'both_left');
     rooms.delete(current.code);
   }, DISCONNECT_GRACE_MS);
   room.disconnectTimers[slot].unref?.();
 }
 
+function emitRoomLookupFailure(socket, code) {
+  if (code && roomExpired(code)) {
+    socket.emit('room_expired', {
+      roomId: code,
+      msg: 'This game has ended. Both players left the room.'
+    });
+    return;
+  }
+  fail(socket, 'Room not found or has expired.', 'ROOM_NOT_FOUND');
+}
+
+function newRoom(io, socket, payload = {}) {
+  const clientId = normalizeClientId(payload);
+  if (!clientId) return { error: 'missing_client_id', message: 'Missing client session. Refresh GhostFleet and try again.' };
+  const code = makeRoomCode();
+  const room = {
+    code,
+    io,
+    phase: 'waiting',
+    boardSize: normalizeBoardSize(payload.gridSize || payload.boardSize),
+    players: [null, null],
+    clientMap: {},
+    turn: null,
+    turnDeadlineAt: null,
+    turnTimerPaused: false,
+    pausedTurnRemainingMs: null,
+    winnerSlot: null,
+    endReason: '',
+    battleLog: [],
+    disconnectTimers: [null, null],
+    turnTimer: null,
+    endCleanupTimer: null,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  rooms.set(code, room);
+  const player = addPlayerToSlot(room, socket, 0, clientId, payload.playerName || payload.displayName);
+  return { room, player, slot: 0, clientId };
+}
+
+function emitRoomCreated(socket, room, player, clientId) {
+  const snapshot = playerSnapshot(room, 0);
+  const payload = {
+    roomId: room.code,
+    code: room.code,
+    roomUrl: roomUrl(room.code),
+    playerId: player.id,
+    playerIndex: 0,
+    token: player.token,
+    clientId,
+    snapshot
+  };
+  socket.emit('room_created', payload);
+  socket.emit('room:joined', payload);
+}
+
+function emitJoined(socket, room, slot, player, clientId) {
+  const snapshot = playerSnapshot(room, slot);
+  const payload = {
+    roomId: room.code,
+    code: room.code,
+    roomUrl: roomUrl(room.code),
+    playerId: player.id,
+    playerIndex: slot,
+    token: player.token,
+    clientId,
+    snapshot
+  };
+  socket.emit('joined_room', payload);
+  socket.emit('room:joined', payload);
+}
+
+function handleCreateRoom(io, socket, payload = {}) {
+  const created = newRoom(io, socket, payload);
+  if (created.error) return fail(socket, created.message, created.error);
+  emitRoomCreated(socket, created.room, created.player, created.clientId);
+  emitRoom(created.room);
+  validateRoomState(created.room);
+}
+
+function handleJoinRoom(socket, payload = {}) {
+  const code = normalizeRoomCode(payload.roomId || payload.code);
+  const clientId = normalizeClientId(payload);
+  if (!clientId) return fail(socket, 'Missing client session. Refresh GhostFleet and try again.', 'missing_client_id');
+  if (!code) return fail(socket, 'Enter a valid 6-character room code.', 'invalid_room_code');
+  const room = rooms.get(code);
+  if (!room) return emitRoomLookupFailure(socket, code);
+  const reconnectSlot = findSlotByClientId(room, clientId);
+  if (reconnectSlot >= 0) {
+    const player = bindSocketToPlayer(room, socket, reconnectSlot);
+    emitJoined(socket, room, reconnectSlot, player, clientId);
+    if (room.phase === 'waiting') emitRoom(room);
+    else emitResync(room, reconnectSlot);
+    validateRoomState(room);
+    return;
+  }
+  if (room.phase !== 'waiting') return fail(socket, 'That match has already started.', 'ROOM_STARTED');
+  const slot = room.players.findIndex(player => !player);
+  if (slot < 0) return fail(socket, 'That room is full.', 'ROOM_FULL');
+  const player = addPlayerToSlot(room, socket, slot, clientId, payload.playerName || payload.displayName);
+  emitJoined(socket, room, slot, player, clientId);
+  emitRoom(room);
+  startPlacementIfReady(room);
+  validateRoomState(room);
+}
+
+function handleReconnectRoom(socket, payload = {}) {
+  const code = normalizeRoomCode(payload.roomId || payload.code);
+  const clientId = normalizeClientId(payload);
+  if (!clientId) return fail(socket, 'Missing client session. Refresh GhostFleet and try again.', 'missing_client_id');
+  if (!code) return fail(socket, 'Enter a valid 6-character room code.', 'invalid_room_code');
+  const room = rooms.get(code);
+  if (!room) return emitRoomLookupFailure(socket, code);
+  const slot = findSlotByClientId(room, clientId);
+  if (slot < 0) return handleJoinRoom(socket, payload);
+  const player = bindSocketToPlayer(room, socket, slot);
+  emitJoined(socket, room, slot, player, clientId);
+  emitResync(room, slot);
+  validateRoomState(room);
+}
+
+function handleCancelRoom(socket, payload = {}) {
+  const { room, slot } = findRoomAndSlot(socket, payload);
+  if (!room) return emitRoomLookupFailure(socket, normalizeRoomCode(payload.roomId || payload.code));
+  if (slot !== 0) return fail(socket, 'Only the room creator can cancel while waiting.', 'cancel_forbidden');
+  if (room.phase !== 'waiting') return fail(socket, 'This room has already started.', 'wrong_phase');
+  tombstoneRoom(room.code, 'cancelled');
+  rooms.delete(room.code);
+  socket.emit('room_expired', { roomId: room.code, msg: 'Room cancelled.' });
+}
+
 function attachSocketHandlers(io) {
   io.on('connection', socket => {
+    // Triggered when a host creates a Teams-style room URL; validates clientId/grid size, creates slot 0, emits room_created and compatibility room:joined.
+    socket.on('create_room', payload => {
+      handleCreateRoom(io, socket, payload);
+    });
+
     // Triggered when a host creates a room; validates clientId and board size, creates slot 0, emits room:joined and room:update.
     socket.on('room:create', payload => {
-      const clientId = normalizeClientId(payload);
-      if (!clientId) return fail(socket, 'Missing client session. Refresh GhostFleet and try again.', 'missing_client_id');
-      const code = makeRoomCode();
-      const room = {
-        code,
-        io,
-        phase: 'waiting',
-        boardSize: normalizeBoardSize(payload && payload.boardSize),
-        players: [null, null],
-        turn: null,
-        turnDeadlineAt: null,
-        winnerSlot: null,
-        endReason: '',
-        battleLog: [],
-        disconnectTimers: [null, null],
-        turnTimer: null,
-        endCleanupTimer: null,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-      rooms.set(code, room);
-      const player = addPlayerToSlot(room, socket, 0, clientId, payload && payload.displayName);
-      socket.emit('room:joined', { code, playerId: player.id, playerIndex: 0, token: player.token, clientId, snapshot: playerSnapshot(room, 0) });
-      emitRoom(room);
-      validateRoomState(room);
+      handleCreateRoom(io, socket, payload);
+    });
+
+    // Triggered when a guest opens or enters a room URL; validates availability/clientId, joins or reconnects a slot, emits joined_room and compatibility room:joined.
+    socket.on('join_room', payload => {
+      handleJoinRoom(socket, payload);
     });
 
     // Triggered when player 2 enters a code; validates room availability and clientId, fills slot 1, emits room:joined and starts placement when ready.
     socket.on('room:join', payload => {
-      const code = String(payload && payload.code || '').trim().toLowerCase();
-      const clientId = normalizeClientId(payload);
-      const room = rooms.get(code);
-      if (!clientId) return fail(socket, 'Missing client session. Refresh GhostFleet and try again.', 'missing_client_id');
-      if (!room) return fail(socket, 'Room code not found.', 'room_not_found');
-      if (room.phase !== 'waiting') return fail(socket, 'That match has already started.', 'room_started');
-      const reconnectSlot = findSlotByClientId(room, clientId);
-      const slot = reconnectSlot >= 0 ? reconnectSlot : room.players.findIndex(player => !player);
-      if (slot < 0) return fail(socket, 'That room is full.', 'room_full');
-      const player = reconnectSlot >= 0
-        ? bindSocketToPlayer(room, socket, reconnectSlot)
-        : addPlayerToSlot(room, socket, slot, clientId, payload && payload.displayName);
-      socket.emit('room:joined', { code, playerId: player.id, playerIndex: slot, token: player.token, clientId, snapshot: playerSnapshot(room, slot) });
-      emitRoom(room);
-      startPlacementIfReady(room);
-      validateRoomState(room);
+      handleJoinRoom(socket, payload);
+    });
+
+    // Triggered by a returning client on /room/:roomId; validates persistent clientId, migrates socket id, emits joined_room and resync.
+    socket.on('reconnect_room', payload => {
+      handleReconnectRoom(socket, payload);
     });
 
     // Triggered by stored client identity after reconnect; validates clientId/code, replaces the socket in the existing slot, emits room:joined and resync.
     socket.on('match:rejoin', payload => {
-      const code = String(payload && payload.code || '').trim().toLowerCase();
-      const clientId = normalizeClientId(payload);
-      const room = rooms.get(code);
-      if (!room || !clientId) return fail(socket, 'Could not restore that room.', 'rejoin_failed');
-      const slot = findSlotByClientId(room, clientId);
-      if (slot < 0) return fail(socket, 'Could not restore that player.', 'rejoin_failed');
-      const player = bindSocketToPlayer(room, socket, slot);
-      socket.emit('room:joined', { code, playerId: player.id, playerIndex: slot, token: player.token, clientId, snapshot: playerSnapshot(room, slot) });
-      if (room.phase === 'waiting') emitRoom(room);
-      else emitResync(room, slot);
-      validateRoomState(room);
+      handleReconnectRoom(socket, payload);
+    });
+
+    // Triggered when a host cancels a waiting share link; validates creator/waiting phase, tombstones the room, emits room_expired to caller.
+    socket.on('cancel_room', payload => {
+      handleCancelRoom(socket, payload);
     });
 
     // Legacy compatibility: triggered by older clients; validates room/player and marks lobby ready without affecting the auto-start slot flow.
@@ -679,6 +866,7 @@ function attachSocketHandlers(io) {
       });
       if (resolved.won) {
         emitRoom(room, 'match:end');
+        emitRoom(room, 'game_over');
         scheduleEndedCleanup(room);
       } else {
         scheduleTurnTimer(room);
@@ -722,13 +910,19 @@ function cleanupRooms() {
   for (const [code, room] of rooms.entries()) {
     const hasConnected = connectedPlayers(room).some(player => player.connected);
     const idleTooLong = now - room.updatedAt > ROOM_TTL_MS;
-    if (!hasConnected && idleTooLong) rooms.delete(code);
+    if (!hasConnected && idleTooLong) {
+      tombstoneRoom(code, 'expired');
+      rooms.delete(code);
+    }
+  }
+  for (const [code, entry] of expiredRooms.entries()) {
+    if (entry.expiresAt <= now) expiredRooms.delete(code);
   }
 }
 
 export function attachMultiplayer(server) {
   const io = new Server(server, {
-    cors: { origin: true },
+    cors: { origin: '*' },
     pingTimeout: 60000,
     pingInterval: 25000,
     connectionStateRecovery: {
@@ -743,6 +937,7 @@ export function attachMultiplayer(server) {
     stats() {
       return {
         rooms: rooms.size,
+        expiredRooms: expiredRooms.size,
         players: Array.from(rooms.values()).reduce((count, room) => count + connectedPlayers(room).length, 0)
       };
     }

@@ -94,18 +94,21 @@ async function main() {
     const p1 = await connectClient('smoke-client-a');
     const p2 = await connectClient('smoke-client-b');
 
-    const p1Joined = once(p1, 'room:joined');
-    emit(p1, 'room:create', { displayName: 'Smoke A', boardSize: 8 });
+    const p1Joined = once(p1, 'room_created');
+    emit(p1, 'create_room', { playerName: 'Smoke A', gridSize: 8 });
     const join1 = await p1Joined;
-    p1.roomCode = join1.code;
+    p1.roomCode = join1.roomId;
     p1.playerIndex = join1.playerIndex;
+    if (!/^[A-HJ-NP-Z2-9]{6}$/.test(join1.roomId) || join1.roomUrl !== `/room/${join1.roomId}`) {
+      throw new Error('Expected uppercase Teams-style room URL.');
+    }
 
     const p1Placement = once(p1, 'match:startPlacement');
     const p2Placement = once(p2, 'match:startPlacement');
-    const p2Joined = once(p2, 'room:joined');
-    emit(p2, 'room:join', { code: join1.code, displayName: 'Smoke B' });
+    const p2Joined = once(p2, 'joined_room');
+    emit(p2, 'join_room', { roomId: join1.roomId, playerName: 'Smoke B' });
     const join2 = await p2Joined;
-    p2.roomCode = join2.code;
+    p2.roomCode = join2.roomId;
     p2.playerIndex = join2.playerIndex;
     await Promise.all([p1Placement, p2Placement]);
     if (p1.playerIndex !== 0 || p2.playerIndex !== 1) throw new Error('Expected fixed slots 0 and 1.');
@@ -143,10 +146,10 @@ async function main() {
     p1.disconnect();
     await wait(200);
     const p1r = await connectClient('smoke-client-a');
-    p1r.roomCode = join1.code;
+    p1r.roomCode = join1.roomId;
     p1r.playerIndex = 0;
     const resync = once(p1r, 'resync');
-    emit(p1r, 'match:rejoin', { code: join1.code });
+    emit(p1r, 'reconnect_room', { roomId: join1.roomId });
     const restored = await resync;
     if (restored.playerIndex !== 0 || restored.phase !== 'battle') throw new Error('Expected reconnect resync for slot 0 in battle.');
 
@@ -190,17 +193,33 @@ async function main() {
 
     const exitA = await connectClient('smoke-exit-a');
     const exitB = await connectClient('smoke-exit-b');
-    const exitJoined = once(exitA, 'room:joined');
-    emit(exitA, 'room:create', { displayName: 'Exit A', boardSize: 8 });
+    const cancelA = await connectClient('smoke-cancel-a');
+    const cancelJoined = once(cancelA, 'room_created');
+    emit(cancelA, 'create_room', { playerName: 'Cancel A', gridSize: 8 });
+    const cancelRoom = await cancelJoined;
+    cancelA.roomCode = cancelRoom.roomId;
+    cancelA.playerIndex = 0;
+    const cancelled = once(cancelA, 'room_expired');
+    emit(cancelA, 'cancel_room', { roomId: cancelRoom.roomId });
+    await cancelled;
+    const cancelB = await connectClient('smoke-cancel-b');
+    const cancelExpired = once(cancelB, 'room_expired');
+    emit(cancelB, 'join_room', { roomId: cancelRoom.roomId, playerName: 'Late Cancel' });
+    await cancelExpired;
+    cancelA.disconnect();
+    cancelB.disconnect();
+
+    const exitJoined = once(exitA, 'room_created');
+    emit(exitA, 'create_room', { playerName: 'Exit A', gridSize: 8 });
     const exitRoom = await exitJoined;
-    exitA.roomCode = exitRoom.code;
+    exitA.roomCode = exitRoom.roomId;
     exitA.playerIndex = exitRoom.playerIndex;
     const exitPlacementA = once(exitA, 'match:startPlacement');
     const exitPlacementB = once(exitB, 'match:startPlacement');
-    const exitBJoined = once(exitB, 'room:joined');
-    emit(exitB, 'room:join', { code: exitRoom.code, displayName: 'Exit B' });
+    const exitBJoined = once(exitB, 'joined_room');
+    emit(exitB, 'join_room', { roomId: exitRoom.roomId, playerName: 'Exit B' });
     const exitJoinB = await exitBJoined;
-    exitB.roomCode = exitJoinB.code;
+    exitB.roomCode = exitJoinB.roomId;
     exitB.playerIndex = exitJoinB.playerIndex;
     await Promise.all([exitPlacementA, exitPlacementB]);
     const exitWin = once(exitB, 'match:end');
@@ -210,17 +229,17 @@ async function main() {
 
     const timerA = await connectClient('smoke-timer-a');
     const timerB = await connectClient('smoke-timer-b');
-    const timerJoined = once(timerA, 'room:joined');
-    emit(timerA, 'room:create', { displayName: 'Timer A', boardSize: 8 });
+    const timerJoined = once(timerA, 'room_created');
+    emit(timerA, 'create_room', { playerName: 'Timer A', gridSize: 8 });
     const timerRoom = await timerJoined;
-    timerA.roomCode = timerRoom.code;
+    timerA.roomCode = timerRoom.roomId;
     timerA.playerIndex = timerRoom.playerIndex;
     const timerPlacementA = once(timerA, 'match:startPlacement');
     const timerPlacementB = once(timerB, 'match:startPlacement');
-    const timerBJoined = once(timerB, 'room:joined');
-    emit(timerB, 'room:join', { code: timerRoom.code, displayName: 'Timer B' });
+    const timerBJoined = once(timerB, 'joined_room');
+    emit(timerB, 'join_room', { roomId: timerRoom.roomId, playerName: 'Timer B' });
     const timerJoinB = await timerBJoined;
-    timerB.roomCode = timerJoinB.code;
+    timerB.roomCode = timerJoinB.roomId;
     timerB.playerIndex = timerJoinB.playerIndex;
     await Promise.all([timerPlacementA, timerPlacementB]);
     const timerBattle = once(timerA, 'match:startBattle');
@@ -239,7 +258,7 @@ async function main() {
     const timeoutEndB = once(timerB, 'match:end', 5000);
     const endedA = await timeoutEndA;
     const endedB = await timeoutEndB;
-    if (endedA.winnerSlot !== 1 || endedB.winnerSlot !== 1 || endedA.endReason !== 'timeout_forfeit') {
+    if (endedA.winnerSlot !== 1 || endedB.winnerSlot !== 1 || endedA.endReason !== 'timeout_surrender') {
       throw new Error('Expected three consecutive timeouts to forfeit slot 0.');
     }
 
