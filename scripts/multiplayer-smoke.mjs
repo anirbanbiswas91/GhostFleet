@@ -209,6 +209,26 @@ async function main() {
     cancelA.disconnect();
     cancelB.disconnect();
 
+    const sizeA = await connectClient('smoke-size-a');
+    const sizeB = await connectClient('smoke-size-b');
+    const sizeCreated = once(sizeA, 'room_created');
+    emit(sizeA, 'create_room', { playerName: 'Size A', gridSize: 12 });
+    const sizeRoom = await sizeCreated;
+    sizeA.roomCode = sizeRoom.roomId;
+    sizeA.playerIndex = sizeRoom.playerIndex;
+    if (!sizeRoom.snapshot || sizeRoom.snapshot.boardSize !== 12) throw new Error('Expected host-created 12x12 room.');
+    const sizeAPlacement = once(sizeA, 'match:startPlacement');
+    const sizeBPlacement = once(sizeB, 'match:startPlacement');
+    const sizeJoined = once(sizeB, 'joined_room');
+    emit(sizeB, 'join_room', { roomId: sizeRoom.roomId, playerName: 'Size B' });
+    const sizeJoin = await sizeJoined;
+    sizeB.roomCode = sizeJoin.roomId;
+    sizeB.playerIndex = sizeJoin.playerIndex;
+    if (!sizeJoin.snapshot || sizeJoin.snapshot.boardSize !== 12) throw new Error('Expected joiner to inherit 12x12 room.');
+    await Promise.all([sizeAPlacement, sizeBPlacement]);
+    sizeA.disconnect();
+    sizeB.disconnect();
+
     const exitJoined = once(exitA, 'room_created');
     emit(exitA, 'create_room', { playerName: 'Exit A', gridSize: 8 });
     const exitRoom = await exitJoined;

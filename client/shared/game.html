@@ -80,6 +80,7 @@
   .howto-body kbd{background:#0d1117;border:1px solid #2a4a6e;border-radius:3px;
     padding:1px 4px;font-family:'Courier New',monospace;font-size:.7rem;color:#7fb3d5;}
   .multiplayer-modal,.opponent-modal{max-width:560px;text-align:left;}
+  .landing-modal{max-width:min(980px,94vw);max-height:92vh;overflow:auto;}
   .multiplayer-modal h2,.multiplayer-modal p,.opponent-modal h2,.opponent-modal p{text-align:center;}
   .multiplayer-brand{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px;}
   .multiplayer-brand img{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#041019;
@@ -89,6 +90,10 @@
   .opponent-ai-step{display:none;margin-top:16px;}
   .opponent-ai-step.show{display:block;}
   .opponent-ai-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0;}
+  .opponent-size-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 14px;}
+  .landing-howto{margin-top:16px;text-align:left;}
+  .landing-howto h3{font-size:.84rem;color:#e2b96f;text-transform:uppercase;letter-spacing:1.2px;margin:0 0 9px;text-align:center;}
+  .landing-howto .howto-body{margin-top:0;}
   .opponent-ai-grid .modal-btn{--btn-accent:#5eead4;border-color:rgba(226,185,111,.42);
     background:linear-gradient(180deg,rgba(255,255,255,.08),transparent 34%),linear-gradient(135deg,rgba(6,18,26,.95),rgba(16,31,40,.84));
     color:#f7e4ae;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 0 16px color-mix(in srgb,var(--btn-accent) 28%,transparent);}
@@ -163,7 +168,7 @@
     .share-actions{grid-template-columns:1fr;}
     .multiplayer-actions{grid-template-columns:1fr;}
     .opponent-actions{grid-template-columns:1fr;}
-    .opponent-ai-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+    .opponent-ai-grid,.opponent-size-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
     .opponent-ai-grid .modal-btn{padding:9px 6px;font-size:.74rem;}
     .room-code-display{font-size:1.55rem;letter-spacing:4px;}
   }
@@ -914,24 +919,33 @@
 </div>
 
 <div class="modal-overlay" id="opponentOverlay">
-  <div class="modal opponent-modal" id="opponentDialog">
+  <div class="modal opponent-modal landing-modal" id="opponentDialog">
     <div class="multiplayer-brand">
       <img src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
       <h2>GhostFleet</h2>
     </div>
-    <p>Choose who will command the enemy fleet.</p>
+    <p id="opponentIntro">Command a haunted fleet across stormy-dark waters.</p>
     <div class="opponent-actions" id="opponentChoiceStep">
       <button class="modal-btn" type="button" onclick="showAiDifficultyChoice()">Play vs AI</button>
       <button class="modal-btn" type="button" onclick="chooseHumanOpponent()">Play vs Human</button>
     </div>
+    <div class="landing-howto" id="landingHowTo">
+      <h3>How to Play</h3>
+      <div class="howto-body" id="landingHowToBody"></div>
+    </div>
     <div class="opponent-ai-step" id="opponentAiStep">
-      <p>Pick the AI difficulty to start your battle.</p>
+      <p>Choose board size, then pick the AI difficulty to start your battle.</p>
+      <div class="opponent-size-row" id="aiSizeRow">
+        <button class="mp-size-btn active" id="aiSize8" type="button" onclick="setAiSetupSize(8)">8×8</button>
+        <button class="mp-size-btn" id="aiSize10" type="button" onclick="setAiSetupSize(10)">10×10</button>
+        <button class="mp-size-btn" id="aiSize12" type="button" onclick="setAiSetupSize(12)">12×12</button>
+      </div>
       <div class="opponent-ai-grid">
         <button class="modal-btn" type="button" onclick="chooseAiOpponent('easy')">Easy</button>
-        <button class="modal-btn" type="button" onclick="chooseAiOpponent('hard')">Hard</button>
-        <button class="modal-btn" type="button" onclick="chooseAiOpponent('expert')">Exp</button>
+        <button class="modal-btn" type="button" onclick="chooseAiOpponent('hard')">Med</button>
+        <button class="modal-btn" type="button" onclick="chooseAiOpponent('expert')">Hard</button>
       </div>
-      <button class="modal-btn opponent-back" type="button" onclick="showOpponentChoices()">Back</button>
+      <button class="modal-btn opponent-back" type="button" onclick="showOpponentChoices()">Back to Opponent Choice</button>
     </div>
   </div>
 </div>
@@ -953,6 +967,7 @@
         <div class="mp-size-row">
           <button class="mp-size-btn active" id="mpSize8" type="button" onclick="setMultiplayerSetupSize(8)">8×8</button>
           <button class="mp-size-btn" id="mpSize10" type="button" onclick="setMultiplayerSetupSize(10)">10×10</button>
+          <button class="mp-size-btn" id="mpSize12" type="button" onclick="setMultiplayerSetupSize(12)">12×12</button>
         </div>
         <div class="mp-size-note">Host chooses the grid size before creating the room.</div>
       </div>
@@ -985,14 +1000,15 @@
     <p>Share this battle link with another captain.</p>
     <div class="share-panel">
       <div class="share-code" id="shareRoomCode">------</div>
+      <div class="room-size-display" id="shareRoomSize">Room size: 8×8</div>
       <input class="share-url" id="shareRoomUrl" readonly value="" onclick="copyRoomLink()"/>
+      <div class="room-player-list" id="sharePlayers"></div>
       <div class="share-actions">
-        <button class="modal-btn" id="copyRoomBtn" type="button" onclick="copyRoomLink()">Copy Link</button>
-        <button class="modal-btn" type="button" onclick="shareRoomLink()">Share</button>
-        <button class="modal-btn" type="button" onclick="shareRoomWhatsApp()">WhatsApp</button>
+        <button class="modal-btn" id="copyRoomBtn" type="button" onclick="copyRoomLink()">Copy Invite Link</button>
+        <button class="modal-btn" type="button" onclick="shareRoomWhatsApp()">Share via WhatsApp</button>
       </div>
       <div class="sonar-wait"><span class="sonar-dot"></span><span>Waiting for opponent to join...</span></div>
-      <button class="modal-btn mp-opponent-back" type="button" onclick="cancelMultiplayerRoom()">Cancel Room</button>
+      <button class="modal-btn mp-opponent-back" type="button" onclick="cancelMultiplayerRoom()">Back / Cancel Room</button>
     </div>
   </div>
 </div>
@@ -1088,9 +1104,9 @@
       <div class="panel-box premium-ai-panel">
         <h3>AI Difficulty</h3>
         <div class="difficulty-row">
-          <button class="diff-btn active" id="diffEasy" onclick="setDifficulty('easy')">Easy <span class="diff-badge badge-easy">RND</span></button>
-          <button class="diff-btn" id="diffHard" onclick="setDifficulty('hard')">Hard <span class="diff-badge badge-hard">SMART</span></button>
-          <button class="diff-btn" id="diffExpert" onclick="setDifficulty('expert')">Exp <span class="diff-badge badge-expert">KILL</span></button>
+          <button class="diff-btn active" id="diffEasy" onclick="setDifficulty('easy')">Easy <span class="diff-badge badge-easy">I</span></button>
+          <button class="diff-btn" id="diffHard" onclick="setDifficulty('hard')">Med <span class="diff-badge badge-hard">II</span></button>
+          <button class="diff-btn" id="diffExpert" onclick="setDifficulty('expert')">Hard <span class="diff-badge badge-expert">III</span></button>
         </div>
       </div>
       <div class="panel-box">
@@ -1098,6 +1114,7 @@
         <div class="control-row">
           <button class="size-tab active" onclick="setSize(8)">8×8</button>
           <button class="size-tab" onclick="setSize(10)">10×10</button>
+          <button class="size-tab" onclick="setSize(12)">12×12</button>
         </div>
       </div>
       <div class="panel-box">
@@ -1168,8 +1185,8 @@
     {id:3,name:'Submarine',short:'SS',cls:'ss',len:3,icoId:'ship-mark-ss',logoId:'ship-logo-ss',img:'assets/ships-grid/ship-grid-ss.png'},
     {id:4,name:'Destroyer',short:'DD',cls:'dd',len:2,icoId:'ship-mark-dd',logoId:'ship-logo-dd',img:'assets/ships-grid/ship-grid-dd.png'}
   ];
-  const DIFF_LABELS={easy:'Easy',hard:'Hard',expert:'Expert'};
-  const BOARD_SIZES=[8,10];
+  const DIFF_LABELS={easy:'Easy',hard:'Med',expert:'Hard'};
+  const BOARD_SIZES=[8,10,12];
   const BOARD_VISUAL_SCALE=.97;
   const TURN_WAIT_SCALE=1.35;
   const BANNER_WAIT_SCALE=.75;
@@ -1233,7 +1250,7 @@
     });
   }
 
-  let N=8,difficulty='easy',phase='placing';
+  let N=8,difficulty='easy',phase='placing',aiSetupSize=8;
   let yourBoard,enemyBoard;
   let lastPlayerShot=-1,lastAIShot=-1;
   let shots=0,hits=0,aiShots=0,aiHits=0,wins=0,losses=0;
@@ -1264,6 +1281,7 @@
     token:'',
     playerName:'',
     opponentName:'',
+    roomPlayers:[],
     roomBoardSize:8,
     lobbyReady:false,
     roomPhase:'idle',
@@ -1299,14 +1317,23 @@
   function showOpponentChoices(){
     const choice=document.getElementById('opponentChoiceStep');
     const aiStep=document.getElementById('opponentAiStep');
+    const howTo=document.getElementById('landingHowTo');
+    const intro=document.getElementById('opponentIntro');
     if(choice)choice.style.display='grid';
     if(aiStep)aiStep.classList.remove('show');
+    if(howTo)howTo.style.display='';
+    if(intro)intro.textContent='Command a haunted fleet across stormy-dark waters.';
   }
   function showAiDifficultyChoice(){
     const choice=document.getElementById('opponentChoiceStep');
     const aiStep=document.getElementById('opponentAiStep');
+    const howTo=document.getElementById('landingHowTo');
+    const intro=document.getElementById('opponentIntro');
     if(choice)choice.style.display='none';
     if(aiStep)aiStep.classList.add('show');
+    if(howTo)howTo.style.display='none';
+    if(intro)intro.textContent='Choose board size and AI difficulty.';
+    setAiSetupSize(aiSetupSize||N||8);
   }
   function showOpponentOverlay(){
     if(!MODE_SELECTION_ENABLED)return;
@@ -1321,6 +1348,8 @@
   function chooseAiOpponent(level){
     opponentMode='ai';
     syncOpponentMode();
+    N=BOARD_SIZES.includes(aiSetupSize)?aiSetupSize:8;
+    updateSizeButtons();
     setDifficulty(level||'easy');
     hideOpponentOverlay();
     hideMultiplayerLobby();
@@ -1329,14 +1358,14 @@
   function chooseHumanOpponent(){
     opponentMode='human';
     syncOpponentMode();
-    multiplayer.roomBoardSize=N;
+    multiplayer.roomBoardSize=BOARD_SIZES.includes(N)?N:8;
     updateMultiplayerRoomSize();
     hideOpponentOverlay();
     multiplayer.suppressLobby=true;
     newGame();
     multiplayer.suppressLobby=false;
     multiplayer.playerName=sessionStorage.getItem('ghostfleet-player-name')||'Captain';
-    sendMultiplayerEvent('create_room',{playerName:multiplayer.playerName,gridSize:multiplayer.roomBoardSize||N},'Creating room...');
+    showMultiplayerLobby('Enter your name, choose a room size, then create or join a room.');
   }
   function startNewBattle(){
     stopConfetti();
@@ -1880,11 +1909,14 @@
     return window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
   }
   function renderHowTo(){
-    const body=document.getElementById('howToBody');
-    if(!body)return;
     const mode=MULTIPLAYER_ENABLED?'multiplayer':(isMobileHowTo()?'mobile':'desktop');
-    body.dataset.mode=mode;
-    body.innerHTML=HOW_TO_COPY[mode].map(([title,text])=>`<p><strong>${title}:</strong> ${text.replaceAll('Clear-Ship(C)','Clear-Ship(<kbd>C</kbd>)').replaceAll('keyboard C','keyboard <kbd>C</kbd>')}</p>`).join('');
+    const html=HOW_TO_COPY[mode].map(([title,text])=>`<p><strong>${title}:</strong> ${text.replaceAll('Clear-Ship(C)','Clear-Ship(<kbd>C</kbd>)').replaceAll('keyboard C','keyboard <kbd>C</kbd>')}</p>`).join('');
+    ['howToBody','landingHowToBody'].forEach(id=>{
+      const body=document.getElementById(id);
+      if(!body)return;
+      body.dataset.mode=mode;
+      body.innerHTML=html;
+    });
   }
   function openHowTo(){
     renderHowTo();
@@ -1966,6 +1998,8 @@
   function updateMultiplayerRoomSize(){
     const el=document.getElementById('mpRoomSize');
     if(el)el.textContent='Room size: '+(multiplayer.roomBoardSize||N)+'×'+(multiplayer.roomBoardSize||N);
+    const share=document.getElementById('shareRoomSize');
+    if(share)share.textContent='Room size: '+(multiplayer.roomBoardSize||N)+'×'+(multiplayer.roomBoardSize||N);
     updateMultiplayerSizeButtons();
   }
   function multiplayerInviteLink(){
@@ -1992,12 +2026,15 @@
     }
   }
   function showShareRoomScreen(){
+    hideOpponentOverlay();
     hideMultiplayerLobby();
     const overlay=document.getElementById('shareRoomOverlay');
     const code=document.getElementById('shareRoomCode');
     const url=document.getElementById('shareRoomUrl');
     if(code)code.textContent=multiplayer.roomCode||'------';
     if(url)url.value=multiplayerInviteLink();
+    updateMultiplayerRoomSize();
+    renderMultiplayerPlayers();
     if(overlay)overlay.classList.add('show');
   }
   function hideShareRoomScreen(){
@@ -2007,7 +2044,7 @@
   function copyRoomLink(){
     const link=multiplayerInviteLink();
     const btn=document.getElementById('copyRoomBtn');
-    const done=()=>{if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy Link',2000);}};
+    const done=()=>{if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy Invite Link',2000);}};
     if(!link)return;
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(done).catch(()=>{window.prompt('Copy this GhostFleet invite link:',link);done();});
     else {window.prompt('Copy this GhostFleet invite link:',link);done();}
@@ -2031,6 +2068,15 @@
     N=size;
     updateSizeButtons();
     updateMultiplayerRoomSize();
+  }
+  function setAiSetupSize(size){
+    if(!BOARD_SIZES.includes(size))size=8;
+    aiSetupSize=size;
+    document.querySelectorAll('#aiSizeRow .mp-size-btn').forEach(btn=>{
+      const active=btn.id==='aiSize'+size;
+      btn.classList.toggle('active',active);
+      btn.setAttribute('aria-pressed',active?'true':'false');
+    });
   }
   function showMultiplayerLobby(message){
     if(!MULTIPLAYER_ENABLED)return;
@@ -2266,7 +2312,7 @@
     if(sizeField)sizeField.classList.toggle('hidden',multiplayer.joinMode||multiplayer.joined);
     if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
     if(joinBtn)joinBtn.textContent=multiplayer.joinMode?'Enter Room':'Join Room';
-    if(createBtn)createBtn.textContent=multiplayer.joinMode?'Back':'Create Room';
+    if(createBtn)createBtn.textContent=multiplayer.joinMode?'Back to Human Setup':'Create Room';
     if(multiplayer.joinMode){
       const code=document.getElementById('mpCode');
       if(code)setTimeout(()=>code.focus(),0);
@@ -2344,10 +2390,15 @@
     sendMultiplayerEvent('join_room',{roomId:code,playerName:name},'Joining battle...');
   }
   function cancelMultiplayerRoom(){
-    if(!multiplayer.roomCode){startNewBattle();return;}
-    sendMultiplayerEvent('cancel_room',{roomId:multiplayer.roomCode},'Cancelling room...');
+    if(multiplayer.roomCode)sendMultiplayerEvent('cancel_room',{roomId:multiplayer.roomCode},'Cancelling room...');
     leaveMultiplayerRoom(false);
-    startNewBattle();
+    hideShareRoomScreen();
+    opponentMode='human';
+    syncOpponentMode();
+    multiplayer.suppressLobby=true;
+    newGame();
+    multiplayer.suppressLobby=false;
+    showMultiplayerLobby('Room cancelled. Create a new room or join another captain.');
   }
   function handleMultiplayerJoined(payload,meta={}){
     multiplayer.joined=true;
@@ -2399,29 +2450,34 @@
     if(multiplayer.joined)saveMultiplayerSession();
     if(snapshot.phase==='waiting'){
       const occupied=(snapshot.players||[]).filter(player=>player&&player.id).length;
-      showMultiplayerLobby(occupied<2?'Share this code with player 2.':'Joined. Preparing ship placement...');
+      if(multiplayer.playerIndex===0){
+        setMultiplayerStatus(occupied<2?'Share this code with player 2.':'Joined. Preparing ship placement...');
+        showShareRoomScreen();
+      } else {
+        showMultiplayerLobby(occupied<2?'Share this code with player 2.':'Joined. Preparing ship placement...');
+      }
     }
     syncStatsFromMultiplayerSnapshot(snapshot);
   }
   function renderMultiplayerPlayers(players){
-    const list=document.getElementById('mpPlayers');
-    if(!list)return;
-    list.innerHTML='';
-    players.forEach(player=>{
-      const row=document.createElement('div');
-      row.className='room-player'+(player.lobbyReady?' ready':'');
-      const open=!player||!player.id;
-      const who=open?'Waiting...':(player.playerIndex===multiplayer.playerIndex?'You':player.displayName);
-      const state=open?'Open slot':(player.connected?(player.rematchRequested?'Rematch':(player.lobbyReady?'Ready':'Joined')):'Offline');
-      row.innerHTML=`<strong>${who}</strong><span>${state}</span>`;
-      list.appendChild(row);
+    if(players)multiplayer.roomPlayers=players;
+    const source=players||multiplayer.roomPlayers||[];
+    const slots=[source&&source[0],source&&source[1]];
+    ['mpPlayers','sharePlayers'].forEach(id=>{
+      const list=document.getElementById(id);
+      if(!list)return;
+      list.innerHTML='';
+      slots.forEach((player,index)=>{
+        const row=document.createElement('div');
+        const open=!player||!player.id;
+        row.className='room-player'+(!open&&player.lobbyReady?' ready':'');
+        const slotLabel='Player '+(index+1);
+        const name=open?(index===0?'Waiting for host':'Waiting for Player 2'):(player.playerIndex===multiplayer.playerIndex?(player.displayName+' (You)'):player.displayName);
+        const state=open?'Open slot':(player.connected?(player.rematchRequested?'Rematch':(player.lobbyReady?'Ready':'Joined')):'Offline');
+        row.innerHTML=`<strong>${slotLabel}: ${name}</strong><span>${state}</span>`;
+        list.appendChild(row);
+      });
     });
-    if(players.filter(player=>player&&player.id).length<2){
-      const row=document.createElement('div');
-      row.className='room-player';
-      row.innerHTML='<strong>Waiting...</strong><span>Open slot</span>';
-      list.appendChild(row);
-    }
   }
   function updateSizeButtons(){
     document.querySelectorAll('.size-tab').forEach(t=>t.classList.toggle('active',t.textContent.trim().startsWith(String(N))));
@@ -2680,6 +2736,7 @@
     multiplayer.playerIndex=null;
     multiplayer.token='';
     multiplayer.opponentName='';
+    multiplayer.roomPlayers=[];
     multiplayer.turnSlot=null;
     multiplayer.myTurn=false;
     multiplayer.lobbyReady=false;
@@ -3771,6 +3828,11 @@
       }
     ];
   }
+  function allowRoundAchievements(){
+    if(endedBySurrender)return false;
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&['opponent_left','timeout_surrender'].includes(multiplayer.endReason))return false;
+    return true;
+  }
 
   function renderAchievements(elId,achievements){
     const el=document.getElementById(elId);
@@ -3888,7 +3950,7 @@
     const pressure=playerHits===aiHitCount?'Even':(playerHits>aiHitCount?'You +'+(playerHits-aiHitCount):'AI +'+(aiHitCount-playerHits));
     const followStats=getHitFollowStats(playerMoves);
     const spacingGuide=buildSearchSpacingGuide(playerMoves);
-    const achievements=getRoundAchievements(won,playerMoves,aiMoves,playerAcc,aiHitCount);
+    const achievements=allowRoundAchievements()?getRoundAchievements(won,playerMoves,aiMoves,playerAcc,aiHitCount):[];
     const unlocked=achievements.filter(a=>a.earned).map(a=>a.name);
     const achievementSummary=unlocked.length?' Achievements unlocked: '+unlocked.join(', ')+'.':'';
     let summary;
@@ -3974,7 +4036,7 @@
     const playerMoves=battleMoves.filter(m=>m.actor==='YOU');
     const aiMoves=battleMoves.filter(m=>m.actor==='AI');
     const aiHitCount=aiMoves.filter(isDamageMove).length;
-    const achievements=getRoundAchievements(won,playerMoves,aiMoves,finalAcc,aiHitCount);
+    const achievements=allowRoundAchievements()?getRoundAchievements(won,playerMoves,aiMoves,finalAcc,aiHitCount):[];
     renderAchievements('modalAchievements',achievements);
     const unlocked=achievements.filter(a=>a.earned).map(a=>a.name);
     const wm=['Outstanding tactics, Captain!','Masterful battle!','The seas are yours!','Flawless command!'];
@@ -3991,7 +4053,13 @@
     document.getElementById('analysisOverlay').classList.add('show');
     stopConfetti();
   }
-  function closeAnalysis(){document.getElementById('analysisOverlay').classList.remove('show');}
+  function closeAnalysis(){
+    document.getElementById('analysisOverlay').classList.remove('show');
+    if(phase==='ended'){
+      updatePostGameActions();
+      document.getElementById('modalOverlay').classList.add('show');
+    }
+  }
   function closeModal(n){
     if(n&&MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='ended'){
       if(multiplayer.endReason==='timeout_surrender'){

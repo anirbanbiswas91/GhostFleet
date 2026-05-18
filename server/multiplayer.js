@@ -70,7 +70,8 @@ function cleanName(value) {
 }
 
 function normalizeBoardSize(value) {
-  return Number(value) === 10 ? 10 : 8;
+  const size = Number(value);
+  return [8, 10, 12].includes(size) ? size : 8;
 }
 
 function normalizeClientId(payload) {
