@@ -171,11 +171,7 @@
   .title-pane{width:100%;background:rgba(13,20,27,.80);border:1px solid rgba(125,211,252,.16);border-radius:10px;
     padding:10px 14px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;}
   .title-copy{display:flex;align-items:center;justify-content:center;gap:12px;text-align:left;}
-  .brand-button{border:0;background:transparent;border-radius:50%;padding:3px;cursor:pointer;line-height:0;
-    transition:transform .16s,box-shadow .16s,filter .16s;touch-action:manipulation;}
-  .brand-button:hover,.brand-button:focus-visible{outline:none;transform:translateY(-1px);
-    box-shadow:0 0 0 2px rgba(226,185,111,.35),0 0 22px rgba(94,234,212,.32);}
-  .brand-button:active{transform:translateY(1px) scale(.97);filter:brightness(.92);}
+  .brand-crest{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;padding:3px;line-height:0;}
   .brand-mark{width:74px;height:74px;border-radius:50%;object-fit:cover;background:#041019;
     box-shadow:0 0 0 2px rgba(226,185,111,.72),0 0 26px rgba(94,234,212,.32);}
   .brand-text{display:flex;flex-direction:column;align-items:flex-start;}
@@ -296,6 +292,10 @@
   .mobile-board-tabs.battle-mode #mobileEnemyTab{order:1;}
   .mobile-board-tabs.battle-mode #mobileYourTab{order:2;}
   .mobile-board-tabs.battle-mode .top-arrange-actions{display:none;}
+  .boards-row.arrange-mode #yourWrap{order:1;}
+  .boards-row.arrange-mode #enemyWrap{order:2;}
+  .boards-row.battle-mode #enemyWrap{order:1;}
+  .boards-row.battle-mode #yourWrap{order:2;}
 
   .board-wrap{background:var(--board-frame-bg);border:3px solid var(--board-frame-border);border-radius:14px;padding:10px;position:relative;
     box-shadow:0 0 0 1px rgba(125,211,252,.22),0 6px 30px rgba(0,0,0,.8);transition:border-color .3s,box-shadow .3s,opacity .3s;}
@@ -1045,9 +1045,9 @@
       <button class="badge-status bs-help help-trigger" id="howToBtn" onclick="openHowTo()">📖 How to Play</button>
     </div>
     <div class="title-copy">
-      <button class="brand-button" type="button" onclick="startNewBattle()" aria-label="Start a new battle" title="Start a new battle">
+      <span class="brand-crest" aria-hidden="true">
         <img class="brand-mark" src="assets/ghostfleet-crest.png" alt="" aria-hidden="true"/>
-      </button>
+      </span>
       <div class="brand-text">
         <h1>GhostFleet</h1>
         <p class="subtitle">Command a haunted fleet across stormy-dark waters.</p>
@@ -1339,6 +1339,7 @@
     sendMultiplayerEvent('create_room',{playerName:multiplayer.playerName,gridSize:multiplayer.roomBoardSize||N},'Creating room...');
   }
   function startNewBattle(){
+    stopConfetti();
     if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
     sessionStorage.removeItem(mpStorageKey());
     if(window.location.pathname.startsWith('/room/'))history.pushState({},'','/');
@@ -1375,7 +1376,8 @@
   }
   function updatePostGameActions(){
     const humanMatch=MULTIPLAYER_ENABLED&&multiplayer.joined;
-    const label=humanMatch?(multiplayer.rematchRequested?'Waiting...':'New Game'):'New Game';
+    const rematchAvailable=humanMatch&&phase==='ended'&&multiplayer.endReason!=='timeout_surrender';
+    const label=rematchAvailable?(multiplayer.rematchRequested?'Waiting...':'Rematch'):'New Game';
     ['modalNewGameBtn','analysisNewGameBtn'].forEach(id=>{
       const btn=document.getElementById(id);
       if(!btn)return;
@@ -1436,9 +1438,10 @@
   function updateMultiplayerEndState(snapshot){
     if(!MULTIPLAYER_ENABLED||!snapshot||snapshot.phase!=='ended')return;
     const opponent=snapshot.opponent;
-    let message='Match ended. Choose New Game to play again or Exit Room.';
-    if(multiplayer.rematchRequested)message='Waiting for '+multiplayerOpponentLabel()+' to start a new game...';
-    else if(opponent&&opponent.rematchRequested)message=multiplayerOpponentLabel()+' wants a new game.';
+    const rematchAvailable=multiplayer.endReason!=='timeout_surrender';
+    let message=rematchAvailable?'Match ended. Choose Rematch to play again or Exit Room.':'Match ended. Choose New Game to play again or Exit Room.';
+    if(multiplayer.rematchRequested)message='Waiting for '+multiplayerOpponentLabel()+' to rematch...';
+    else if(opponent&&opponent.rematchRequested)message=multiplayerOpponentLabel()+' wants a rematch.';
     if(opponent&&!opponent.connected)message=multiplayerOpponentLabel()+' left the room. You can exit or wait for reconnect.';
     setMultiplayerStatus(message);
     if(phase==='ended'){
@@ -1450,14 +1453,15 @@
   function requestMultiplayerRematch(){
     if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='ended'){startNewBattle();return;}
     if(multiplayer.rematchRequested)return;
+    stopConfetti();
     multiplayer.rematchRequested=true;
     document.getElementById('analysisOverlay').classList.remove('show');
     document.getElementById('modalOverlay').classList.add('show');
-    setMultiplayerStatus('Waiting for '+multiplayerOpponentLabel()+' to start a new game...');
+    setMultiplayerStatus('Waiting for '+multiplayerOpponentLabel()+' to rematch...');
     const msg=document.getElementById('modalMsg');
-    if(msg)msg.textContent='Waiting for '+multiplayerOpponentLabel()+' to start a new game...';
+    if(msg)msg.textContent='Waiting for '+multiplayerOpponentLabel()+' to rematch...';
     updatePostGameActions();
-    sendMultiplayerEvent('match:rematch',{},'Waiting for '+multiplayerOpponentLabel()+' to start a new game...');
+    sendMultiplayerEvent('match:rematch',{},'Waiting for '+multiplayerOpponentLabel()+' to rematch...');
   }
   function exitCurrentGame(confirmFirst=true){
     if(confirmFirst&&phase!=='ended'){
@@ -2721,6 +2725,7 @@
   function updateMobileBoardUI(){
     const mobile=isMobileLayout();
     const strip=document.getElementById('mobileBoardTabs');
+    const boardsRow=document.querySelector('.boards-row');
     const yourWrap=document.getElementById('yourWrap');
     const enemyWrap=document.getElementById('enemyWrap');
     const yourTab=document.getElementById('mobileYourTab');
@@ -2734,6 +2739,10 @@
     if(strip){
       strip.classList.toggle('arrange-mode',phase==='placing');
       strip.classList.toggle('battle-mode',phase!=='placing');
+    }
+    if(boardsRow){
+      boardsRow.classList.toggle('arrange-mode',phase==='placing');
+      boardsRow.classList.toggle('battle-mode',phase!=='placing');
     }
     if(phase==='placing')activeMobileBoard='your';
     if((phase==='playing'||phase==='ended')&&activeMobileBoard!=='your'&&activeMobileBoard!=='enemy')activeMobileBoard='enemy';
@@ -3212,7 +3221,7 @@
     updateModeUI();
   }
 
-  function newGame(){clearBattleAutoStart();clearArrangeDrag();phase='placing';
+  function newGame(){stopConfetti();clearBattleAutoStart();clearArrangeDrag();phase='placing';
     stopMultiplayerCountdown();
     syncOpponentMode();
     if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
@@ -4025,7 +4034,7 @@
     },100);});
 
   const canvas=document.getElementById('confetti-canvas'),ctx=canvas.getContext('2d');
-  let particles=[],confettiAnim=null;
+  let particles=[],confettiAnim=null,confettiStopTimer=null;
   const COLORS=['#ffd700','#fff','#e2b96f','#3498db','#27ae60','#fff9c4'];
   function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
   resize();
@@ -4033,8 +4042,14 @@
   function mk(){return{x:rnd(0,canvas.width),y:rnd(-80,-10),w:rnd(6,16),h:rnd(4,10),
     color:COLORS[Math.floor(Math.random()*COLORS.length)],rot:rnd(0,Math.PI*2),
     rs:rnd(-.1,.1),vx:rnd(-2,2),vy:rnd(3,8),op:1};}
-  function startConfetti(){particles=Array.from({length:200},mk);anim();}
-  function stopConfetti(){if(confettiAnim){cancelAnimationFrame(confettiAnim);confettiAnim=null;}
+  function startConfetti(){
+    stopConfetti();
+    particles=Array.from({length:200},mk);
+    anim();
+    confettiStopTimer=setTimeout(stopConfetti,10000);
+  }
+  function stopConfetti(){if(confettiStopTimer){clearTimeout(confettiStopTimer);confettiStopTimer=null;}
+    if(confettiAnim){cancelAnimationFrame(confettiAnim);confettiAnim=null;}
     ctx.clearRect(0,0,canvas.width,canvas.height);particles=[];}
   function anim(){ctx.clearRect(0,0,canvas.width,canvas.height);
     if(particles.length<260)for(let i=0;i<6;i++)particles.push(mk());
