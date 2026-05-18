@@ -102,6 +102,9 @@ async function main() {
     if (!/^[A-HJ-NP-Z2-9]{6}$/.test(join1.roomId) || join1.roomUrl !== `/room/${join1.roomId}`) {
       throw new Error('Expected uppercase Teams-style room URL.');
     }
+    if (!join1.snapshot || join1.snapshot.you.displayName !== 'SmokeA') {
+      throw new Error('Expected host player name to be sanitized.');
+    }
 
     const p1Placement = once(p1, 'match:startPlacement');
     const p2Placement = once(p2, 'match:startPlacement');
@@ -110,6 +113,9 @@ async function main() {
     const join2 = await p2Joined;
     p2.roomCode = join2.roomId;
     p2.playerIndex = join2.playerIndex;
+    if (!join2.snapshot || join2.snapshot.you.displayName !== 'SmokeB') {
+      throw new Error('Expected joiner player name to be sanitized.');
+    }
     await Promise.all([p1Placement, p2Placement]);
     if (p1.playerIndex !== 0 || p2.playerIndex !== 1) throw new Error('Expected fixed slots 0 and 1.');
 

@@ -82,6 +82,7 @@ Socket.IO must remain enabled even when `GHOSTFLEET_FREE_ONLY=true`, because Hum
 - The server owns room state. Clients send intents only.
 - Server turns are slot indexes (`0` or `1`), never socket IDs.
 - Player identity uses `sessionStorage.gf_clientId`; room context uses `sessionStorage.gf_session`.
+- Player display names are capped at 8 characters and must be letters/numbers only; both client and server sanitize this.
 - Reconnects must match by `clientId`, migrate the socket ID into the same slot, then emit `resync`.
 - Hidden ship positions must never be sent to the opponent until sunk/reveal/endgame.
 - Placement is simultaneous. A submitted fleet is locked and cannot be changed.

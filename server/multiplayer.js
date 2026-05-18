@@ -65,7 +65,7 @@ function makeId(prefix) {
 }
 
 function cleanName(value) {
-  const name = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 18);
+  const name = String(value || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
   return name || 'Captain';
 }
 

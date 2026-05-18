@@ -874,7 +874,7 @@
       <div class="analysis-grid">
         <div class="analysis-card"><strong id="analysisHitRun">0</strong><span>Best Hit Run</span></div>
         <div class="analysis-card"><strong id="analysisFirstHit">--</strong><span>First Hit</span></div>
-        <div class="analysis-card"><strong id="analysisSinks">0 / 0</strong><span>You / AI Sinks</span></div>
+        <div class="analysis-card"><strong id="analysisSinks">0 / 0</strong><span id="analysisSinksLabel">You / AI Sinks</span></div>
         <div class="analysis-card"><strong id="analysisPressure">--</strong><span>Hit Pressure</span></div>
       </div>
       <div class="analysis-log" id="analysisLog"></div>
@@ -960,7 +960,7 @@
     <div class="multiplayer-form">
       <div class="multiplayer-field">
         <label for="mpName">Player Name</label>
-        <input id="mpName" maxlength="18" autocomplete="nickname" placeholder="Captain"/>
+        <input id="mpName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="nickname" placeholder="Captain"/>
       </div>
       <div class="multiplayer-field multiplayer-size-field" id="mpSizeField">
         <label>Room Size</label>
@@ -1024,7 +1024,7 @@
     <div class="multiplayer-form">
       <div class="multiplayer-field">
         <label for="inviteName">Player Name</label>
-        <input id="inviteName" maxlength="18" autocomplete="nickname" placeholder="Captain"/>
+        <input id="inviteName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="nickname" placeholder="Captain"/>
       </div>
       <button class="modal-btn" type="button" onclick="joinInviteRoom()">Join Battle</button>
       <button class="modal-btn mp-opponent-back" type="button" onclick="startNewBattle()">Start New Game</button>
@@ -1129,8 +1129,8 @@
         <div class="stat-row premium-label-difficulty"><span>Difficulty</span><span class="stat-val" id="statDiff">Easy</span></div>
         <div class="stat-row premium-label-room"><span>Room</span><span class="stat-val" id="statRoom">Not joined</span></div>
         <div class="stat-row"><span>Misses</span><span class="stat-val" id="statMisses">0</span></div>
-        <div class="stat-row"><span>AI Shots</span><span class="stat-val" id="statAIShots">0</span></div>
-        <div class="stat-row"><span>AI Hits</span><span class="stat-val" id="statAIHits">0</span></div>
+        <div class="stat-row"><span id="statOpponentShotsLabel">AI Shots</span><span class="stat-val" id="statAIShots">0</span></div>
+        <div class="stat-row"><span id="statOpponentHitsLabel">AI Hits</span><span class="stat-val" id="statAIHits">0</span></div>
         <hr class="divider"/>
         <div class="stat-row"><span>Wins / Losses</span><span class="stat-val" id="statWL">0 / 0</span></div>
       </div>
@@ -1365,7 +1365,7 @@
     multiplayer.suppressLobby=true;
     newGame();
     multiplayer.suppressLobby=false;
-    multiplayer.playerName=sessionStorage.getItem('ghostfleet-player-name')||'Captain';
+    multiplayer.playerName=savedPlayerName();
     showMultiplayerLobby('Enter your name, choose a room size, then create or join a room.');
   }
   function startNewBattle(){
@@ -1981,8 +1981,42 @@
     const el=document.getElementById('mpStatus');
     if(el)el.textContent=message||'';
   }
+  function sanitizePlayerNameDraft(value){
+    return String(value||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,8);
+  }
+  function sanitizePlayerName(value){
+    return sanitizePlayerNameDraft(value)||'Captain';
+  }
+  function rememberPlayerName(value){
+    const name=sanitizePlayerName(value);
+    sessionStorage.setItem('ghostfleet-player-name',name);
+    return name;
+  }
+  function savedPlayerName(){
+    return sanitizePlayerName(sessionStorage.getItem('ghostfleet-player-name')||'');
+  }
+  function bindPlayerNameValidation(){
+    ['mpName','inviteName'].forEach(id=>{
+      const input=document.getElementById(id);
+      if(!input||input.dataset.nameBound)return;
+      input.dataset.nameBound='true';
+      input.addEventListener('input',()=>{
+        const cleaned=sanitizePlayerNameDraft(input.value);
+        if(input.value!==cleaned)input.value=cleaned;
+      });
+      input.addEventListener('blur',()=>{
+        input.value=sanitizePlayerNameDraft(input.value);
+      });
+    });
+  }
   function multiplayerOpponentLabel(){
     return multiplayer.opponentName||'Opponent';
+  }
+  function analysisOpponentLabel(){
+    return MULTIPLAYER_ENABLED&&multiplayer.joined?multiplayerOpponentLabel():'AI';
+  }
+  function analysisActorLabel(actor){
+    return actor==='AI'?analysisOpponentLabel():actor;
   }
   function updateMultiplayerRoomLabel(){
     const el=document.getElementById('statRoom');
@@ -2084,7 +2118,7 @@
     const overlay=document.getElementById('multiplayerOverlay');
     if(overlay)overlay.classList.add('show');
     setMultiplayerStatus(message||'Create a room or join a captain with a 6-letter code.');
-    const savedName=sessionStorage.getItem('ghostfleet-player-name')||'';
+    const savedName=sanitizePlayerNameDraft(sessionStorage.getItem('ghostfleet-player-name')||'');
     const nameInput=document.getElementById('mpName');
     if(nameInput&&!nameInput.value)nameInput.value=savedName;
     if(!multiplayer.joined)setJoinMode(false);
@@ -2114,7 +2148,7 @@
     hideOpponentOverlay();hideMultiplayerLobby();hideShareRoomScreen();
     const overlay=document.getElementById('inviteOverlay');
     const input=document.getElementById('inviteName');
-    const saved=sessionStorage.getItem('ghostfleet-player-name')||'';
+    const saved=sanitizePlayerNameDraft(sessionStorage.getItem('ghostfleet-player-name')||'');
     if(input&&!input.value)input.value=saved;
     const status=document.getElementById('inviteStatus');
     if(status)status.textContent=message||('Room '+room+' is waiting for your callsign.');
@@ -2360,8 +2394,8 @@
   }
   function multiplayerName(){
     const el=document.getElementById('mpName');
-    const name=(el&&el.value.trim())||'Captain';
-    sessionStorage.setItem('ghostfleet-player-name',name);
+    const name=rememberPlayerName(el&&el.value);
+    if(el)el.value=name;
     return name;
   }
   function createMultiplayerRoom(){
@@ -2382,13 +2416,13 @@
   function joinInviteRoom(){
     const code=normalizeRoomCode(multiplayer.roomCode||inviteRoomCodeFromUrl());
     const input=document.getElementById('inviteName');
-    const name=(input&&input.value.trim())||'Captain';
+    const name=rememberPlayerName(input&&input.value);
     if(!code){
       const status=document.getElementById('inviteStatus');
       if(status)status.textContent='Room link is not valid.';
       return;
     }
-    sessionStorage.setItem('ghostfleet-player-name',name);
+    if(input)input.value=name;
     multiplayer.playerName=name;
     sendMultiplayerEvent('join_room',{roomId:code,playerName:name},'Joining battle...');
   }
@@ -3756,6 +3790,9 @@
     a.textContent=shots>0?acc+'%':'—';
     a.className='qs-val '+(acc>=50?'green':acc>=25?'':'red');
     document.getElementById('statMisses').textContent=shots-hits;
+    const opponentLabel=analysisOpponentLabel();
+    document.getElementById('statOpponentShotsLabel').textContent=opponentLabel+' Shots';
+    document.getElementById('statOpponentHitsLabel').textContent=opponentLabel+' Hits';
     document.getElementById('statAIShots').textContent=aiShots;
     document.getElementById('statAIHits').textContent=aiHits;
     document.getElementById('statWL').textContent=wins+' / '+losses;}
@@ -3962,7 +3999,8 @@
     const bestRunTier=hitRunLabel(bestRun);
     const playerAcc=playerMoves.length?Math.round(playerHits/playerMoves.length*100):0;
     const aiAcc=aiMoves.length?Math.round(aiHitCount/aiMoves.length*100):0;
-    const pressure=playerHits===aiHitCount?'Even':(playerHits>aiHitCount?'You +'+(playerHits-aiHitCount):'AI +'+(aiHitCount-playerHits));
+    const opponentLabel=analysisOpponentLabel();
+    const pressure=playerHits===aiHitCount?'Even':(playerHits>aiHitCount?'You +'+(playerHits-aiHitCount):opponentLabel+' +'+(aiHitCount-playerHits));
     const followStats=getHitFollowStats(playerMoves);
     const spacingGuide=buildSearchSpacingGuide(playerMoves);
     const achievements=allowRoundAchievements()?getRoundAchievements(won,playerMoves,aiMoves,playerAcc,aiHitCount):[];
@@ -3970,15 +4008,16 @@
     const achievementSummary=unlocked.length?' Achievements unlocked: '+unlocked.join(', ')+'.':'';
     let summary;
     if(endedBySurrender){
-      summary='You surrendered after '+playerMoves.length+' shots with '+playerAcc+'% accuracy. The enemy had landed '+aiHitCount+' hit'+(aiHitCount===1?'':'s')+', and your first confirmed contact was '+firstHit+'. The review below focuses on what to stabilize before withdrawing.'+achievementSummary;
+      summary='You surrendered after '+playerMoves.length+' shots with '+playerAcc+'% accuracy. '+opponentLabel+' had landed '+aiHitCount+' hit'+(aiHitCount===1?'':'s')+', and your first confirmed contact was '+firstHit+'. The review below focuses on what to stabilize before withdrawing.'+achievementSummary;
     } else {
       summary=won
         ? 'You won in '+playerMoves.length+' shots with '+playerAcc+'% accuracy. Your strongest contact tier was '+bestRunTier+', and your first confirmed contact was '+firstHit+'.'+achievementSummary
-        : 'You lost after '+playerMoves.length+' shots at '+playerAcc+'% accuracy. Your strongest contact tier was '+bestRunTier+'. The enemy accuracy was '+aiAcc+'%, so the biggest opportunity is tighter hunt spacing and faster follow-up after hits.'+achievementSummary;
+        : 'You lost after '+playerMoves.length+' shots at '+playerAcc+'% accuracy. Your strongest contact tier was '+bestRunTier+'. '+opponentLabel+"'s accuracy was "+aiAcc+'%, so the biggest opportunity is tighter hunt spacing and faster follow-up after hits.'+achievementSummary;
     }
     document.getElementById('analysisHitRun').textContent=bestRunTier;
     document.getElementById('analysisFirstHit').textContent=firstHit;
     document.getElementById('analysisSinks').textContent=playerSinks+' / '+aiSinks;
+    document.getElementById('analysisSinksLabel').textContent='You / '+opponentLabel+' Sinks';
     document.getElementById('analysisPressure').textContent=pressure;
     document.getElementById('analysisSummary').textContent=summary;
     renderAchievements('analysisAchievements',achievements);
@@ -3990,7 +4029,7 @@
       ['Closing pattern','Last 8 shots reveal whether you finished contacts cleanly: '+formatPattern(playerMoves.slice(-8))],
       ['Search spacing guide',spacingGuide],
       ['Hit follow-up','Adjacent response after non-sinking hits: '+followStats.adjacentFollowups+' / '+followStats.followableHits+' ('+followStats.followRate+'%)'],
-      ['Accuracy split','You '+playerAcc+'% / AI '+aiAcc+'%']
+      ['Accuracy split','You '+playerAcc+'% / '+opponentLabel+' '+aiAcc+'%']
     ].forEach(([label,value])=>{
       const div=document.createElement('div');
       div.textContent=label+': '+value;
@@ -4002,7 +4041,7 @@
     battleMoves.forEach(m=>{
       const row=document.createElement('div');
       row.className='analysis-move '+m.result;
-      row.innerHTML=`<span>#${m.turn}</span><span>${m.actor}</span><span>${m.coord} - ${m.result.toUpperCase()}${m.shipName?' / '+m.shipName:''}</span>`;
+      row.innerHTML=`<span>#${m.turn}</span><span>${analysisActorLabel(m.actor)}</span><span>${m.coord} - ${m.result.toUpperCase()}${m.shipName?' / '+m.shipName:''}</span>`;
       timeline.appendChild(row);
     });
 
@@ -4149,7 +4188,7 @@
     multiplayer.roomCode=roomId;
     multiplayer.token=(saved&&saved.token)||'';
     multiplayer.playerIndex=saved&&Number.isInteger(saved.playerIndex)?saved.playerIndex:null;
-    multiplayer.playerName=(saved&&saved.playerName)||sessionStorage.getItem('ghostfleet-player-name')||'Captain';
+    multiplayer.playerName=sanitizePlayerName((saved&&saved.playerName)||sessionStorage.getItem('ghostfleet-player-name')||'Captain');
     multiplayer.restoring=true;
     multiplayer.suppressLobby=true;
     newGame();
@@ -4160,6 +4199,7 @@
   function initializeGhostFleet(){
     applyTierConfig();
     renderHowTo();
+    bindPlayerNameValidation();
     const inviteCode=inviteRoomCodeFromUrl();
     const saved=savedMultiplayerSession();
     if(inviteCode&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
