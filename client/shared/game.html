@@ -111,7 +111,7 @@
   .multiplayer-field.room-code{display:none;}
   .multiplayer-field.room-code.show{display:grid;}
   .multiplayer-field.hidden{display:none;}
-  .mp-size-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  .mp-size-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
   .mp-size-btn{border:1px solid rgba(226,185,111,.28);border-radius:8px;
     background:linear-gradient(180deg,rgba(255,255,255,.06),transparent 36%),rgba(5,12,18,.72);
     color:#d5e1eb;padding:10px 12px;font:800 .86rem inherit;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);}
@@ -971,15 +971,15 @@
         </div>
         <div class="mp-size-note">Host chooses the grid size before creating the room.</div>
       </div>
+      <div class="multiplayer-field room-code" id="mpCodeField">
+        <label for="mpCode">Room code</label>
+        <input id="mpCode" maxlength="6" autocomplete="off" placeholder="XK4BNM"/>
+      </div>
       <div class="multiplayer-actions">
         <button class="modal-btn" id="mpCreateBtn" type="button" onclick="createMultiplayerRoom()">Create Room</button>
         <button class="modal-btn" id="mpJoinBtn" type="button" onclick="joinMultiplayerRoom()">Join Room</button>
       </div>
       <button class="modal-btn mp-opponent-back" id="mpBackBtn" type="button" onclick="returnToOpponentChoice()">Back to Opponent Choice</button>
-      <div class="multiplayer-field room-code" id="mpCodeField">
-        <label for="mpCode">Room code</label>
-        <input id="mpCode" maxlength="6" autocomplete="off" placeholder="XK4BNM"/>
-      </div>
     </div>
     <div class="multiplayer-room-card" id="mpRoomCard">
       <div class="room-code-display" id="mpRoomCode">------</div>
@@ -1005,6 +1005,7 @@
       <div class="room-player-list" id="sharePlayers"></div>
       <div class="share-actions">
         <button class="modal-btn" id="copyRoomBtn" type="button" onclick="copyRoomLink()">Copy Invite Link</button>
+        <button class="modal-btn" type="button" onclick="shareRoomLink()">Share</button>
         <button class="modal-btn" type="button" onclick="shareRoomWhatsApp()">Share via WhatsApp</button>
       </div>
       <div class="sonar-wait"><span class="sonar-dot"></span><span>Waiting for opponent to join...</span></div>
@@ -2313,6 +2314,8 @@
     if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
     if(joinBtn)joinBtn.textContent=multiplayer.joinMode?'Enter Room':'Join Room';
     if(createBtn)createBtn.textContent=multiplayer.joinMode?'Back to Human Setup':'Create Room';
+    if(joinBtn)joinBtn.style.order=multiplayer.joinMode?'-1':'';
+    if(createBtn)createBtn.style.order=multiplayer.joinMode?'2':'';
     if(multiplayer.joinMode){
       const code=document.getElementById('mpCode');
       if(code)setTimeout(()=>code.focus(),0);
@@ -2680,6 +2683,18 @@
   function handleMultiplayerResync(snapshot){
     applyMultiplayerSnapshot(snapshot);
     hideReconnectOverlay();
+    if(snapshot.phase==='waiting'){
+      hideInviteOverlay();
+      if(multiplayer.playerIndex===0){
+        hideMultiplayerLobby();
+        showShareRoomScreen();
+      } else {
+        hideShareRoomScreen();
+        showMultiplayerLobby('Waiting for player 2 to join.');
+      }
+      showMultiplayerToast('Reconnected');
+      return;
+    }
     hideShareRoomScreen();
     hideInviteOverlay();
     if(snapshot.phase==='placing'){
