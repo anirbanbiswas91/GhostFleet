@@ -407,26 +407,26 @@
   .explosion-sprite.sunk-sprite{filter:drop-shadow(0 0 18px rgba(255,176,56,.85)) drop-shadow(0 0 12px rgba(125,211,252,.45));}
   .miss-ripple::before,.miss-ripple::after{content:'';position:absolute;left:50%;top:50%;width:22%;height:22%;
     border:2px solid rgba(125,211,252,.9);border-radius:50%;transform:translate(-50%,-50%) scale(.2);
-    animation:missRipple .7s ease-out forwards;}
-  .miss-ripple::after{animation-delay:.12s;border-color:rgba(186,230,253,.6);}
+    animation:missRipple var(--shot-miss-ripple-duration,1.4s) ease-out forwards;}
+  .miss-ripple::after{animation-delay:var(--shot-miss-ripple-delay,.24s);border-color:rgba(186,230,253,.6);}
   @keyframes missRipple{to{opacity:0;transform:translate(-50%,-50%) scale(3.1);}}
   .hit-splash::before{content:'';position:absolute;left:50%;top:50%;width:34%;height:34%;border-radius:50%;
     background:radial-gradient(circle,rgba(255,255,255,.95),rgba(125,211,252,.8) 35%,rgba(239,68,68,.75) 62%,transparent 70%);
-    transform:translate(-50%,-50%) scale(.25);animation:hitSplashCore .58s ease-out forwards;}
+    transform:translate(-50%,-50%) scale(.25);animation:hitSplashCore var(--shot-hit-core-duration,1.16s) ease-out forwards;}
   .hit-splash::after{content:'';position:absolute;inset:8%;
     background:
       radial-gradient(circle at 50% 0%,rgba(255,255,255,.9) 0 7%,transparent 8%),
       radial-gradient(circle at 92% 36%,rgba(125,211,252,.9) 0 7%,transparent 8%),
       radial-gradient(circle at 70% 95%,rgba(255,255,255,.85) 0 6%,transparent 7%),
       radial-gradient(circle at 6% 58%,rgba(125,211,252,.85) 0 7%,transparent 8%);
-    transform:scale(.2) rotate(0deg);animation:hitSplashDrops .62s ease-out forwards;}
+    transform:scale(.2) rotate(0deg);animation:hitSplashDrops var(--shot-hit-drops-duration,1.24s) ease-out forwards;}
   @keyframes hitSplashCore{60%{opacity:1;transform:translate(-50%,-50%) scale(1.55);}
     100%{opacity:0;transform:translate(-50%,-50%) scale(2.35);}}
   @keyframes hitSplashDrops{70%{opacity:1;transform:scale(1.25) rotate(18deg);}
     100%{opacity:0;transform:scale(1.75) rotate(28deg);}}
 
   /* Sink celebration */
-  .cell.sink-flash{animation:sinkFlash 1.4s ease-out;z-index:5;}
+  .cell.sink-flash{animation:sinkFlash var(--shot-sunk-duration,2.8s) ease-out;z-index:5;}
   @keyframes sinkFlash{
     0%{box-shadow:0 0 0 0 rgba(255,180,0,1);transform:scale(1);}
     20%{box-shadow:0 0 30px 12px rgba(255,200,0,.95),0 0 60px 20px rgba(255,80,0,.7);transform:scale(1.35);}
@@ -439,7 +439,7 @@
     font-size:1.4rem;font-weight:900;color:#fff;letter-spacing:3px;text-transform:uppercase;
     text-shadow:0 0 14px rgba(255,180,0,.9),0 2px 6px #000;
     box-shadow:0 0 60px rgba(255,120,0,.7),0 8px 30px rgba(0,0,0,.7);
-    pointer-events:none;opacity:0;animation:sinkBanner 1.5s ease-out forwards;}
+    pointer-events:none;opacity:0;animation:sinkBanner var(--shot-sink-banner-duration,3s) ease-out forwards;}
   @keyframes sinkBanner{
     0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-8deg);}
     20%{opacity:1;transform:translate(-50%,-50%) scale(1.15) rotate(2deg);}
@@ -1389,6 +1389,10 @@
     opponentDisconnectTimer:null,
     opponentDisconnectUntil:null,
     lastWarningSecond:null,
+    shotEffectUntil:0,
+    shotEffectTimer:null,
+    pendingTurnSnapshot:null,
+    pendingEndSnapshot:null,
     endReason:''
   };
   let statusState={cls:'placing',msg:'Place your fleet to begin!'};
@@ -1597,14 +1601,40 @@
     newGame();
   }
   function exitMultiplayerRoom(){exitCurrentGame(false);}
+  const SHOT_EFFECT_TIMING=Object.freeze({
+    missRippleMs:1400,
+    missRippleDelayMs:240,
+    hitCoreMs:1160,
+    hitDropsMs:1240,
+    hitMs:1240,
+    missMs:1640,
+    sunkMs:2800,
+    sinkBannerMs:3000,
+    explosionFrameMs:{hit:92,sunk:116},
+    explosionCleanupMs:{hit:1240,sunk:1640}
+  });
+  function applyShotTimingCssVars(){
+    const root=document.documentElement;
+    root.style.setProperty('--shot-miss-ripple-duration',SHOT_EFFECT_TIMING.missRippleMs+'ms');
+    root.style.setProperty('--shot-miss-ripple-delay',SHOT_EFFECT_TIMING.missRippleDelayMs+'ms');
+    root.style.setProperty('--shot-hit-core-duration',SHOT_EFFECT_TIMING.hitCoreMs+'ms');
+    root.style.setProperty('--shot-hit-drops-duration',SHOT_EFFECT_TIMING.hitDropsMs+'ms');
+    root.style.setProperty('--shot-sunk-duration',SHOT_EFFECT_TIMING.sunkMs+'ms');
+    root.style.setProperty('--shot-sink-banner-duration',SHOT_EFFECT_TIMING.sinkBannerMs+'ms');
+  }
+  function shotEffectDuration(isHit,isSunk=false){
+    if(isSunk)return SHOT_EFFECT_TIMING.sunkMs;
+    return isHit?SHOT_EFFECT_TIMING.hitMs:SHOT_EFFECT_TIMING.missMs;
+  }
+  applyShotTimingCssVars();
   // External sprite swaps should be horizontal transparent strips: 4-6 square frames, same frame size.
   const EXPLOSION_CONFIG={
     frameCount:6,
     frameSize:96,
-    frameMs:{hit:46,sunk:58},
+    frameMs:SHOT_EFFECT_TIMING.explosionFrameMs,
     scale:{hit:1.45,sunk:1.75},
     maxActiveSprites:7,
-    forceCleanupMs:{hit:620,sunk:820},
+    forceCleanupMs:SHOT_EFFECT_TIMING.explosionCleanupMs,
     reducedMotionFallback:true
   };
   const explosionSheets={hit:null,sunk:null};
@@ -1960,12 +1990,14 @@
 
   function animateShot(containerId,idx,isHit,isSunk=false){
     const cell=getBoardCell(containerId,idx);
-    if(!cell)return;
+    const duration=shotEffectDuration(isHit,isSunk);
+    if(!cell)return duration;
     const fx=document.createElement('span');
     fx.className='shot-fx '+(isHit?'hit-splash':'miss-ripple');
     cell.appendChild(fx);
     if(isHit)playExplosionSprite(cell,isSunk);
-    setTimeout(()=>fx.remove(),760);
+    setTimeout(()=>fx.remove(),duration);
+    return duration;
   }
 
   function applyShotFeedback(containerId,idx,isHit,isSunk=false){
@@ -1973,7 +2005,7 @@
     renderShipLists();
     updateStats();
     updateModeUI();
-    animateShot(containerId,idx,isHit,isSunk);
+    return animateShot(containerId,idx,isHit,isSunk);
   }
 
   function flashPlacementFeedback(cells,ok){
@@ -2376,6 +2408,7 @@
       showMultiplayerToast((payload&&payload.msg)||'Opponent reconnected');
     });
     socket.on('opponent_disconnected',payload=>{
+      clearMultiplayerShotPacing();
       multiplayer.pendingShot=false;
       inputLocked=true;
       setMultiplayerStatus((payload&&payload.msg)||'Opponent disconnected. Exit the room to start again.');
@@ -2388,6 +2421,7 @@
       showRoomStatus('Room Expired',(payload&&payload.msg)||'This game has ended. Both players left the room.');
     });
     socket.on('error:message',payload=>{
+      clearMultiplayerShotPacing();
       setMultiplayerStatus((payload&&payload.message)||'Multiplayer error.');
       if(payload&&(payload.code==='ROOM_NOT_FOUND'||payload.code==='room_not_found')){
         sessionStorage.removeItem(mpStorageKey());
@@ -2666,6 +2700,7 @@
     multiplayer.endReason='';
     multiplayer.turnDeadlineAt=null;
     stopMultiplayerCountdown();
+    clearMultiplayerShotPacing();
     document.getElementById('modalOverlay').classList.remove('show');
     document.getElementById('analysisOverlay').classList.remove('show');
     selectedShipId=SHIPS[0].id;selectedSource='dock';selectedOffset=0;orientation='h';hoverCell=-1;currentTurn='placing';previewCellsCurrent=[];
@@ -2704,6 +2739,7 @@
   }
   function beginMultiplayerBattle(snapshot){
     applyMultiplayerSnapshot(snapshot);
+    clearMultiplayerShotPacing();
     hideMultiplayerLobby();
     hideShareRoomScreen();
     hideInviteOverlay();
@@ -2723,7 +2759,36 @@
     setStatus(currentTurn==='you'?'yourturn':'aiturn',currentTurn==='you'?'Your turn - fire at enemy waters.':multiplayerOpponentLabel()+' is firing...');
     updateModeUI();updateBoardHighlights(currentTurn);renderBoards();renderShipLists();
   }
-  function handleMultiplayerTurn(snapshot){
+  function multiplayerShotEffectRemaining(){
+    return Math.max(0,(multiplayer.shotEffectUntil||0)-Date.now());
+  }
+  function scheduleMultiplayerShotEffectFlush(){
+    if(multiplayer.shotEffectTimer)clearTimeout(multiplayer.shotEffectTimer);
+    const remaining=multiplayerShotEffectRemaining();
+    if(remaining<=0){flushPendingMultiplayerShotEffects();return;}
+    multiplayer.shotEffectTimer=setTimeout(flushPendingMultiplayerShotEffects,remaining);
+  }
+  function markMultiplayerShotEffect(duration){
+    multiplayer.shotEffectUntil=Math.max(multiplayer.shotEffectUntil||0,Date.now()+Math.max(0,duration||0));
+    scheduleMultiplayerShotEffectFlush();
+  }
+  function flushPendingMultiplayerShotEffects(){
+    if(multiplayer.shotEffectTimer){clearTimeout(multiplayer.shotEffectTimer);multiplayer.shotEffectTimer=null;}
+    multiplayer.shotEffectUntil=0;
+    const endSnapshot=multiplayer.pendingEndSnapshot;
+    const turnSnapshot=multiplayer.pendingTurnSnapshot;
+    multiplayer.pendingEndSnapshot=null;
+    multiplayer.pendingTurnSnapshot=null;
+    if(endSnapshot)processFinishMultiplayerMatch(endSnapshot);
+    else if(turnSnapshot)processMultiplayerTurn(turnSnapshot);
+  }
+  function clearMultiplayerShotPacing(){
+    if(multiplayer.shotEffectTimer){clearTimeout(multiplayer.shotEffectTimer);multiplayer.shotEffectTimer=null;}
+    multiplayer.shotEffectUntil=0;
+    multiplayer.pendingTurnSnapshot=null;
+    multiplayer.pendingEndSnapshot=null;
+  }
+  function processMultiplayerTurn(snapshot){
     applyMultiplayerSnapshot(snapshot);
     if(snapshot.phase==='battle')phase='playing';
     if(phase!=='playing')return;
@@ -2734,6 +2799,14 @@
     setStatus(currentTurn==='you'?'yourturn':'aiturn',currentTurn==='you'?'Your turn - fire at enemy waters.':multiplayerOpponentLabel()+' is firing...');
     updateBoardHighlights(currentTurn);renderBoards();renderShipLists();
     showTurnBanner(currentTurn==='you'?'you':'ai',bannerDelay(650));
+  }
+  function handleMultiplayerTurn(snapshot){
+    if(multiplayerShotEffectRemaining()>0){
+      multiplayer.pendingTurnSnapshot=snapshot;
+      scheduleMultiplayerShotEffectFlush();
+      return;
+    }
+    processMultiplayerTurn(snapshot);
   }
   function multiplayerFire(idx){
     if(phase!=='playing'||!multiplayer.myTurn||inputLocked||multiplayer.pendingShot)return;
@@ -2796,9 +2869,11 @@
     }
     multiplayer.pendingShot=mine&&payload.snapshot&&payload.snapshot.phase!=='ended';
     inputLocked=!!multiplayer.pendingShot;
-    if(shotAnimation)applyShotFeedback(shotAnimation.containerId,shotAnimation.idx,shotAnimation.hit,shotAnimation.sunk);
+    let animationDuration=0;
+    if(shotAnimation)animationDuration=applyShotFeedback(shotAnimation.containerId,shotAnimation.idx,shotAnimation.hit,shotAnimation.sunk);
     else {renderBoards();renderShipLists();updateStats();updateModeUI();}
-    if(sunkCelebration)celebrateSink(sunkCelebration.ship,sunkCelebration.isEnemyShip);
+    if(sunkCelebration){celebrateSink(sunkCelebration.ship,sunkCelebration.isEnemyShip);animationDuration=Math.max(animationDuration,SHOT_EFFECT_TIMING.sunkMs);}
+    markMultiplayerShotEffect(animationDuration);
   }
   function handleMultiplayerResync(snapshot){
     applyMultiplayerSnapshot(snapshot);
@@ -2847,6 +2922,16 @@
     showMultiplayerToast('Reconnected');
   }
   function finishMultiplayerMatch(snapshot){
+    const endReason=(snapshot&&(snapshot.endReason||snapshot.reason))||'ships_sunk';
+    if(endReason==='ships_sunk'&&multiplayerShotEffectRemaining()>0){
+      multiplayer.pendingEndSnapshot=snapshot;
+      scheduleMultiplayerShotEffectFlush();
+      return;
+    }
+    processFinishMultiplayerMatch(snapshot);
+  }
+  function processFinishMultiplayerMatch(snapshot){
+    clearMultiplayerShotPacing();
     applyMultiplayerSnapshot(snapshot);
     hydrateMultiplayerBoards(snapshot);
     phase='ended';
@@ -2864,6 +2949,7 @@
     endGame(won);
   }
   function leaveMultiplayerRoom(emitLeave=true){
+    clearMultiplayerShotPacing();
     if(emitLeave&&multiplayer.socket&&multiplayer.joined)multiplayer.socket.emit('room:leave',multiplayerPayload({}));
     multiplayer.joined=false;
     multiplayer.roomCode='';
@@ -2985,7 +3071,7 @@
       const el=getBoardCell(containerId,idx);
       if(el){
         setTimeout(()=>el.classList.add('sink-flash'),i*60);
-        setTimeout(()=>el.classList.remove('sink-flash'),i*60+1400);
+        setTimeout(()=>el.classList.remove('sink-flash'),i*60+SHOT_EFFECT_TIMING.sunkMs);
       }
     });
     const banner=document.createElement('div');
@@ -2993,7 +3079,7 @@
     const who=isEnemyShip?'🎯 ENEMY':'💥 YOUR';
     banner.innerHTML=`${who} ${ship.name} SUNK!`;
     document.body.appendChild(banner);
-    setTimeout(()=>banner.remove(),1600);
+    setTimeout(()=>banner.remove(),SHOT_EFFECT_TIMING.sinkBannerMs);
     playSinkBoom(ship.len);
   }
 
@@ -3415,6 +3501,7 @@
 
   function newGame(){stopConfetti();clearBattleAutoStart();clearArrangeDrag();phase='placing';
     stopMultiplayerCountdown();
+    clearMultiplayerShotPacing();
     syncOpponentMode();
     if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
     yourBoard=emptyBoard();enemyBoard=emptyBoard();
@@ -3501,12 +3588,12 @@
     } else {enemyBoard.misses.add(idx);log(`YOU fired ${coord(idx)} — miss`,'you');}
     recordMove('YOU',idx,isHit,isSunk,ship?ship.name:'');
     playPlayerFire(isHit);
-    applyShotFeedback('enemyContainer',idx,isHit,isSunk);
+    const effectMs=applyShotFeedback('enemyContainer',idx,isHit,isSunk);
 
     // Game over
     if(enemyBoard.ships.every(s=>s.sunk)){phase='ended';wins++;
       if(isSunk)celebrateSink(ship,true);
-      setTimeout(()=>endGame(true),isSunk?turnDelay(1800):300);return;}
+      setTimeout(()=>endGame(true),Math.max(effectMs,isSunk?SHOT_EFFECT_TIMING.sunkMs:effectMs));return;}
 
     // SINK PAUSE — celebrate, then change turn
     if(isSunk){
@@ -3518,13 +3605,14 @@
         updateBoardHighlights('ai');renderBoards();
         showTurnBanner('ai',bannerDelay(800));
         setTimeout(aiShoot,turnDelay(850));
-      },turnDelay(1800));
+      },Math.max(effectMs,SHOT_EFFECT_TIMING.sunkMs));
       return;
     }
 
-    setStatus('aiturn','Enemy is firing back.');
+    setStatus('aiturn','Shot resolving...');
     setTimeout(()=>{updateBoardHighlights('ai');renderBoards();showTurnBanner('ai',bannerDelay(800));
-      setTimeout(aiShoot,turnDelay(850));},turnDelay(700));
+      setStatus('aiturn','Enemy is firing back.');
+      setTimeout(aiShoot,turnDelay(850));},effectMs);
   }
 
   function aiShoot(){if(phase!=='playing')return;
@@ -3543,12 +3631,12 @@
     } else {yourBoard.misses.add(idx);log(`AI fired ${coord(idx)} — miss`,'ai');}
     recordMove('AI',idx,isHit,isSunk,ship?ship.name:'');
     playEnemyFire(isHit);
-    applyShotFeedback('yourContainer',idx,isHit,isSunk);
+    const effectMs=applyShotFeedback('yourContainer',idx,isHit,isSunk);
 
     // Game over
     if(yourBoard.ships.every(s=>s.sunk)){phase='ended';losses++;
       if(isSunk)celebrateSink(ship,false);
-      setTimeout(()=>endGame(false),isSunk?turnDelay(1800):300);return;}
+      setTimeout(()=>endGame(false),Math.max(effectMs,isSunk?SHOT_EFFECT_TIMING.sunkMs:effectMs));return;}
 
     // SINK PAUSE
     if(isSunk){
@@ -3559,12 +3647,12 @@
         setStatus('yourturn','Your turn - fire at enemy waters.');
         updateBoardHighlights('you');renderBoards();
         showTurnBanner('you',bannerDelay(700));
-      },turnDelay(1800));
+      },Math.max(effectMs,SHOT_EFFECT_TIMING.sunkMs));
       return;
     }
 
-    setStatus('yourturn','Your turn - fire at enemy waters.');
-    setTimeout(()=>{currentTurn='you';updateBoardHighlights('you');renderBoards();showTurnBanner('you',bannerDelay(700));},turnDelay(900));
+    setStatus('waiting','Enemy shot resolving...');
+    setTimeout(()=>{currentTurn='you';setStatus('yourturn','Your turn - fire at enemy waters.');updateBoardHighlights('you');renderBoards();showTurnBanner('you',bannerDelay(700));},effectMs);
   }
 
   function pickAIShot(){
