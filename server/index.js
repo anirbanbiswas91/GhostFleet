@@ -10,8 +10,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const clientDir = path.join(rootDir, 'client');
 const gameTemplatePath = path.join(clientDir, 'shared', 'game.html');
+const adsTxtPath = path.join(clientDir, 'ads.txt');
 const port = Number(process.env.PORT || 3000);
 const freeOnly = process.env.GHOSTFLEET_FREE_ONLY === 'true';
+const adsenseClientId = 'ca-pub-8532666088459423';
 
 const app = express();
 const server = http.createServer(app);
@@ -26,11 +28,19 @@ app.use('/shared', express.static(path.join(clientDir, 'shared'), {
   maxAge: '1h'
 }));
 
+app.get('/ads.txt', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.type('text/plain').sendFile(adsTxtPath);
+});
+
 function renderGame(tierName) {
   const template = fs.readFileSync(gameTemplatePath, 'utf8');
   const config = getTierConfig(tierName);
   const bootstrap = `<script>window.GHOSTFLEET_BOOTSTRAP=${JSON.stringify(config).replace(/</g, '\\u003c')};document.documentElement.dataset.tier=${JSON.stringify(config.tier)};document.documentElement.dataset.ads=${JSON.stringify(String(config.ads.enabled))};</script>`;
-  return template.replace('</head>', `${bootstrap}\n</head>`);
+  const adsenseScript = config.ads.enabled
+    ? `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClientId}" crossorigin="anonymous"></script>`
+    : '';
+  return template.replace('</head>', `${adsenseScript}\n${bootstrap}\n</head>`);
 }
 
 function serveTier(tierName) {
