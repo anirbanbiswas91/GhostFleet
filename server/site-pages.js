@@ -101,7 +101,6 @@ function escapeHtml(value) {
 export const SITE_FOOTER = `<footer class="site-footer" aria-label="Site links">
   <nav>
     <a href="/">Home</a>
-    <a href="/">Play</a>
     <a href="/about">About</a>
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms</a>
@@ -149,7 +148,7 @@ const SITE_PAGES = {
       <h2>Children’s Privacy</h2>
       <p>GhostFleet is intended as a general-audience strategy game. We do not knowingly collect personal information from children.</p>
       <h2>Contact</h2>
-      <p>For privacy questions, contact: <a href="mailto:anirban.biswas@outlook.com">anirban.biswas@outlook.com</a>.</p>`
+      <p>For privacy questions, contact: <a href="mailto:ghostfleet2026@gmail.com">ghostfleet2026@gmail.com</a>.</p>`
   },
   contact: {
     path: '/contact',
@@ -157,7 +156,7 @@ const SITE_PAGES = {
     description: 'Contact GhostFleet for support, feedback, bug reports, privacy questions, or business inquiries.',
     content: `<h1>Contact GhostFleet</h1>
       <p>For support, feedback, bug reports, privacy questions, or business inquiries, contact:</p>
-      <p><strong>Email:</strong> <a href="mailto:anirban.biswas@outlook.com">anirban.biswas@outlook.com</a></p>
+      <p><strong>Email:</strong> <a href="mailto:ghostfleet2026@gmail.com">ghostfleet2026@gmail.com</a></p>
       <p><strong>Website:</strong> <a href="https://ghostfleet.in">https://ghostfleet.in</a></p>`
   },
   about: {
@@ -167,7 +166,12 @@ const SITE_PAGES = {
     content: `<h1>About GhostFleet</h1>
       <p>GhostFleet is a free online naval strategy game built for quick tactical battles in the browser. The game is inspired by classic fleet combat: place your ships, read the grid, fire into enemy waters, and use every hit or miss to narrow the search. It is designed to be easy to start, but still rewarding for players who like pattern reading, probability, and careful endgame decisions.</p>
       <p>You can play GhostFleet directly at <a href="https://ghostfleet.in">https://ghostfleet.in</a> with no download and no account required. Solo players can practice against AI difficulty modes, while online players can create multiplayer rooms and share private room codes with friends. The room-code flow keeps matches simple: one player creates a room, shares the link or code, and both players place fleets before taking turns.</p>
-      <p>After each match, GhostFleet shows battle stats and move analysis so players can review accuracy, pressure, ship sinks, and decisions that could have improved the hunt. GhostFleet is built as an independent web game, focused on mobile-friendly play, fast browser access, and replayable naval strategy sessions.</p>`
+      <p>After each match, GhostFleet shows battle stats and move analysis so players can review accuracy, pressure, ship sinks, and decisions that could have improved the hunt. GhostFleet is built as an independent web game, focused on mobile-friendly play, fast browser access, and replayable naval strategy sessions.</p>
+      <h2>How to Play GhostFleet</h2>
+      <p>Each player hides a fleet on their own grid. Your Fleet shows your ship positions and incoming damage, while Enemy Waters is where you fire. On desktop, both boards stay visible; on mobile, use the Enemy Waters and Your Fleet tabs to switch views.</p>
+      <p>Place ships by selecting a vessel and choosing valid cells on your grid. Rotate ships to change direction, drag placed ships to adjust your layout, or select a ship and use Clear-Ship(C) to remove only that ship. Auto-Place can randomly fill your whole fleet before you confirm.</p>
+      <p>When the battle starts, fire at unrevealed cells on Enemy Waters. Red means hit and white means miss. A ship sinks when every cell it occupies has been hit. In multiplayer, both captains must confirm their fleets before turns begin, and each player fires once per turn.</p>
+      <p>After the match, View Analysis shows accuracy, pressure, ships sunk, and tips to improve your next battle.</p>`
   },
   terms: {
     path: '/terms',
@@ -185,6 +189,6 @@ const SITE_PAGES = {
       <h2>Changes to the Game</h2>
       <p>GhostFleet may be improved, balanced, redesigned, or expanded over time. Features may be added, removed, or changed without prior notice.</p>
       <h2>Contact</h2>
-      <p>For questions, contact <a href="mailto:anirban.biswas@outlook.com">anirban.biswas@outlook.com</a>.</p>`
+      <p>For questions, contact <a href="mailto:ghostfleet2026@gmail.com">ghostfleet2026@gmail.com</a>.</p>`
   }
 };
