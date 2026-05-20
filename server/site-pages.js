@@ -110,11 +110,10 @@ export function renderHomePage() {
       <div class="brand-row">
         <img class="brand-crest" src="/assets/ghostfleet-crest.jpg" alt="" aria-hidden="true"/>
         <div>
-          <p class="eyebrow">Free browser naval strategy</p>
           <h1>GhostFleet</h1>
         </div>
       </div>
-      <p class="hero-copy">Command a haunted fleet across stormy-dark waters. Place ships, read the grid, fire one cell per turn, and sink the enemy before your fleet disappears below the waves.</p>
+      <p class="hero-copy">Command a haunted fleet across stormy-dark waters.</p>
       <div class="cta-grid" aria-label="Choose game mode">
         <a class="cta-card" href="/play?mode=ai">
           <span>Play vs AI</span>
@@ -134,21 +133,6 @@ export function renderHomePage() {
       </div>
       <div class="howto-grid howto-mobile">
         ${renderCards(MOBILE_HOW_TO)}
-      </div>
-    </section>
-
-    <section class="content-card split-card">
-      <div>
-        <h2>Play Against AI or Friends</h2>
-        <p>Play a fast solo battle, or invite another captain into a Human room. GhostFleet runs directly in your browser and keeps the game focused on tactical guessing, placement, and turn-by-turn pressure.</p>
-      </div>
-      <div>
-        <h2>Why Play GhostFleet?</h2>
-        <ul>
-          <li>No download or account required</li>
-          <li>AI battles and private room-code multiplayer</li>
-          <li>Battle stats and move analysis after each match</li>
-        </ul>
       </div>
     </section>
   </main>`);
@@ -249,27 +233,33 @@ const SITE_PAGE_CSS = `
   .content-card{padding:clamp(20px,4vw,36px);margin:18px 0}
   .brand-row{display:flex;align-items:center;gap:16px;justify-content:center;text-align:left}
   .brand-crest{width:76px;height:76px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px rgba(226,185,111,.72),0 0 24px rgba(94,234,212,.25);background:#041019}
-  .eyebrow{margin:0 0 4px;color:#7dd3fc;text-transform:uppercase;letter-spacing:1.7px;font-weight:900;font-size:.74rem}
   h1{margin:0;color:#e2b96f;font-size:clamp(2.5rem,7vw,5.2rem);line-height:.95;text-shadow:0 0 28px rgba(226,185,111,.34)}
   h2{margin:0 0 16px;color:#e2b96f;font-size:clamp(1.25rem,3vw,1.8rem);text-transform:uppercase;letter-spacing:1.6px;text-align:center}
   h3{margin:0 0 8px;color:#7dd3fc;font-size:1rem;letter-spacing:.4px}
   p,li{line-height:1.58;color:#dce8f1}
-  .hero-copy{max-width:800px;margin:22px auto;color:#e5edf5;font-size:1.08rem;text-align:center}
-  .cta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:760px;margin:0 auto}
-  .cta-card{display:flex;flex-direction:column;gap:7px;min-height:112px;justify-content:center;text-align:center;text-decoration:none;border-radius:12px;
-    background:linear-gradient(180deg,rgba(255,255,255,.09),transparent 35%),linear-gradient(135deg,rgba(14,116,144,.85),rgba(8,47,73,.9));
-    border:1px solid rgba(94,234,212,.48);color:#f8fafc;font-weight:900;padding:18px;box-shadow:0 12px 28px rgba(0,0,0,.35)}
-  .cta-card:hover,.cta-card:focus{outline:none;border-color:#e2b96f;box-shadow:0 0 0 3px rgba(226,185,111,.18),0 16px 34px rgba(0,0,0,.42)}
-  .cta-card span{font-size:1.28rem}
-  .cta-card small{color:#d5e1eb;font-weight:700;line-height:1.35}
-  .cta-human{background:linear-gradient(180deg,rgba(255,255,255,.09),transparent 35%),linear-gradient(135deg,rgba(30,64,175,.82),rgba(30,41,59,.92))}
+  .hero-copy{max-width:660px;margin:18px auto 20px;color:#e8fbff;font-size:clamp(1rem,2vw,1.22rem);font-weight:800;text-align:center;letter-spacing:.3px;
+    text-shadow:0 0 18px rgba(94,234,212,.34),0 0 28px rgba(226,185,111,.16)}
+  .hero-copy::before,.hero-copy::after{content:'';display:inline-block;width:38px;height:1px;margin:0 12px 5px;
+    background:linear-gradient(90deg,transparent,rgba(226,185,111,.9),rgba(94,234,212,.75))}
+  .hero-copy::after{background:linear-gradient(90deg,rgba(94,234,212,.75),rgba(226,185,111,.9),transparent)}
+  .cta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:760px;margin:0 auto}
+  .cta-card{display:flex;flex-direction:column;gap:4px;min-height:82px;justify-content:center;text-align:center;text-decoration:none;border-radius:10px;
+    background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 38%,rgba(1,12,18,.22)),
+      radial-gradient(circle at 20% 0%,rgba(94,234,212,.26),transparent 42%),
+      linear-gradient(135deg,rgba(8,27,35,.96),rgba(11,50,61,.9));
+    border:1px solid rgba(226,185,111,.5);color:#f8fafc;font-weight:900;padding:12px 14px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 12px 26px rgba(0,0,0,.36),0 0 22px rgba(94,234,212,.12)}
+  .cta-card:hover,.cta-card:focus{outline:none;border-color:#e2b96f;transform:translateY(-1px);
+    box-shadow:0 0 0 3px rgba(226,185,111,.18),0 16px 34px rgba(0,0,0,.42),0 0 28px rgba(94,234,212,.2)}
+  .cta-card span{font-size:clamp(1rem,2.3vw,1.24rem);line-height:1.05;color:#fff7d6;text-shadow:0 0 14px rgba(226,185,111,.25)}
+  .cta-card small{color:#cfe9ef;font-weight:800;line-height:1.25;font-size:clamp(.7rem,1.5vw,.83rem)}
+  .cta-human{background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.02) 38%,rgba(1,12,18,.22)),
+      radial-gradient(circle at 20% 0%,rgba(226,185,111,.24),transparent 42%),
+      linear-gradient(135deg,rgba(17,24,39,.96),rgba(28,42,72,.9))}
   .howto-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .howto-mobile{display:none}
   .howto-card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:14px;min-height:126px}
   .howto-card p{margin:0;font-size:.96rem}
-  .split-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}
-  .split-card h2{text-align:left}
-  .split-card ul{margin:0;padding-left:20px}
   .back-link{display:inline-flex;margin:0 0 14px;color:#a7f3f0;text-decoration:none;font-weight:900;letter-spacing:.4px}
   .text-page h1{font-size:clamp(2rem,5vw,3rem);margin:0 0 18px}
   .text-page h2{text-align:left;color:#7dd3fc;font-size:1.02rem;margin:26px 0 10px}
@@ -282,9 +272,12 @@ const SITE_PAGE_CSS = `
     .hero-card,.content-card{border-radius:13px}
     .brand-row{justify-content:flex-start}
     .brand-crest{width:62px;height:62px}
-    .hero-copy{text-align:left;font-size:1rem}
-    .cta-grid,.split-card{grid-template-columns:1fr}
-    .cta-card{min-height:92px}
+    .hero-copy{text-align:left;margin:16px 0 18px}
+    .hero-copy::before,.hero-copy::after{display:none}
+    .cta-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .cta-card{min-height:74px;padding:10px 8px;border-radius:9px}
+    .cta-card small{font-size:clamp(.62rem,2.65vw,.74rem);line-height:1.18}
+    .cta-card span{font-size:clamp(.92rem,4.2vw,1.08rem)}
     .howto-desktop{display:none}
     .howto-mobile{display:grid;grid-template-columns:1fr}
     .howto-card{min-height:auto}
