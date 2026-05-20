@@ -53,6 +53,12 @@
       linear-gradient(120deg,rgba(94,234,212,.05),transparent 45%,rgba(226,185,111,.02));
     opacity:.70;}
   .page-wrap{width:95%;max-width:none;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1;}
+  body.landing-active .page-wrap,body.landing-active .sound-btn{display:none;}
+  .landing-page{display:none;width:min(1120px,96%);position:relative;z-index:1;margin:8px auto 10px;}
+  .landing-page.show{display:block;}
+  .landing-shell{background:linear-gradient(135deg,rgba(13,17,23,.95),rgba(26,26,46,.9));border:2px solid #e2b96f;border-radius:18px;
+    padding:clamp(24px,4vw,42px);box-shadow:0 24px 70px rgba(0,0,0,.46),inset 0 0 0 1px rgba(255,255,255,.05);}
+  .landing-shell .opponent-actions{max-width:680px;margin:18px auto 0;}
 
   #turnBanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     z-index:600;pointer-events:none;animation:bannerFade .6s ease-out forwards;}
@@ -81,8 +87,8 @@
   .howto-body kbd{background:#0d1117;border:1px solid #2a4a6e;border-radius:3px;
     padding:1px 4px;font-family:'Courier New',monospace;font-size:.7rem;color:#7fb3d5;}
   .multiplayer-modal,.opponent-modal{max-width:560px;text-align:left;}
-  .landing-modal{max-width:min(980px,94vw);max-height:92vh;overflow:auto;}
-  .multiplayer-modal h2,.multiplayer-modal p,.opponent-modal h2,.opponent-modal p{text-align:center;}
+  .landing-modal{max-width:min(1040px,100%);}
+  .multiplayer-modal h2,.multiplayer-modal p,.opponent-modal h1,.opponent-modal h2,.opponent-modal p{text-align:center;}
   .multiplayer-brand{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px;}
   .multiplayer-brand img{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#041019;
     box-shadow:0 0 0 2px rgba(226,185,111,.72),0 0 22px rgba(94,234,212,.28);}
@@ -90,14 +96,23 @@
   body.asset-bg-failed{background-image:
       linear-gradient(180deg,rgba(2,8,13,.08),rgba(2,10,16,.48) 58%,rgba(2,8,13,.74)),
       radial-gradient(ellipse at 50% 18%,rgba(27,52,83,.62),rgba(6,18,26,.96) 72%);}
-  .multiplayer-brand h2{margin:0;font-size:1.85rem;}
+  .site-footer{width:min(95%,1100px);position:relative;z-index:1;text-align:center;color:#9fb2c2;font-size:.78rem;margin-top:8px;}
+  .site-footer nav{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  .site-footer a{color:#d8c48b;text-decoration:none;font-weight:800;}
+  .site-footer a:hover{text-decoration:underline;}
+  .multiplayer-brand h1,.multiplayer-brand h2{margin:0;font-size:1.85rem;}
+  .landing-title{font-size:clamp(1.55rem,4vw,2.2rem);letter-spacing:1px;line-height:1.08;text-align:left;}
   .opponent-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px;}
   .opponent-ai-step{display:none;margin-top:16px;}
   .opponent-ai-step.show{display:block;}
   .opponent-ai-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0;}
   .opponent-size-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 14px;}
+  .landing-seo-intro{max-width:780px;margin:8px auto 0;color:#dceaf3;line-height:1.52;}
   .landing-howto{margin-top:16px;text-align:left;}
-  .landing-howto h3{font-size:.84rem;color:#e2b96f;text-transform:uppercase;letter-spacing:1.2px;margin:0 0 9px;text-align:center;}
+  .landing-howto h2{font-size:.9rem;color:#e2b96f;text-transform:uppercase;letter-spacing:1.2px;margin:14px 0 9px;text-align:center;}
+  .landing-howto p{color:#d5e1eb;line-height:1.52;margin:0 auto 10px;max-width:780px;}
+  .landing-howto ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:0;}
+  .landing-howto li{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:9px;color:#d5e1eb;font-size:.84rem;line-height:1.42;}
   .landing-howto .howto-body{margin-top:0;}
   .opponent-ai-grid .modal-btn{--btn-accent:#5eead4;border-color:rgba(226,185,111,.42);
     background:linear-gradient(180deg,rgba(255,255,255,.08),transparent 34%),linear-gradient(135deg,rgba(6,18,26,.95),rgba(16,31,40,.84));
@@ -170,6 +185,8 @@
   .modal-close:hover{border-color:#e2b96f;color:#e2b96f;}
 @media(max-width:700px){.howto-body{grid-template-columns:1fr;}}
   @media(max-width:520px){
+    .landing-howto ul{grid-template-columns:1fr;}
+    .landing-title{text-align:center;}
     .share-actions{grid-template-columns:1fr;}
     .multiplayer-actions{grid-template-columns:1fr;}
     .opponent-actions{grid-template-columns:1fr;}
@@ -868,7 +885,7 @@
       <button class="modal-btn mode-exit-modal-btn" id="modalExitBtn" type="button" onclick="exitCurrentGame(false)">Exit Game</button>
     </div>
   </div>
-</div>
+</section>
 
 <div class="modal-overlay" id="analysisOverlay">
   <div class="modal analysis-modal" id="analysisDialog">
@@ -923,20 +940,38 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="opponentOverlay">
-  <div class="modal opponent-modal landing-modal" id="opponentDialog">
+<section class="landing-page" id="opponentOverlay">
+  <div class="landing-shell opponent-modal landing-modal" id="opponentDialog">
     <div class="multiplayer-brand">
       <img src="/assets/ghostfleet-crest.jpg" alt="" aria-hidden="true"/>
-      <h2>GhostFleet</h2>
+      <h1 class="landing-title">GhostFleet — Free Online Naval Strategy Game</h1>
     </div>
-    <p id="opponentIntro">Command a haunted fleet across stormy-dark waters.</p>
+    <p class="landing-seo-intro" id="opponentIntro">GhostFleet is a free browser-based naval strategy game where you command a fleet, place ships, and battle against AI or friends using private room codes. Play directly in your browser with no download or account required.</p>
     <div class="opponent-actions" id="opponentChoiceStep">
       <button class="modal-btn" type="button" onclick="showAiDifficultyChoice()">Play vs AI</button>
       <button class="modal-btn" type="button" onclick="chooseHumanOpponent()">Play vs Human</button>
     </div>
     <div class="landing-howto" id="landingHowTo">
-      <h3>How to Play</h3>
-      <div class="howto-body" id="landingHowToBody"></div>
+      <h2>How to Play GhostFleet</h2>
+      <ul>
+        <li>Hide your fleet on Your Fleet, then hunt enemy ships on Enemy Waters.</li>
+        <li>Place ships manually, rotate and drag them, or use Auto-Place before confirming.</li>
+        <li>On desktop, both boards stay visible; on mobile, switch with the Enemy Waters and Your Fleet tabs.</li>
+        <li>Fire once per turn. Red means hit; white means miss.</li>
+        <li>A ship sinks when every cell it occupies has been hit.</li>
+        <li>Use View Analysis after the match to review accuracy, pressure, sinks, and improvement tips.</li>
+      </ul>
+      <h2>Play Against AI or Friends</h2>
+      <p>Practice against AI difficulty modes or challenge another player online. GhostFleet is designed for quick tactical battles, simple sharing, and replayable naval strategy sessions.</p>
+      <h2>Why Play GhostFleet?</h2>
+      <ul>
+        <li>Free browser-based naval strategy game</li>
+        <li>No download required</li>
+        <li>Play against AI</li>
+        <li>Online multiplayer with room codes</li>
+        <li>Battle stats and move analysis</li>
+        <li>Works on modern desktop and mobile browsers</li>
+      </ul>
     </div>
     <div class="opponent-ai-step" id="opponentAiStep">
       <p>Choose board size, then pick the AI difficulty to start your battle.</p>
@@ -953,7 +988,7 @@
       <button class="modal-btn opponent-back" type="button" onclick="showOpponentChoices()">Back to Opponent Choice</button>
     </div>
   </div>
-</div>
+</section>
 
 <div class="modal-overlay" id="multiplayerOverlay">
   <div class="modal multiplayer-modal" id="multiplayerDialog">
@@ -1183,6 +1218,17 @@
   </div>
 </div>
 
+<footer class="site-footer" aria-label="Site links">
+  <nav>
+    <a href="/">Home</a>
+    <a href="/about">About</a>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/terms">Terms</a>
+    <a href="/contact">Contact</a>
+  </nav>
+  <p>© 2026 GhostFleet. Free online naval strategy game.</p>
+</footer>
+
 <script>
   const SHIPS=[
     {id:0,name:'Carrier',short:'CV',cls:'cv',len:5,icoId:'ship-mark-cv',logoId:'ship-logo-cv',img:'/assets/ships-grid/ship-grid-cv.png'},
@@ -1208,33 +1254,30 @@
   let MULTIPLAYER_ENABLED=opponentMode==='human'&&MULTIPLAYER_AVAILABLE;
   const HOW_TO_COPY={
     mobile:[
-      ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
-      ['Choose opponent','Pick AI for a solo battle or Human to create or join a room with another player.'],
-      ['Place ships','Carrier is selected first. Tap Your Fleet to place the selected ship, then the next unplaced ship is selected automatically.'],
-      ['Move or rotate','Tap a placed ship to edit it. Drag it to new cells or use Rotate. Tap empty water to leave edit mode. Green is valid; red is blocked.'],
-      ['Quick setup','Auto-Place rerolls the whole fleet every time. To remove one ship, tap it on your grid, then press Clear-Ship(C).'],
-      ['Start battle','When every ship is placed, use the Your Fleet control above the board to confirm or ready your fleet.'],
-      ['Switch boards','In battle, use Enemy Waters and Your Fleet tabs. Fire only on Enemy Waters; use Your Fleet to inspect damage.'],
-      ['Review','After the match, View Analysis shows achievements, move patterns, and better search suggestions.']
+      ['The goal','Both players hide ships on their own grid. Take turns guessing where the enemy fleet is hiding. Sink all their ships before they sink yours — last one floating wins.'],
+      ['Place your ships','Tap a ship from the dock, then tap your grid to place it. Tap a placed ship to move or rotate it. Use Clear-Ship(C) to remove just that ship, or Auto-Place to fill your grid randomly.'],
+      ['Switch boards','Use the Enemy Waters and Your Fleet tabs to switch views. Fire on Enemy Waters. Check Your Fleet to see damage you have taken.'],
+      ['Fire','Tap any unrevealed cell on Enemy Waters to shoot. Red means hit; white means miss. You get one shot per turn, and a ship sinks when every part of it is hit.'],
+      ['Start the battle','When all ships are placed, tap the button above your board to confirm. In multiplayer, both players confirm before the game starts.'],
+      ['After the game','Tap View Analysis to see how you played — accuracy, ships sunk, pressure, and tips to get better next time.']
     ],
     desktop:[
-      ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
-      ['Choose opponent','Pick AI for a solo battle or Human to create or join a room with another player.'],
-      ['Place ships','Use Fleet Dock on the right, then click your board to place the selected ship. Rotate changes direction before placement.'],
-      ['Edit layout','Click a placed ship to select it. Drag it to another valid position or rotate it. Click empty water to leave edit mode.'],
-      ['Fast setup','Auto-Place rerolls the whole fleet every time. Click a placed ship, then use Clear-Ship(C) or keyboard C to remove only that ship.'],
-      ['Start battle','Once all ships are placed, use the Confirm / Start battle or Ready control above the boards.'],
-      ['Battle view','Both boards stay visible: fire on Enemy Waters and watch damage on Your Fleet.'],
-      ['Review','After victory or defeat, View Analysis breaks down accuracy, pressure, sinks, achievements, and improvement tips.']
+      ['Objective','You and your opponent each hide a fleet of ships on your own grid. Take turns firing at each other’s waters — hit every enemy ship before yours are sunk. Last fleet afloat wins.'],
+      ['Your Grid vs Enemy Waters','You have two boards. Your Fleet shows where your ships are and tracks incoming hits. Enemy Waters is where you fire each turn. Both stay visible on desktop.'],
+      ['Place your ships','Pick a ship from the Fleet Dock, then click your grid to place it. Use Rotate to change direction. Drag a placed ship to move it, or click it and press C to remove it.'],
+      ['Auto-Place','In a hurry? Use Auto-Place to randomly scatter your entire fleet instantly. You can auto-place as many times as you like before confirming.'],
+      ['Taking a shot','Click any unrevealed cell on Enemy Waters to fire. Red means hit; white means miss. You fire once per turn, then your opponent fires back.'],
+      ['Sinking a ship','A ship sinks when every cell it occupies has been hit. The game tells you when a ship goes down — yours or theirs.'],
+      ['Starting the battle','Once all your ships are placed, click Confirm / Start Battle. In multiplayer, both players must be ready before the battle begins.'],
+      ['After the game','View Analysis breaks down your accuracy, pressure, sinks, and gives tips to improve. Worth a look even if you win.']
     ],
     multiplayer:[
-      ['Objective','Guess where the other captain hid their ships. Fire one cell per turn, use hits and misses to hunt them down, and sink every enemy ship before your fleet is destroyed. Whoever survives wins.'],
+      ['Objective','Both captains hide ships on their own grids. Take turns guessing the enemy fleet’s position and sink every ship before your own fleet is destroyed.'],
       ['Create or join','Choose Human to create a room link instantly. Share the /room/XXXXXX link so another captain can join without typing a code.'],
-      ['Room flow','Player 2 opens the shared link, enters a name, then both captains move into ship placement automatically.'],
-      ['Place ships','Place your fleet normally. When all ships are placed, press Ready above the board to submit your fleet.'],
-      ['Battle','Turns are controlled online. You can fire only when the turn banner says it is your turn.'],
-      ['Privacy','Enemy ships stay hidden until they are sunk or the match ends.'],
-      ['Review','After the match, View Analysis summarizes your shots, pressure, achievements, and improvement tips.']
+      ['Place your ships','Place your fleet normally. Auto-Place can reroll your fleet before you confirm. Once you confirm in multiplayer, your fleet is locked.'],
+      ['Battle turns','Turns are controlled online. Fire only when the banner says it is your turn; your opponent fires back when their turn begins.'],
+      ['Sinking ships','A ship sinks when every cell it occupies has been hit. Enemy ships stay hidden until they are sunk or the match ends.'],
+      ['After the game','View Analysis summarizes accuracy, pressure, ships sunk, and tips. Use Rematch to keep playing the same opponent.']
     ]
   };
 
@@ -1414,7 +1457,7 @@
     if(choice)choice.style.display='grid';
     if(aiStep)aiStep.classList.remove('show');
     if(howTo)howTo.style.display='';
-    if(intro)intro.textContent='Command a haunted fleet across stormy-dark waters.';
+    if(intro)intro.textContent='GhostFleet is a free browser-based naval strategy game where you command a fleet, place ships, and battle against AI or friends using private room codes. Play directly in your browser with no download or account required.';
   }
   function showAiDifficultyChoice(){
     const choice=document.getElementById('opponentChoiceStep');
@@ -1432,10 +1475,13 @@
     showOpponentChoices();
     const overlay=document.getElementById('opponentOverlay');
     if(overlay)overlay.classList.add('show');
+    document.body.classList.add('landing-active');
+    window.scrollTo({top:0,behavior:'auto'});
   }
   function hideOpponentOverlay(){
     const overlay=document.getElementById('opponentOverlay');
     if(overlay)overlay.classList.remove('show');
+    document.body.classList.remove('landing-active');
   }
   function chooseAiOpponent(level){
     opponentMode='ai';
@@ -2031,7 +2077,7 @@
   function renderHowTo(){
     const mode=MULTIPLAYER_ENABLED?'multiplayer':(isMobileHowTo()?'mobile':'desktop');
     const html=HOW_TO_COPY[mode].map(([title,text])=>`<p><strong>${title}:</strong> ${text.replaceAll('Clear-Ship(C)','Clear-Ship(<kbd>C</kbd>)').replaceAll('keyboard C','keyboard <kbd>C</kbd>')}</p>`).join('');
-    ['howToBody','landingHowToBody'].forEach(id=>{
+    ['howToBody'].forEach(id=>{
       const body=document.getElementById(id);
       if(!body)return;
       body.dataset.mode=mode;
