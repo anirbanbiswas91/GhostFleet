@@ -5,11 +5,15 @@ This file is the living handoff for coding agents working on the GhostFleet Rail
 ## Current Snapshot
 
 - GhostFleet is one Node/Express Railway app with a shared browser-game shell.
-- The main production experience is served from `/`.
-- `/free` is a legacy redirect to `/`.
+- `/home` is the public landing page.
+- `/` redirects to `/home`.
+- `/play` serves the playable free game shell.
+- `/free` is a legacy redirect to `/play`.
 - `/room/:roomId` serves the same free game shell and lets players open shareable Human multiplayer room links directly.
+- `/privacy`, `/contact`, `/about`, and `/terms` are lightweight public pages that do not load the game shell.
 - `/premium` still exists for future premium work, but current production uses `GHOSTFLEET_FREE_ONLY=true`.
-- Free mode starts with a full-screen landing overlay: How to Play, Play vs AI, and Play vs Human.
+- Direct `/play` without a mode shows the compact in-game opponent picker.
+- `/play?mode=ai` opens the existing AI setup flow; `/play?mode=human` opens the existing Human setup flow.
 - AI setup uses user-facing labels `Easy`, `Med`, and `Hard`; internally these still map to `easy`, `hard`, and `expert`.
 - AI and Human setup both support `8x8`, `10x10`, and `12x12` boards.
 - Human multiplayer uses Socket.IO, fixed two-player slots, persistent `clientId` session identity, reconnect/resync, invite links, placement locking, rematch/exit flow, turn timers, and timeout surrender handling.
@@ -18,6 +22,7 @@ This file is the living handoff for coding agents working on the GhostFleet Rail
 ## Project Shape
 
 - `server/index.js` owns Express routes, static assets, health checks, billing stubs, and tier rendering.
+- `server/site-pages.js` owns the `/home` landing page, public legal/support pages, shared public footer, and SEO metadata.
 - `server/multiplayer.js` owns Socket.IO rooms, player slots, reconnects, turn validation, shot results, timers, room expiry, and snapshots.
 - `server/tier-configs.js` loads tier and theme JSON from `client/shared`.
 - `client/shared/game.html` is the single shared GhostFleet browser game shell. It contains the UI, AI flow, Human multiplayer client, analysis, achievements, sounds, effects, and responsive layout.
@@ -39,9 +44,14 @@ npm start
 
 Default local routes:
 
-- `http://localhost:3000/`
+- `http://localhost:3000/home`
+- `http://localhost:3000/play`
 - `http://localhost:3000/free`
 - `http://localhost:3000/room/XK4BNM`
+- `http://localhost:3000/privacy`
+- `http://localhost:3000/contact`
+- `http://localhost:3000/about`
+- `http://localhost:3000/terms`
 - `http://localhost:3000/premium`
 - `http://localhost:3000/healthz`
 
@@ -56,9 +66,12 @@ For `client/shared/game.html` JavaScript edits, also run an inline script parse 
 
 ## Runtime Contract
 
-- `/` serves the free tier bootstrap.
-- `/free` redirects to `/`.
+- `/` redirects to `/home`.
+- `/home` serves the public landing page.
+- `/play` serves the free tier bootstrap.
+- `/free` redirects to `/play`.
 - `/room/:roomId` serves the free tier bootstrap so direct room links can hydrate client-side.
+- `/privacy`, `/contact`, `/about`, and `/terms` serve standalone public HTML.
 - `/premium` serves the premium tier unless `GHOSTFLEET_FREE_ONLY=true`.
 - `/api/tier` returns available tier keys.
 - `/api/tier/:tier` returns the merged tier and theme config.
@@ -73,7 +86,7 @@ PAYMENTS_ENABLED=false
 PREMIUM_OPEN_ACCESS=true
 ```
 
-Socket.IO must remain enabled even when `GHOSTFLEET_FREE_ONLY=true`, because Human multiplayer is available from `/`.
+Socket.IO must remain enabled even when `GHOSTFLEET_FREE_ONLY=true`, because Human multiplayer is available from `/play`.
 
 ## Multiplayer Contract
 
@@ -99,7 +112,7 @@ Socket.IO must remain enabled even when `GHOSTFLEET_FREE_ONLY=true`, because Hum
 - Preserve the shared single-game-shell model unless a feature genuinely needs a separate shell.
 - Do not hard-code tier-specific UI in the server; pass tier/theme/feature flags through `window.GHOSTFLEET_BOOTSTRAP`.
 - Escape injected bootstrap JSON the same way `renderGame` does now so HTML injection remains safe.
-- Keep assets referenced with paths that work from `/`, `/free`, `/room/:roomId`, and `/premium`.
+- Keep assets referenced with paths that work from `/home`, `/play`, `/free`, `/room/:roomId`, and `/premium`.
 - Do not edit generated files or large binary assets unless the task is specifically about assets.
 - When changing multiplayer server events, add/update comments above handlers and keep every rejection as an `error:message` payload.
 
@@ -108,7 +121,8 @@ Socket.IO must remain enabled even when `GHOSTFLEET_FREE_ONLY=true`, because Hum
 - GhostFleet’s core objective: guess enemy ship locations, fire one cell per turn, use hits/misses to find ships, and sink the enemy fleet before yours is destroyed.
 - AI mode keeps the difficulty selector.
 - Human mode uses a dedicated setup flow with player name, host-selected board size, create/share/join room flow, two-slot waiting lobby, and direct room links.
-- Direct `/room/:roomId` invite links skip the landing overlay and open the join/reconnect flow.
+- Direct `/room/:roomId` invite links skip the public landing page and open the join/reconnect flow.
+- The public landing page CTAs link to `/play?mode=ai` and `/play?mode=human`.
 - Post-game screens must keep the full action contract available: View Analysis, Rematch for Human or New Game for AI, and Exit Room/Game. Analysis Back returns to the result modal.
 - Forfeit, opponent-left, and timeout-surrender results must not award or display achievements.
 - Ads are enabled for the free tier configuration, but production layout must stay non-interruptive.
@@ -127,8 +141,14 @@ npm run smoke:multiplayer
 For route changes, smoke test:
 
 - `/`
+- `/home`
+- `/play`
 - `/free`
 - `/room/XK4BNM`
+- `/privacy`
+- `/contact`
+- `/about`
+- `/terms`
 - `/healthz`
 - `/api/tier/free`
 

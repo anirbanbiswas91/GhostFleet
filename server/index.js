@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachMultiplayer } from './multiplayer.js';
 import { getTierConfig, isPremiumAllowed, listTiers } from './tier-configs.js';
+import { adsenseScript, renderHomePage, renderSitePage } from './site-pages.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -13,7 +14,6 @@ const gameTemplatePath = path.join(clientDir, 'shared', 'game.html');
 const adsTxtPath = path.join(clientDir, 'ads.txt');
 const port = Number(process.env.PORT || 3000);
 const freeOnly = process.env.GHOSTFLEET_FREE_ONLY === 'true';
-const adsenseClientId = 'ca-pub-8532666088459423';
 
 const app = express();
 const server = http.createServer(app);
@@ -37,10 +37,7 @@ function renderGame(tierName) {
   const template = fs.readFileSync(gameTemplatePath, 'utf8');
   const config = getTierConfig(tierName);
   const bootstrap = `<script>window.GHOSTFLEET_BOOTSTRAP=${JSON.stringify(config).replace(/</g, '\\u003c')};document.documentElement.dataset.tier=${JSON.stringify(config.tier)};document.documentElement.dataset.ads=${JSON.stringify(String(config.ads.enabled))};</script>`;
-  const adsenseScript = config.ads.enabled
-    ? `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClientId}" crossorigin="anonymous"></script>`
-    : '';
-  return template.replace('</head>', `${adsenseScript}\n${bootstrap}\n</head>`);
+  return template.replace('</head>', `${adsenseScript(config.ads.enabled)}\n${bootstrap}\n</head>`);
 }
 
 function serveTier(tierName) {
@@ -56,13 +53,34 @@ function serveTier(tierName) {
   };
 }
 
-app.get('/', serveTier('free'));
+function serveSitePage(pageKey) {
+  return (req, res) => {
+    const html = renderSitePage(pageKey);
+    if (!html) return res.status(404).type('text').send('GhostFleet route not found');
+    res.set('Cache-Control', 'no-cache');
+    res.type('html').send(html);
+  };
+}
+
+app.get('/', (req, res) => {
+  const query = new URLSearchParams(req.query).toString();
+  res.redirect(302, `/home${query ? `?${query}` : ''}`);
+});
+app.get('/home', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(renderHomePage());
+});
+app.get('/play', serveTier('free'));
 app.get('/room/:roomId', serveTier('free'));
 app.get('/free', (req, res) => {
   const query = new URLSearchParams(req.query).toString();
-  res.redirect(301, `/${query ? `?${query}` : ''}`);
+  res.redirect(301, `/play${query ? `?${query}` : ''}`);
 });
 app.get('/premium', serveTier('premium'));
+app.get('/privacy', serveSitePage('privacy'));
+app.get('/contact', serveSitePage('contact'));
+app.get('/about', serveSitePage('about'));
+app.get('/terms', serveSitePage('terms'));
 
 app.get('/api/tier', (req, res) => {
   res.json({ tiers: freeOnly ? ['free'] : listTiers() });
