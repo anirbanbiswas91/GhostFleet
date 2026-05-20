@@ -54,11 +54,10 @@
     opacity:.70;}
   .page-wrap{width:95%;max-width:none;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:1;}
   body.landing-active .page-wrap,body.landing-active .sound-btn{display:none;}
-  .landing-page{display:block;width:min(1120px,96%);position:relative;z-index:50;isolation:isolate;margin:8px auto 10px;}
-  .landing-page.is-hidden{display:none;}
+  .landing-page{display:none;width:min(1120px,96%);position:relative;z-index:1;margin:8px auto 10px;}
   .landing-page.show{display:block;}
   .landing-shell{background:linear-gradient(135deg,rgba(13,17,23,.95),rgba(26,26,46,.9));border:2px solid #e2b96f;border-radius:18px;
-    padding:clamp(24px,4vw,42px);box-shadow:0 24px 70px rgba(0,0,0,.46),inset 0 0 0 1px rgba(255,255,255,.05);position:relative;z-index:51;}
+    padding:clamp(24px,4vw,42px);box-shadow:0 24px 70px rgba(0,0,0,.46),inset 0 0 0 1px rgba(255,255,255,.05);}
   .landing-shell .opponent-actions{max-width:680px;margin:18px auto 0;}
 
   #turnBanner{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
@@ -690,7 +689,7 @@
   }
 </style>
 </head>
-<body class="theme-classic landing-active">
+<body>
 
 <canvas id="confetti-canvas"></canvas>
 
@@ -886,7 +885,7 @@
       <button class="modal-btn mode-exit-modal-btn" id="modalExitBtn" type="button" onclick="exitCurrentGame(false)">Exit Game</button>
     </div>
   </div>
-</div>
+</section>
 
 <div class="modal-overlay" id="analysisOverlay">
   <div class="modal analysis-modal" id="analysisDialog">
@@ -1475,19 +1474,13 @@
     if(!MODE_SELECTION_ENABLED)return;
     showOpponentChoices();
     const overlay=document.getElementById('opponentOverlay');
-    if(overlay){
-      overlay.classList.remove('is-hidden');
-      overlay.classList.add('show');
-    }
+    if(overlay)overlay.classList.add('show');
     document.body.classList.add('landing-active');
     window.scrollTo({top:0,behavior:'auto'});
   }
   function hideOpponentOverlay(){
     const overlay=document.getElementById('opponentOverlay');
-    if(overlay){
-      overlay.classList.remove('show');
-      overlay.classList.add('is-hidden');
-    }
+    if(overlay)overlay.classList.remove('show');
     document.body.classList.remove('landing-active');
   }
   function chooseAiOpponent(level){
@@ -2332,7 +2325,6 @@
     if(overlay)overlay.classList.remove('show');
   }
   function showReconnectOverlay(message){
-    hideOpponentOverlay();
     const overlay=document.getElementById('reconnectOverlay');
     const msg=document.getElementById('reconnectMsg');
     const actions=document.getElementById('reconnectActions');
