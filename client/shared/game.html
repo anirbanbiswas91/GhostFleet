@@ -621,14 +621,17 @@
     .cell.last-shot{animation:none;outline-color:#f6d992;}
     .explosion-sprite{filter:drop-shadow(0 0 6px rgba(255,176,56,.48));mix-blend-mode:normal;}
     .explosion-sprite.sunk-sprite{filter:drop-shadow(0 0 10px rgba(255,176,56,.58));}
-    .left-panel{order:4;display:grid;grid-template-columns:1fr;gap:9px;width:100%;}
-    .left-panel>*{max-width:none;flex:auto;}
+    .left-panel{display:contents;}
+    .left-panel>*{max-width:none;flex:auto;width:100%;}
     .right-panel{order:3;display:contents;}
     .right-panel>*{max-width:none;flex:auto;width:100%;}
     #pickerBox{order:3;}
-    #fleetBox{order:4;}
+    #fleetBox{order:3;}
+    #battleStatsPanel{order:4;}
+    #aiPanel{order:5;}
+    #boardSizePanel{order:6;}
     #battleLogPanel{order:99;}
-    .page-ad{order:5;max-width:none;}
+    .page-ad{order:7;max-width:none;}
     .arrange-controls{display:grid;grid-template-columns:repeat(2,1fr);}
     .action-btn,.diff-btn,.size-tab,.modal-btn{min-height:44px;justify-content:center;}
     .control-row{gap:7px;}
@@ -1104,7 +1107,7 @@
 
     <div class="main-layout">
     <div class="left-panel">
-      <div class="panel-box premium-ai-panel">
+      <div class="panel-box premium-ai-panel" id="aiPanel">
         <h3>AI Difficulty</h3>
         <div class="difficulty-row">
           <button class="diff-btn active" id="diffEasy" onclick="setDifficulty('easy')">Easy <span class="diff-badge badge-easy">I</span></button>
@@ -1112,7 +1115,7 @@
           <button class="diff-btn" id="diffExpert" onclick="setDifficulty('expert')">Hard <span class="diff-badge badge-expert">III</span></button>
         </div>
       </div>
-      <div class="panel-box">
+      <div class="panel-box" id="boardSizePanel">
         <h3>Board Size</h3>
         <div class="control-row">
           <button class="size-tab active" onclick="setSize(8)">8×8</button>
@@ -1120,7 +1123,7 @@
           <button class="size-tab" onclick="setSize(12)">12×12</button>
         </div>
       </div>
-      <div class="panel-box">
+      <div class="panel-box" id="battleStatsPanel">
         <h3>Battle Stats</h3>
         <div class="quick-stats-grid">
           <div class="quick-stat"><div class="qs-val" id="qsShots">0</div><div class="qs-lbl">Shots</div></div>
@@ -1500,15 +1503,18 @@
       btn.setAttribute('aria-label',label);
     });
   }
+  function multiplayerCanRematch(){
+    return MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='ended'&&multiplayer.endReason==='ships_sunk';
+  }
   function updatePostGameActions(){
     const humanMatch=MULTIPLAYER_ENABLED&&multiplayer.joined;
-    const rematchAvailable=humanMatch&&phase==='ended'&&multiplayer.endReason!=='timeout_surrender';
+    const rematchAvailable=multiplayerCanRematch();
     const label=rematchAvailable?(multiplayer.rematchRequested?'Waiting...':'Rematch'):'New Game';
     ['modalNewGameBtn','analysisNewGameBtn'].forEach(id=>{
       const btn=document.getElementById(id);
       if(!btn)return;
       btn.textContent=label;
-      btn.disabled=humanMatch&&multiplayer.rematchRequested;
+      btn.disabled=rematchAvailable&&multiplayer.rematchRequested;
     });
     updateExitControls();
   }
@@ -1564,20 +1570,26 @@
   function updateMultiplayerEndState(snapshot){
     if(!MULTIPLAYER_ENABLED||!snapshot||snapshot.phase!=='ended')return;
     const opponent=snapshot.opponent;
-    const rematchAvailable=multiplayer.endReason!=='timeout_surrender';
+    const rematchAvailable=multiplayerCanRematch();
     let message=rematchAvailable?'Match ended. Choose Rematch to play again or Exit Room.':'Match ended. Choose New Game to play again or Exit Room.';
-    if(multiplayer.rematchRequested)message='Waiting for '+multiplayerOpponentLabel()+' to rematch...';
-    else if(opponent&&opponent.rematchRequested)message=multiplayerOpponentLabel()+' wants a rematch.';
-    if(opponent&&!opponent.connected)message=multiplayerOpponentLabel()+' left the room. You can exit or wait for reconnect.';
+    if(rematchAvailable&&multiplayer.rematchRequested)message='Waiting for '+multiplayerOpponentLabel()+' to rematch...';
+    else if(rematchAvailable&&opponent&&opponent.rematchRequested)message=multiplayerOpponentLabel()+' wants a rematch.';
+    if(multiplayer.endReason==='opponent_left')message=multiplayerOpponentLabel()+' left the room. Choose New Game or Exit Room.';
+    else if(opponent&&!opponent.connected)message=multiplayerOpponentLabel()+' disconnected. Choose New Game or Exit Room.';
     setMultiplayerStatus(message);
     if(phase==='ended'){
       const msg=document.getElementById('modalMsg');
-      if(msg&&(multiplayer.rematchRequested||(opponent&&opponent.rematchRequested)||!opponent||!opponent.connected))msg.textContent=message;
+      if(msg&&(multiplayer.rematchRequested||(opponent&&opponent.rematchRequested)||!opponent||!opponent.connected||multiplayer.endReason==='opponent_left'))msg.textContent=message;
     }
     updatePostGameActions();
   }
   function requestMultiplayerRematch(){
     if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='ended'){startNewBattle();return;}
+    if(!multiplayerCanRematch()){
+      leaveMultiplayerRoom(false);
+      startNewBattle();
+      return;
+    }
     if(multiplayer.rematchRequested)return;
     stopConfetti();
     multiplayer.rematchRequested=true;
@@ -4311,7 +4323,7 @@
   }
   function closeModal(n){
     if(n&&MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='ended'){
-      if(multiplayer.endReason==='timeout_surrender'){
+      if(!multiplayerCanRematch()){
         leaveMultiplayerRoom(false);
         startNewBattle();
         return;

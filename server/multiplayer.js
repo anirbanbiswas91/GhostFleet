@@ -825,6 +825,7 @@ function attachSocketHandlers(io) {
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       if (room.phase !== 'ended') return fail(socket, 'Rematch is available after the match ends.', 'wrong_phase');
+      if (room.endReason && room.endReason !== 'ships_sunk') return fail(socket, 'Rematch is not available for this result.', 'rematch_unavailable');
       bindSocketToPlayer(room, socket, slot);
       room.players[slot].rematchRequested = true;
       room.updatedAt = Date.now();
