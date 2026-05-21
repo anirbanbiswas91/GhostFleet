@@ -1747,7 +1747,18 @@
     cueTone(baseFreq,'sine',t,.9,mainGain,.12,.82,baseFreq*.82);
     cueTone(baseFreq*1.5,'sine',t+.02,.76,harmonicGain,.12,.74,baseFreq*1.2);}
 
-  function playYourTurnStinger(){playTurnFogHorn(164,.12,.04);}
+  function playTurnCompassRelay(enemy=false){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(enemy){
+      cueHelmClick(t,560,.046);
+      cueHelmClick(t+.105,430,.038);
+      cueTone(94,'sine',t+.02,.22,.024,.02,.2,76);
+    } else {
+      cueHelmClick(t,720,.048);
+      cueHelmClick(t+.105,880,.038);
+      cueTone(150,'sine',t+.02,.18,.018,.02,.16,132);
+    }}
+
+  function playYourTurnStinger(){playTurnCompassRelay(false);}
 
   function playDeckShuffleCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
     [0,.055,.11,.17,.24].forEach((d,i)=>cueHelmClick(t+d,420+i*65,.052));
@@ -1795,7 +1806,7 @@
     cueTone(880,'triangle',t,.09,.095,.006,.085,760,'bandpass',900,1.4);
     cueNoise(t,.07,.018,'highpass',1800,null,.6,2.2);}
 
-  function playEnemyTurnStinger(){playTurnFogHorn(110,.105,.035);}
+  function playEnemyTurnStinger(){playTurnCompassRelay(true);}
 
   function playPlayerCannon(){if(!ensureAudio())return;const t=audioCtx.currentTime;
     cueNoise(t,.09,.34,'highpass',620,null,.8,4);
