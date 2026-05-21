@@ -81,6 +81,16 @@ async function waitTurn(socket, slot, timeoutMs = 6000) {
   }
 }
 
+async function waitTimeout(socket, expectedSlot, expectedStreak, timeoutMs = 6000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error(`Timed out waiting for slot ${expectedSlot} timeout streak ${expectedStreak}`);
+    const payload = await once(socket, 'turn_timeout', remaining);
+    if (payload.previousTurnSlot === expectedSlot && payload.timeoutStreak === expectedStreak) return payload;
+  }
+}
+
 async function main() {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: process.cwd(),
@@ -283,6 +293,37 @@ async function main() {
     const exitRematchError = await exitRematchRejected;
     if (exitRematchError.code !== 'rematch_unavailable') throw new Error('Expected opponent_left rematch rejection.');
 
+    const alternateA = await connectClient('smoke-alt-timeout-a');
+    const alternateB = await connectClient('smoke-alt-timeout-b');
+    const alternateJoined = once(alternateA, 'room_created');
+    emit(alternateA, 'create_room', { playerName: 'Alt A', gridSize: 8 });
+    const alternateRoom = await alternateJoined;
+    alternateA.roomCode = alternateRoom.roomId;
+    alternateA.playerIndex = alternateRoom.playerIndex;
+    const alternatePlacementA = once(alternateA, 'match:startPlacement');
+    const alternatePlacementB = once(alternateB, 'match:startPlacement');
+    const alternateBJoined = once(alternateB, 'joined_room');
+    emit(alternateB, 'join_room', { roomId: alternateRoom.roomId, playerName: 'Alt B' });
+    const alternateJoinB = await alternateBJoined;
+    alternateB.roomCode = alternateJoinB.roomId;
+    alternateB.playerIndex = alternateJoinB.playerIndex;
+    await Promise.all([alternatePlacementA, alternatePlacementB]);
+    const alternateBattle = once(alternateA, 'match:startBattle');
+    emit(alternateA, 'fleet:submit', { fleet: SHIP_CELLS });
+    emit(alternateB, 'fleet:submit', { fleet: SHIP_CELLS });
+    await alternateBattle;
+    const alternateTimeouts = [
+      { listener: alternateB, timedOutSlot: 0, streak: 1 },
+      { listener: alternateA, timedOutSlot: 1, streak: 1 },
+      { listener: alternateB, timedOutSlot: 0, streak: 2 },
+      { listener: alternateA, timedOutSlot: 1, streak: 2 }
+    ];
+    for (const expected of alternateTimeouts) {
+      await waitTimeout(expected.listener, expected.timedOutSlot, expected.streak);
+    }
+    alternateA.disconnect();
+    alternateB.disconnect();
+
     const timerA = await connectClient('smoke-timer-a');
     const timerB = await connectClient('smoke-timer-b');
     const timerJoined = once(timerA, 'room_created');
@@ -305,6 +346,11 @@ async function main() {
     for (let streak = 1; streak <= 2; streak += 1) {
       const timedOut = await once(timerB, 'turn_timeout', 4000);
       if (timedOut.previousTurnSlot !== 0 || timedOut.timeoutStreak !== streak) throw new Error(`Expected timeout streak ${streak} for slot 0.`);
+      if (timedOut.turnSlot !== 1) throw new Error('Expected timeout to pass turn to slot 1.');
+      const wrongAfterTimeout = once(timerA, 'error:message');
+      emit(timerA, 'shot:fire', { idx: SAFE_MISS_CELLS[streak + 8] });
+      const wrongAfterTimeoutError = await wrongAfterTimeout;
+      if (wrongAfterTimeoutError.code !== 'not_your_turn') throw new Error('Expected timed-out player to lose the turn.');
       const nextForA = waitTurn(timerA, 0, 5000);
       const pass = await fireAndWait(timerB, SAFE_MISS_CELLS[streak]);
       if (pass.shot.hit) throw new Error('Expected timer pass shot to miss.');
