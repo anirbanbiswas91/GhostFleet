@@ -197,6 +197,32 @@ async function main() {
       await p1TurnNext;
     }
 
+    const noEarlyRematchPlacement = once(p1r, 'match:startPlacement', 300).then(() => true).catch(() => false);
+    const rematchVoteUpdate = once(p1r, 'room:update');
+    emit(p1r, 'match:rematch');
+    const voted = await rematchVoteUpdate;
+    if (voted.phase !== 'ended' || !voted.you.rematchRequested) throw new Error('Expected first rematch vote to wait in ended phase.');
+    if (await noEarlyRematchPlacement) throw new Error('Rematch should not start until both players vote.');
+
+    const p1RematchPlacement = once(p1r, 'match:startPlacement');
+    const p2RematchPlacement = once(p2, 'match:startPlacement');
+    emit(p2, 'match:rematch');
+    const [rematchP1, rematchP2] = await Promise.all([p1RematchPlacement, p2RematchPlacement]);
+    if (rematchP1.roomId !== join1.roomId || rematchP2.roomId !== join1.roomId) throw new Error('Expected rematch to reuse the same room.');
+    if (rematchP1.boardSize !== 8 || rematchP2.boardSize !== 8) throw new Error('Expected rematch to preserve board size.');
+    if (rematchP1.phase !== 'placing' || rematchP2.phase !== 'placing') throw new Error('Expected rematch to return both players to placement.');
+    if (rematchP1.you.rematchRequested || rematchP2.you.rematchRequested) throw new Error('Expected rematch flags to reset for fresh placement.');
+
+    const rematchBattle1 = once(p1r, 'match:startBattle');
+    const rematchBattle2 = once(p2, 'match:startBattle');
+    emit(p1r, 'fleet:submit', { fleet: SHIP_CELLS });
+    emit(p2, 'fleet:submit', { fleet: SHIP_CELLS });
+    const [freshBattle1, freshBattle2] = await Promise.all([rematchBattle1, rematchBattle2]);
+    if (freshBattle1.roomId !== join1.roomId || freshBattle2.roomId !== join1.roomId) throw new Error('Expected fresh battle to stay in the same room.');
+    if (freshBattle1.boardSize !== 8 || freshBattle2.boardSize !== 8) throw new Error('Expected fresh battle to keep rematch board size.');
+    p1r.disconnect();
+    p2.disconnect();
+
     const exitA = await connectClient('smoke-exit-a');
     const exitB = await connectClient('smoke-exit-b');
     const cancelA = await connectClient('smoke-cancel-a');
