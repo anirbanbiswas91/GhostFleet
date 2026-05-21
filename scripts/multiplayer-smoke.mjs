@@ -278,6 +278,10 @@ async function main() {
     emit(exitA, 'room:leave');
     const exitEnd = await exitWin;
     if (exitEnd.winnerSlot !== 1 || exitEnd.endReason !== 'opponent_left') throw new Error('Expected room leave to award opponent_left win.');
+    const exitRematchRejected = once(exitB, 'error:message');
+    emit(exitB, 'match:rematch');
+    const exitRematchError = await exitRematchRejected;
+    if (exitRematchError.code !== 'rematch_unavailable') throw new Error('Expected opponent_left rematch rejection.');
 
     const timerA = await connectClient('smoke-timer-a');
     const timerB = await connectClient('smoke-timer-b');
