@@ -2393,7 +2393,13 @@
       if(payload&&payload.roomId&&payload.roomId===multiplayer.roomCode)return;
       handleMultiplayerJoined(payload,{legacy:true});
     });
-    socket.on('room:update',applyMultiplayerSnapshot);
+    socket.on('room:update',snapshot=>{
+      if(snapshot&&snapshot.phase==='placing'&&phase==='ended'&&multiplayer.rematchRequested){
+        beginMultiplayerPlacement(snapshot);
+        return;
+      }
+      applyMultiplayerSnapshot(snapshot);
+    });
     socket.on('room_ready',snapshot=>{
       hideShareRoomScreen();
       applyMultiplayerSnapshot(snapshot);

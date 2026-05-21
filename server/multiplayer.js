@@ -503,7 +503,7 @@ function resetRoomForRematch(room) {
 function startRematchIfReady(room) {
   if (room.phase !== 'ended') return;
   if (!room.players[0] || !room.players[1]) return;
-  if (!room.players.every(player => player.connected && player.rematchRequested)) return;
+  if (!room.players.every(player => player.rematchRequested)) return;
   resetRoomForRematch(room);
 }
 
@@ -825,6 +825,7 @@ function attachSocketHandlers(io) {
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       if (room.phase !== 'ended') return fail(socket, 'Rematch is available after the match ends.', 'wrong_phase');
+      bindSocketToPlayer(room, socket, slot);
       room.players[slot].rematchRequested = true;
       room.updatedAt = Date.now();
       emitRoom(room);
