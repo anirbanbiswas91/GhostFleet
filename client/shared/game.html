@@ -1854,10 +1854,8 @@
     else if(hit)playExplosion();
     else playSplash();
   }
-  function playPlayerFire(hit,sunk=false,shipLen=0){playPlayerCannon();
-    setTimeout(()=>playShotOutcomeCue(hit,sunk,shipLen),380);}
-  function playEnemyFire(hit,sunk=false,shipLen=0){playEnemyCannon();
-    setTimeout(()=>playShotOutcomeCue(hit,sunk,shipLen),850);}
+  function playPlayerFire(hit,sunk=false,shipLen=0){playShotOutcomeCue(hit,sunk,shipLen);}
+  function playEnemyFire(hit,sunk=false,shipLen=0){playShotOutcomeCue(hit,sunk,shipLen);}
 
   function prefersReducedMotion(){
     return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
