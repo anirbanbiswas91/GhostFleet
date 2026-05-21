@@ -1693,148 +1693,89 @@
     const b=audioCtx.createBuffer(1,l,audioCtx.sampleRate);const a=b.getChannelData(0);
     for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,p);return b;}
 
+  function cueTone(freq,type,start,dur,gain,attack=0.02,release=dur,slideTo=null,filterType=null,filterFreq=1000,q=1){
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type||'sine';
+    o.frequency.setValueAtTime(Math.max(1,freq),start);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),start+dur);
+    g.gain.setValueAtTime(.0001,start);
+    g.gain.linearRampToValueAtTime(gain,start+attack);
+    g.gain.exponentialRampToValueAtTime(.001,start+release);
+    if(filterType){
+      const f=audioCtx.createBiquadFilter();
+      f.type=filterType;f.frequency.value=filterFreq;f.Q.value=q;
+      o.connect(f).connect(g).connect(audioOutput());
+    } else o.connect(g).connect(audioOutput());
+    o.start(start);o.stop(start+dur);
+  }
+  function cueNoise(start,dur,gain,filterType='lowpass',freq=1200,endFreq=null,q=1,curve=1.2){
+    const n=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();
+    n.buffer=noise(dur,curve);
+    f.type=filterType;f.frequency.setValueAtTime(freq,start);f.Q.value=q;
+    if(endFreq)f.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),start+dur);
+    g.gain.setValueAtTime(.0001,start);
+    g.gain.linearRampToValueAtTime(gain,start+.02);
+    g.gain.exponentialRampToValueAtTime(.001,start+dur);
+    n.connect(f).connect(g).connect(audioOutput());
+    n.start(start);
+  }
+
   function playTurnFogHorn(baseFreq,mainGain,harmonicGain){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const main=audioCtx.createOscillator(),mg=audioCtx.createGain();
-    main.type='sine';
-    main.frequency.setValueAtTime(baseFreq,t);
-    main.frequency.exponentialRampToValueAtTime(baseFreq*.82,t+.9);
-    mg.gain.setValueAtTime(.0001,t);
-    mg.gain.linearRampToValueAtTime(mainGain,t+.12);
-    mg.gain.exponentialRampToValueAtTime(.001,t+.82);
-    main.connect(mg).connect(audioOutput());
-    main.start(t);main.stop(t+.9);
-    const h=audioCtx.createOscillator(),hg=audioCtx.createGain();
-    h.type='sine';
-    h.frequency.setValueAtTime(baseFreq*1.5,t+.02);
-    h.frequency.exponentialRampToValueAtTime(baseFreq*1.2,t+.78);
-    hg.gain.setValueAtTime(.0001,t+.02);
-    hg.gain.linearRampToValueAtTime(harmonicGain,t+.14);
-    hg.gain.exponentialRampToValueAtTime(.001,t+.76);
-    h.connect(hg).connect(audioOutput());
-    h.start(t+.02);h.stop(t+.78);}
+    cueTone(baseFreq,'sine',t,.9,mainGain,.12,.82,baseFreq*.82);
+    cueTone(baseFreq*1.5,'sine',t+.02,.76,harmonicGain,.12,.74,baseFreq*1.2);}
 
   function playYourTurnStinger(){playTurnFogHorn(164,.12,.04);}
 
   function playUrgentTick(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type='square';o.frequency.value=1180;
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.14,t+0.01);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
-    o.connect(g).connect(audioOutput());o.start(t);o.stop(t+0.1);}
+    cueTone(880,'triangle',t,.09,.095,.006,.085,760,'bandpass',900,1.4);
+    cueNoise(t,.07,.018,'highpass',1800,null,.6,2.2);}
 
   function playEnemyTurnStinger(){playTurnFogHorn(110,.105,.035);}
 
   function playPlayerCannon(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const c=audioCtx.createBufferSource();c.buffer=noise(0.08,4);
-    const cf=audioCtx.createBiquadFilter();cf.type='highpass';cf.frequency.value=600;
-    const cg=audioCtx.createGain();cg.gain.value=0.55;
-    c.connect(cf).connect(cg).connect(audioOutput());c.start(t);
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sawtooth';
-    o.frequency.setValueAtTime(900,t+0.02);o.frequency.exponentialRampToValueAtTime(180,t+0.45);
-    g.gain.setValueAtTime(0,t+0.02);g.gain.linearRampToValueAtTime(0.18,t+0.06);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.45);
-    const f=audioCtx.createBiquadFilter();f.type='bandpass';f.Q.value=3;f.frequency.value=600;
-    o.connect(f).connect(g).connect(audioOutput());o.start(t+0.02);o.stop(t+0.45);
-    const b=audioCtx.createOscillator(),bg=audioCtx.createGain();b.type='sine';
-    b.frequency.setValueAtTime(140,t);b.frequency.exponentialRampToValueAtTime(40,t+0.25);
-    bg.gain.setValueAtTime(0.4,t);bg.gain.exponentialRampToValueAtTime(0.001,t+0.3);
-    b.connect(bg).connect(audioOutput());b.start(t);b.stop(t+0.3);}
+    cueNoise(t,.09,.34,'highpass',620,null,.8,4);
+    cueTone(126,'sine',t,.34,.3,.018,.32,42);
+    cueTone(540,'triangle',t+.025,.32,.075,.018,.3,210,'bandpass',520,2.4);}
   function playEnemyCannon(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const db=audioCtx.createOscillator(),dg=audioCtx.createGain();db.type='sine';
-    db.frequency.setValueAtTime(60,t);db.frequency.exponentialRampToValueAtTime(25,t+0.4);
-    dg.gain.setValueAtTime(0.25,t);dg.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-    db.connect(dg).connect(audioOutput());db.start(t);db.stop(t+0.5);
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(1400,t+0.15);o.frequency.exponentialRampToValueAtTime(180,t+0.85);
-    g.gain.setValueAtTime(0.05,t+0.15);g.gain.exponentialRampToValueAtTime(0.4,t+0.75);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.9);
-    const f=audioCtx.createBiquadFilter();f.type='bandpass';f.Q.value=8;f.frequency.value=800;
-    o.connect(f).connect(g).connect(audioOutput());o.start(t+0.15);o.stop(t+0.9);}
+    cueTone(72,'sine',t,.58,.22,.04,.54,28);
+    cueNoise(t+.04,.55,.16,'lowpass',900,120,.8,.8);
+    cueTone(420,'sine',t+.12,.7,.055,.05,.68,115,'bandpass',360,2);}
   function playSplash(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(450,t);o.frequency.exponentialRampToValueAtTime(70,t+0.1);
-    g.gain.setValueAtTime(0.4,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
-    o.connect(g).connect(audioOutput());o.start(t);o.stop(t+0.12);
-    const n=audioCtx.createBufferSource();n.buffer=noise(0.7,1.3);
-    const f=audioCtx.createBiquadFilter();f.type='bandpass';f.Q.value=0.7;
-    f.frequency.setValueAtTime(4500,t);f.frequency.exponentialRampToValueAtTime(700,t+0.7);
-    const ng=audioCtx.createGain();ng.gain.setValueAtTime(0.45,t);
-    ng.gain.exponentialRampToValueAtTime(0.001,t+0.7);
-    n.connect(f).connect(ng).connect(audioOutput());n.start(t);}
+    cueTone(360,'sine',t,.16,.16,.01,.14,75);
+    cueNoise(t+.02,.72,.28,'bandpass',2400,520,.7,1.1);
+    cueTone(130,'sine',t+.08,.46,.035,.03,.42,70);}
   function playExplosion(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const c=audioCtx.createBufferSource();c.buffer=noise(0.06,6);
-    const ng=audioCtx.createGain();ng.gain.value=0.7;
-    c.connect(ng).connect(audioOutput());c.start(t);
-    const r=audioCtx.createBufferSource();r.buffer=noise(1,0.5);
-    const f=audioCtx.createBiquadFilter();f.type='lowpass';
-    f.frequency.setValueAtTime(3500,t);f.frequency.exponentialRampToValueAtTime(70,t+1);
-    const ng2=audioCtx.createGain();ng2.gain.setValueAtTime(0.7,t);
-    ng2.gain.exponentialRampToValueAtTime(0.001,t+1);
-    r.connect(f).connect(ng2).connect(audioOutput());r.start(t);
-    const b=audioCtx.createOscillator(),bg=audioCtx.createGain();b.type='triangle';
-    b.frequency.setValueAtTime(55,t);b.frequency.exponentialRampToValueAtTime(15,t+0.8);
-    bg.gain.setValueAtTime(0,t);bg.gain.linearRampToValueAtTime(0.65,t+0.05);
-    bg.gain.exponentialRampToValueAtTime(0.001,t+0.85);
-    b.connect(bg).connect(audioOutput());b.start(t);b.stop(t+0.85);}
+    cueNoise(t,.08,.42,'highpass',420,null,.7,5);
+    cueTone(64,'triangle',t,.82,.48,.035,.78,18);
+    cueNoise(t+.04,.95,.34,'lowpass',2800,72,.7,.55);
+    cueTone(190,'sine',t+.06,.5,.06,.03,.48,74,'bandpass',210,2.5);}
 
   // Sink boom — scales with ship size (subtle for DD, deep & long for CV)
   function playSinkBoom(shipLen){
     if(!ensureAudio())return;
     const t=audioCtx.currentTime;
-    const scale=(shipLen-2)/3;             // 0..1 (DD..CV)
-    const baseFreq=70-scale*30;            // 70 → 40 Hz
-    const dur=0.6+scale*0.7;               // 0.6 → 1.3s
-    const vol=0.4+scale*0.3;               // 0.4 → 0.7
-
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type='sine';
-    o.frequency.setValueAtTime(baseFreq,t);
-    o.frequency.exponentialRampToValueAtTime(baseFreq*0.35,t+dur);
-    g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(vol,t+0.04);
-    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    o.connect(g).connect(audioOutput());
-    o.start(t);o.stop(t+dur);
-
-    const n=audioCtx.createBufferSource();
-    n.buffer=noise(dur,0.6);
-    const f=audioCtx.createBiquadFilter();
-    f.type='lowpass';
-    f.frequency.setValueAtTime(2000+scale*1500,t);
-    f.frequency.exponentialRampToValueAtTime(80,t+dur);
-    const ng=audioCtx.createGain();
-    ng.gain.setValueAtTime(0.35+scale*0.25,t);
-    ng.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    n.connect(f).connect(ng).connect(audioOutput());
-    n.start(t);
-
-    // Metallic groan only for big ships (BB, CV)
+    const scale=(shipLen-2)/3;
+    const baseFreq=68-scale*30;
+    const dur=.72+scale*.8;
+    cueTone(baseFreq,'sine',t,dur,.34+scale*.22,.05,dur,baseFreq*.32);
+    cueNoise(t+.03,dur,.24+scale*.18,'lowpass',1600+scale*900,70,.75,.55);
     if(shipLen>=4){
-      const m=audioCtx.createOscillator(),mg=audioCtx.createGain();
-      m.type='sawtooth';
-      m.frequency.setValueAtTime(180,t+0.1);
-      m.frequency.exponentialRampToValueAtTime(55,t+dur*0.9);
-      mg.gain.setValueAtTime(0.18,t+0.1);
-      mg.gain.exponentialRampToValueAtTime(0.001,t+dur);
-      const mf=audioCtx.createBiquadFilter();
-      mf.type='bandpass';mf.Q.value=4;mf.frequency.value=300;
-      m.connect(mf).connect(mg).connect(audioOutput());
-      m.start(t+0.1);m.stop(t+dur);
+      cueTone(170,'sawtooth',t+.1,dur*.9,.11+scale*.06,.06,dur*.86,52,'bandpass',260,3.2);
     }
   }
 
   function playVictory(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    [523.25,659.25,783.99,1046.5].forEach((f,i)=>{
-      const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='triangle';o.frequency.value=f;
-      g.gain.setValueAtTime(0,t+i*0.13);g.gain.linearRampToValueAtTime(0.28,t+i*0.13+0.02);
-      g.gain.exponentialRampToValueAtTime(0.001,t+i*0.13+0.45);
-      o.connect(g).connect(audioOutput());o.start(t+i*0.13);o.stop(t+i*0.13+0.5);});}
+    cueTone(164,'sine',t,.85,.08,.08,.78,138);
+    [392,523.25,659.25,783.99].forEach((f,i)=>{
+      const s=t+i*.14;
+      cueTone(f,'triangle',s,.52,.13,.018,.48,null,'bandpass',f*1.3,1.1);
+    });}
   function playDefeat(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    [392,311,233,175,130].forEach((f,i)=>{
-      const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sawtooth';o.frequency.value=f;
-      g.gain.setValueAtTime(0,t+i*0.2);g.gain.linearRampToValueAtTime(0.25,t+i*0.2+0.04);
-      g.gain.exponentialRampToValueAtTime(0.001,t+i*0.2+0.5);
-      o.connect(g).connect(audioOutput());o.start(t+i*0.2);o.stop(t+i*0.2+0.55);});}
+    [220,196,164,130].forEach((f,i)=>{
+      const s=t+i*.18;
+      cueTone(f,'sine',s,.62,.105,.04,.58,f*.7,'bandpass',f*1.4,1.2);
+    });
+    cueNoise(t+.12,.9,.07,'lowpass',700,120,.8,.8);}
 
   function playPlayerFire(hit){playPlayerCannon();
     setTimeout(()=>hit?playExplosion():playSplash(),380);}
