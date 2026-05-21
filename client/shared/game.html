@@ -1849,10 +1849,15 @@
     });
     cueNoise(t+.12,.9,.07,'lowpass',700,120,.8,.8);}
 
-  function playPlayerFire(hit){playPlayerCannon();
-    setTimeout(()=>hit?playExplosion():playSplash(),380);}
-  function playEnemyFire(hit){playEnemyCannon();
-    setTimeout(()=>hit?playExplosion():playSplash(),850);}
+  function playShotOutcomeCue(hit,sunk,shipLen=0){
+    if(sunk)playSinkBoom(shipLen);
+    else if(hit)playExplosion();
+    else playSplash();
+  }
+  function playPlayerFire(hit,sunk=false,shipLen=0){playPlayerCannon();
+    setTimeout(()=>playShotOutcomeCue(hit,sunk,shipLen),380);}
+  function playEnemyFire(hit,sunk=false,shipLen=0){playEnemyCannon();
+    setTimeout(()=>playShotOutcomeCue(hit,sunk,shipLen),850);}
 
   function prefersReducedMotion(){
     return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2882,6 +2887,7 @@
     const hit=!!shot.hit;
     const sunk=!!shot.sunk;
     let shipName=shot.shipName||'';
+    let shotShipLen=0;
     let shotAnimation=null;
     let sunkCelebration=null;
     if(mine){
@@ -2890,12 +2896,12 @@
       else enemyBoard.misses.add(idx);
       if(sunk&&shot.sunkShip){
         const ship=upsertRevealedEnemyShip(shot.sunkShip);
-        if(ship){ship.sunk=true;shipName=ship.name;ship.cells.forEach(cell=>enemyBoard.hits.add(cell));sunkCelebration={ship,isEnemyShip:true};}
+        if(ship){ship.sunk=true;shipName=ship.name;shotShipLen=ship.len;ship.cells.forEach(cell=>enemyBoard.hits.add(cell));sunkCelebration={ship,isEnemyShip:true};}
         log(`YOU sunk enemy ${shipName||'ship'}!`,'sunk-l');
       } else if(hit)log(`YOU hit at ${coord(idx)}`,'hit-l');
       else log(`YOU fired ${coord(idx)} - miss`,'you');
       recordMove('YOU',idx,hit,sunk,shipName);
-      playPlayerFire(hit);
+      playPlayerFire(hit,sunk,shotShipLen);
       shotAnimation={containerId:'enemyContainer',idx,hit,sunk};
     } else {
       yourBoard.shots.add(idx);aiShots++;lastAIShot=idx;
@@ -2904,11 +2910,11 @@
         yourBoard.hits.add(idx);aiHits++;
         if(ship){ship.hits.add(idx);shipName=ship.name;}
       } else yourBoard.misses.add(idx);
-      if(sunk&&ship){ship.sunk=true;shipName=ship.name;sunkCelebration={ship,isEnemyShip:false};log(`${multiplayerOpponentLabel()} sunk your ${ship.name}!`,'sunk-l');}
+      if(sunk&&ship){ship.sunk=true;shipName=ship.name;shotShipLen=ship.len;sunkCelebration={ship,isEnemyShip:false};log(`${multiplayerOpponentLabel()} sunk your ${ship.name}!`,'sunk-l');}
       else if(hit)log(`${multiplayerOpponentLabel()} hit at ${coord(idx)}`,'hit-l');
       else log(`${multiplayerOpponentLabel()} fired ${coord(idx)} - miss`,'ai');
       recordMove('AI',idx,hit,sunk,shipName);
-      playEnemyFire(hit);
+      playEnemyFire(hit,sunk,shotShipLen);
       shotAnimation={containerId:'yourContainer',idx,hit,sunk};
     }
     multiplayer.pendingShot=mine&&payload.snapshot&&payload.snapshot.phase!=='ended';
@@ -3108,7 +3114,7 @@
     if(who==='you')playYourTurnStinger();else playEnemyTurnStinger();
     setTimeout(()=>{b.classList.remove('show','you','ai');inputLocked=false;renderTurnSensitiveBoards();},durMs);}
 
-  // Sink celebration — rippling flash + banner + scaled boom
+  // Sink celebration - visual ripple flash and banner only; shot outcome audio plays separately.
   function celebrateSink(ship,isEnemyShip){
     const containerId=isEnemyShip?'enemyContainer':'yourContainer';
     ship.cells.forEach((idx,i)=>{
@@ -3124,7 +3130,6 @@
     banner.innerHTML=`${who} ${ship.name} SUNK!`;
     document.body.appendChild(banner);
     setTimeout(()=>banner.remove(),SHOT_EFFECT_TIMING.sinkBannerMs);
-    playSinkBoom(ship.len);
   }
 
   /* ─── Setup ─── */
@@ -3635,7 +3640,7 @@
       else log(`YOU hit at ${coord(idx)} 💥`,'hit-l');
     } else {enemyBoard.misses.add(idx);log(`YOU fired ${coord(idx)} — miss`,'you');}
     recordMove('YOU',idx,isHit,isSunk,ship?ship.name:'');
-    playPlayerFire(isHit);
+    playPlayerFire(isHit,isSunk,ship?ship.len:0);
     const effectMs=applyShotFeedback('enemyContainer',idx,isHit,isSunk);
 
     // Game over
@@ -3678,7 +3683,7 @@
       else log(`AI hit at ${coord(idx)} 💥`,'hit-l');
     } else {yourBoard.misses.add(idx);log(`AI fired ${coord(idx)} — miss`,'ai');}
     recordMove('AI',idx,isHit,isSunk,ship?ship.name:'');
-    playEnemyFire(isHit);
+    playEnemyFire(isHit,isSunk,ship?ship.len:0);
     const effectMs=applyShotFeedback('yourContainer',idx,isHit,isSunk);
 
     // Game over
