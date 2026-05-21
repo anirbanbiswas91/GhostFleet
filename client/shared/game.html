@@ -1817,13 +1817,14 @@
     cueNoise(t+.04,.55,.16,'lowpass',900,120,.8,.8);
     cueTone(420,'sine',t+.12,.7,.055,.05,.68,115,'bandpass',360,2);}
   function playSplash(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    cueTone(310,'sine',t,.14,.095,.01,.13,72);
-    cueNoise(t+.02,.7,.22,'bandpass',2300,520,.65,1.1);
-    cueTone(118,'sine',t+.08,.38,.03,.03,.36,72);}
+    cueTone(240,'sine',t,.16,.052,.012,.14,96);
+    cueNoise(t+.02,.58,.12,'bandpass',1200,320,.72,1.05);
+    cueNoise(t+.12,.28,.035,'lowpass',480,180,.7,.9);}
   function playExplosion(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    cueNoise(t,.09,.34,'bandpass',920,null,1.7,4.4);
-    cueTone(260,'sawtooth',t+.015,.4,.085,.014,.36,92,'bandpass',320,3.2);
-    cueTone(54,'sine',t+.03,.48,.24,.025,.45,25);}
+    playTurnFogHorn(92,.062,.02);
+    cueNoise(t+.015,.12,.2,'highpass',500,null,.8,4.6);
+    cueTone(185,'sine',t+.05,.34,.055,.03,.31,72,'bandpass',230,2.3);
+    cueTone(58,'sine',t+.02,.5,.19,.03,.46,22);}
 
   // Sink boom — scales with ship size (subtle for DD, deep & long for CV)
   function playSinkBoom(shipLen){
