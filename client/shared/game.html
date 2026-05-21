@@ -1402,6 +1402,7 @@
     opponentDisconnectTimer:null,
     opponentDisconnectUntil:null,
     lastWarningSecond:null,
+    turnWarning15Played:false,
     shotEffectUntil:0,
     shotEffectTimer:null,
     pendingTurnSnapshot:null,
@@ -1426,7 +1427,8 @@
     if(aiStep)aiStep.classList.remove('show');
     if(intro)intro.textContent='Command a haunted fleet across stormy-dark waters.';
   }
-  function showAiDifficultyChoice(){
+  function showAiDifficultyChoice(playCue=true){
+    if(playCue)playChartMarkCue('ai');
     const choice=document.getElementById('opponentChoiceStep');
     const aiStep=document.getElementById('opponentAiStep');
     const intro=document.getElementById('opponentIntro');
@@ -1446,6 +1448,7 @@
     if(overlay)overlay.classList.remove('show');
   }
   function chooseAiOpponent(level){
+    playGunsReadyCue('ai');
     opponentMode='ai';
     syncOpponentMode();
     N=BOARD_SIZES.includes(aiSetupSize)?aiSetupSize:8;
@@ -1455,7 +1458,8 @@
     hideMultiplayerLobby();
     newGame();
   }
-  function chooseHumanOpponent(){
+  function chooseHumanOpponent(playCue=true){
+    if(playCue)playChartMarkCue('human');
     opponentMode='human';
     syncOpponentMode();
     multiplayer.roomBoardSize=BOARD_SIZES.includes(N)?N:8;
@@ -1542,22 +1546,32 @@
     }
     document.body.classList.remove('turn-warning');
     multiplayer.lastWarningSecond=null;
+    multiplayer.turnWarning15Played=false;
   }
   function refreshMultiplayerCountdown(){
     const remaining=multiplayerTurnSecondsRemaining();
     const warn=multiplayer.myTurn&&remaining!==null&&remaining<=30&&phase==='playing';
     document.body.classList.toggle('turn-warning',!!warn);
     if(warn)statusState={cls:'yourturn',msg:'Fire now - '+remaining+' seconds remaining'};
-    if(warn&&remaining<=10&&remaining!==multiplayer.lastWarningSecond){
+    if(warn&&remaining<=15&&!multiplayer.turnWarning15Played){
+      multiplayer.turnWarning15Played=true;
+      playTurnWarning15Cue();
+    }
+    if(warn&&remaining<=5&&remaining!==multiplayer.lastWarningSecond){
       multiplayer.lastWarningSecond=remaining;
-      playUrgentTick();
+      playTurnCountdownCue(remaining);
     }
     refreshStatusReadout();
     updateModeUI();
     if(!multiplayerTurnTimerText())stopMultiplayerCountdown();
   }
   function syncMultiplayerTimer(snapshot){
-    multiplayer.turnDeadlineAt=snapshot&&snapshot.turnDeadlineAt?Number(snapshot.turnDeadlineAt):null;
+    const nextDeadline=snapshot&&snapshot.turnDeadlineAt?Number(snapshot.turnDeadlineAt):null;
+    if(nextDeadline!==multiplayer.turnDeadlineAt){
+      multiplayer.lastWarningSecond=null;
+      multiplayer.turnWarning15Played=false;
+    }
+    multiplayer.turnDeadlineAt=nextDeadline;
     multiplayer.turnDurationMs=snapshot&&snapshot.turnDurationMs?Number(snapshot.turnDurationMs):multiplayer.turnDurationMs;
     if(phase==='playing'&&multiplayer.turnDeadlineAt){
       if(!multiplayer.turnCountdownTimer)multiplayer.turnCountdownTimer=setInterval(refreshMultiplayerCountdown,1000);
@@ -1719,12 +1733,63 @@
     n.connect(f).connect(g).connect(audioOutput());
     n.start(start);
   }
+  function cueBell(start,base,gain=.12){
+    [1,2.01,3.02].forEach((ratio,i)=>{
+      cueTone(base*ratio,'sine',start,.95+i*.08,gain/(i+1.45),.012,.9+i*.08,null,'bandpass',base*ratio*1.12,1);
+    });
+  }
+  function cueHelmClick(start,base=900,gain=.08){
+    cueTone(base,'triangle',start,.08,gain,.006,.075,null,'bandpass',base*1.1,1.4);
+    cueNoise(start,.065,gain*.22,'highpass',1800,null,.6,2);
+  }
 
   function playTurnFogHorn(baseFreq,mainGain,harmonicGain){if(!ensureAudio())return;const t=audioCtx.currentTime;
     cueTone(baseFreq,'sine',t,.9,mainGain,.12,.82,baseFreq*.82);
     cueTone(baseFreq*1.5,'sine',t+.02,.76,harmonicGain,.12,.74,baseFreq*1.2);}
 
   function playYourTurnStinger(){playTurnFogHorn(164,.12,.04);}
+
+  function playDeckShuffleCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.055,.11,.17,.24].forEach((d,i)=>cueHelmClick(t+d,420+i*65,.052));
+    cueNoise(t+.02,.42,.09,'bandpass',850,360,.8);
+    cueTone(96,'sine',t+.18,.32,.08,.02,.3,62);}
+  function playReadyBellCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueBell(t,440,.12);
+    cueBell(t+.18,660,.105);}
+  function playCompassTickCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueHelmClick(t,760,.065);
+    cueHelmClick(t+.07,940,.045);}
+  function playAnchorLiftCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.08,.16].forEach((d,i)=>cueHelmClick(t+d,320+i*45,.06));
+    cueNoise(t+.04,.44,.075,'highpass',740,240,.7);}
+  function playChartMarkCue(mode){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(mode==='human'){
+      cueHelmClick(t,540,.065);
+      cueHelmClick(t+.12,700,.052);
+      cueNoise(t+.03,.28,.026,'bandpass',820,310,.8);
+    } else {
+      cueHelmClick(t,620,.07);
+      cueNoise(t+.02,.24,.026,'bandpass',900,360,.8);
+      cueTone(146,'sine',t+.04,.26,.032,.02,.24,116);
+    }}
+  function playGunsReadyCue(mode){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(mode==='human'){
+      cueHelmClick(t,380,.075);
+      cueHelmClick(t+.11,520,.055);
+      cueNoise(t+.04,.18,.045,'highpass',700,null,.8,3);
+      cueTone(74,'sine',t+.08,.52,.085,.04,.48,54);
+    } else {
+      cueHelmClick(t,420,.08);
+      cueNoise(t+.04,.18,.05,'highpass',700,null,.8,3);
+      cueTone(82,'sine',t+.08,.52,.1,.04,.48,58);
+    }}
+  function playTurnWarning15Cue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.16,.32].forEach((d,i)=>cueTone(520+i*90,'sine',t+d,.26,.09/(i+1),.01,.24));}
+  function playTurnCountdownCue(remaining=5){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    const n=Math.max(0,Math.min(5,Number(remaining)||0));
+    const base=n===0?880:360+(5-n)*70;
+    cueTone(base,'sine',t,n===0?.38:.24,n===0?.16:.09,.01,n===0?.36:.22);
+    cueTone(base/4,'sine',t,.28,.035,.02,.26);}
 
   function playUrgentTick(){if(!ensureAudio())return;const t=audioCtx.currentTime;
     cueTone(880,'triangle',t,.09,.095,.006,.085,760,'bandpass',900,1.4);
@@ -1741,26 +1806,22 @@
     cueNoise(t+.04,.55,.16,'lowpass',900,120,.8,.8);
     cueTone(420,'sine',t+.12,.7,.055,.05,.68,115,'bandpass',360,2);}
   function playSplash(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    cueTone(360,'sine',t,.16,.16,.01,.14,75);
-    cueNoise(t+.02,.72,.28,'bandpass',2400,520,.7,1.1);
-    cueTone(130,'sine',t+.08,.46,.035,.03,.42,70);}
+    [0,.09,.18].forEach((d,i)=>cueTone(420-i*55,'sine',t+d,.18,.04/(i+1),.01,.16));
+    cueNoise(t+.04,.46,.12,'bandpass',1600,480,.7,1.3);}
   function playExplosion(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    cueNoise(t,.08,.42,'highpass',420,null,.7,5);
-    cueTone(64,'triangle',t,.82,.48,.035,.78,18);
-    cueNoise(t+.04,.95,.34,'lowpass',2800,72,.7,.55);
-    cueTone(190,'sine',t+.06,.5,.06,.03,.48,74,'bandpass',210,2.5);}
+    cueNoise(t,.09,.34,'bandpass',920,null,1.7,4.4);
+    cueTone(260,'sawtooth',t+.015,.4,.085,.014,.36,92,'bandpass',320,3.2);
+    cueTone(54,'sine',t+.03,.48,.24,.025,.45,25);}
 
   // Sink boom — scales with ship size (subtle for DD, deep & long for CV)
   function playSinkBoom(shipLen){
     if(!ensureAudio())return;
     const t=audioCtx.currentTime;
-    const scale=(shipLen-2)/3;
-    const baseFreq=68-scale*30;
-    const dur=.72+scale*.8;
-    cueTone(baseFreq,'sine',t,dur,.34+scale*.22,.05,dur,baseFreq*.32);
-    cueNoise(t+.03,dur,.24+scale*.18,'lowpass',1600+scale*900,70,.75,.55);
+    const scale=Math.max(0,Math.min(1,((shipLen||3)-2)/3));
+    cueTone(48-scale*10,'sine',t,1.2,.42+scale*.08,.04,1.12,16);
+    cueNoise(t+.02,1.05,.32+scale*.08,'lowpass',900+scale*260,55,.7,.55);
     if(shipLen>=4){
-      cueTone(170,'sawtooth',t+.1,dur*.9,.11+scale*.06,.06,dur*.86,52,'bandpass',260,3.2);
+      cueTone(138,'sawtooth',t+.16,.82,.085+scale*.035,.05,.78,42,'bandpass',190,3.2);
     }
   }
 
@@ -2492,6 +2553,7 @@
     multiplayer.playerName=multiplayerName();
     N=multiplayer.roomBoardSize||N;
     updateSizeButtons();
+    playGunsReadyCue('human');
     sendMultiplayerEvent('create_room',{playerName:multiplayer.playerName,gridSize:N},'Creating room...');
   }
   function joinMultiplayerRoom(){
@@ -2499,6 +2561,7 @@
     const code=normalizeRoomCode(document.getElementById('mpCode').value||'');
     if(!code){setMultiplayerStatus('Enter the 6-letter room code from player 1.');return;}
     multiplayer.playerName=multiplayerName();
+    playGunsReadyCue('human');
     sendMultiplayerEvent('join_room',{roomId:code,playerName:multiplayer.playerName},'Joined. Preparing ship placement...');
   }
   function joinInviteRoom(){
@@ -2512,6 +2575,7 @@
     }
     if(input)input.value=name;
     multiplayer.playerName=name;
+    playGunsReadyCue('human');
     sendMultiplayerEvent('join_room',{roomId:code,playerName:name},'Joining battle...');
   }
   function cancelMultiplayerRoom(){
@@ -2694,6 +2758,7 @@
   function submitMultiplayerFleet(){
     if(!multiplayer.joined){showMultiplayerLobby('Create or join a room first.');return;}
     if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length||multiplayer.placementSubmitted)return;
+    playReadyBellCue();
     multiplayer.waitingForOpponent=true;
     multiplayer.placementSubmitted=true;
     inputLocked=true;
@@ -3372,6 +3437,7 @@
     setArrangeSelection(ship.id,'grid',Math.min(selectedOffset,ship.len-1));
     setStatus('placing',ship.name+' rotated '+(nextOrient==='h'?'horizontal':'vertical'));
     renderShipPicker();renderBoards();flashPlacementFeedback(cells,true);updateStartBtn();
+    playCompassTickCue();
     return true;
   }
   function cancelArrangePointer(){
@@ -3415,6 +3481,7 @@
     setArrangeSelection(null,null,0);
     renderShipPicker();renderBoards();
     flashPlacementFeedback(yourBoard.ships.flatMap(s=>s.cells),true);
+    playDeckShuffleCue();
     updateStartBtn();}
   function clearSelectedShip(){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
@@ -3432,7 +3499,7 @@
     hoverCell=-1;
     clearPlacementPreview();
     setStatus('placing',removedDef.name+' cleared. Place it again.');
-    renderShipPicker();renderBoards();updateStartBtn();}
+    renderShipPicker();renderBoards();playAnchorLiftCue();updateStartBtn();}
   function clearFleet(){clearSelectedShip();}
   function rotateOrientation(){if(isMultiplayerPlacementLocked())return;
     if(phase==='placing'){
@@ -3440,6 +3507,7 @@
     }
     orientation=(orientation==='h'?'v':'h');
     setStatus('placing','Orientation: '+(orientation==='h'?'horizontal':'vertical'));
+    playCompassTickCue();
     updateHoverPreview();updateModeUI();}
   function tryPlaceShip(idx,shipId){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
@@ -3507,6 +3575,7 @@
 
   function startBattle(auto=false){if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length)return;
     if(MULTIPLAYER_ENABLED){submitMultiplayerFleet();return;}
+    playReadyBellCue();
     if(battleAutoStartTimer){clearTimeout(battleAutoStartTimer);battleAutoStartTimer=null;}
     clearArrangeDrag();
     phase='playing';currentTurn='you';
@@ -4372,9 +4441,9 @@
       else newGame();
     } else if(requestedPlayMode==='ai'&&MODE_SELECTION_ENABLED){
       newGame();
-      showAiDifficultyChoice();
+      showAiDifficultyChoice(false);
     } else if(requestedPlayMode==='human'&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
-      chooseHumanOpponent();
+      chooseHumanOpponent(false);
     } else {
       newGame();
     }
