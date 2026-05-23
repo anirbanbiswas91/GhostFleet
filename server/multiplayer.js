@@ -395,7 +395,6 @@ function scheduleTurnTimer(room, durationMs = TURN_TIMEOUT_MS) {
     const timedOutPlayer = current.players[previousTurn];
     if (timedOutPlayer) timedOutPlayer.timeoutStreak = (timedOutPlayer.timeoutStreak || 0) + 1;
     const nextTurn = opponentSlot(previousTurn);
-    if (current.players[nextTurn]) current.players[nextTurn].timeoutStreak = 0;
     current.updatedAt = Date.now();
     if ((timedOutPlayer && timedOutPlayer.timeoutStreak >= TIMEOUT_FORFEIT_LIMIT)) {
       finishMatch(current, nextTurn, 'timeout_surrender');
