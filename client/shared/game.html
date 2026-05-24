@@ -1716,8 +1716,8 @@
     const b=audioCtx.createBuffer(1,l,audioCtx.sampleRate);const a=b.getChannelData(0);
     for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,p);return b;}
   const SHOT_AUDIO_SAMPLES={
-    miss:{url:'/assets/audio/shot/gf-miss-heavy-plunge.wav',gain:.76},
-    hit:{url:'/assets/audio/shot/gf-hit-phone-clean-preview.wav',gain:.86}
+    miss:{url:'/assets/audio/shot/gf-miss-water-splash.wav',gain:.76},
+    hit:{url:'/assets/audio/shot/gf-hit-door-wood-fast.wav',gain:.86}
   };
   const shotAudioBuffers={};
   const shotAudioLoads={};
@@ -1876,14 +1876,6 @@
 
   function playEnemyTurnStinger(){playTurnCompassRelay(true);}
 
-  function playPlayerCannon(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    cueNoise(t,.09,.34,'highpass',620,null,.8,4);
-    cueTone(126,'sine',t,.34,.3,.018,.32,42);
-    cueTone(540,'triangle',t+.025,.32,.075,.018,.3,210,'bandpass',520,2.4);}
-  function playEnemyCannon(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    cueTone(72,'sine',t,.58,.22,.04,.54,28);
-    cueNoise(t+.04,.55,.16,'lowpass',900,120,.8,.8);
-    cueTone(420,'sine',t+.12,.7,.055,.05,.68,115,'bandpass',360,2);}
   function playSplash(){playShotAudioSample('miss');}
   function playExplosion(){playShotAudioSample('hit');}
 
