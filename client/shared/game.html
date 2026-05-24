@@ -2110,17 +2110,75 @@
     return `<span class="enemy-emoji ${extraClass}" aria-hidden="true">😈</span>`;
   }
 
+  function createEnemyIcon(extraClass=''){
+    const icon=document.createElement('span');
+    icon.className=['enemy-emoji',extraClass].filter(Boolean).join(' ');
+    icon.setAttribute('aria-hidden','true');
+    icon.textContent='\u{1F608}';
+    return icon;
+  }
+  function setTextWithEnemyIcon(el,label,extraClass='small'){
+    if(!el)return;
+    el.replaceChildren(createEnemyIcon(extraClass),document.createTextNode(' '+label));
+  }
+  function resetMoveLogPlaceholder(text='No shots fired yet...'){
+    const lg=document.getElementById('moveLog');
+    if(!lg)return;
+    const entry=document.createElement('div');
+    entry.className='log-entry';
+    entry.style.color='#444';
+    entry.style.fontStyle='italic';
+    entry.textContent=text;
+    lg.replaceChildren(entry);
+  }
+
   function isMobileHowTo(){
     return window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
   }
+  function appendHowToText(parent,text){
+    const tokens=[
+      {needle:'Clear-Ship(C)',parts:['Clear-Ship(',{kbd:'C'},')']},
+      {needle:'keyboard C',parts:['keyboard ',{kbd:'C'}]}
+    ];
+    let rest=String(text||'');
+    while(rest){
+      let next=null;
+      tokens.forEach(token=>{
+        const index=rest.indexOf(token.needle);
+        if(index>=0&&(!next||index<next.index))next={...token,index};
+      });
+      if(!next){
+        parent.appendChild(document.createTextNode(rest));
+        break;
+      }
+      if(next.index>0)parent.appendChild(document.createTextNode(rest.slice(0,next.index)));
+      next.parts.forEach(part=>{
+        if(typeof part==='string')parent.appendChild(document.createTextNode(part));
+        else{
+          const kbd=document.createElement('kbd');
+          kbd.textContent=part.kbd;
+          parent.appendChild(kbd);
+        }
+      });
+      rest=rest.slice(next.index+next.needle.length);
+    }
+  }
   function renderHowTo(){
     const mode=MULTIPLAYER_ENABLED?'multiplayer':(isMobileHowTo()?'mobile':'desktop');
-    const html=HOW_TO_COPY[mode].map(([title,text])=>`<p><strong>${title}:</strong> ${text.replaceAll('Clear-Ship(C)','Clear-Ship(<kbd>C</kbd>)').replaceAll('keyboard C','keyboard <kbd>C</kbd>')}</p>`).join('');
     ['howToBody'].forEach(id=>{
       const body=document.getElementById(id);
       if(!body)return;
       body.dataset.mode=mode;
-      body.innerHTML=html;
+      body.replaceChildren();
+      HOW_TO_COPY[mode].forEach(([title,text])=>{
+        const p=document.createElement('p');
+        const strong=document.createElement('strong');
+        strong.textContent=title+':';
+        p.appendChild(strong);
+        p.appendChild(document.createTextNode(' '));
+        appendHowToText(p,text);
+        body.appendChild(p);
+      });
     });
   }
   function openHowTo(){
@@ -2745,7 +2803,7 @@
     ['mpPlayers','sharePlayers'].forEach(id=>{
       const list=document.getElementById(id);
       if(!list)return;
-      list.innerHTML='';
+      list.replaceChildren();
       slots.forEach((player,index)=>{
         const row=document.createElement('div');
         const open=!player||!player.id;
@@ -2753,7 +2811,11 @@
         const slotLabel='Player '+(index+1);
         const name=open?(index===0?'Waiting for host':'Waiting for Player 2'):(player.playerIndex===multiplayer.playerIndex?(player.displayName+' (You)'):player.displayName);
         const state=open?'Open slot':(player.connected?(player.rematchRequested?'Rematch':(player.lobbyReady?'Ready':'Joined')):'Offline');
-        row.innerHTML=`<strong>${slotLabel}: ${name}</strong><span>${state}</span>`;
+        const nameEl=document.createElement('strong');
+        nameEl.textContent=slotLabel+': '+name;
+        const stateEl=document.createElement('span');
+        stateEl.textContent=state;
+        row.replaceChildren(nameEl,stateEl);
         list.appendChild(row);
       });
     });
@@ -2793,7 +2855,7 @@
     battleLog=[];
     battleMoves=[];
     const lg=document.getElementById('moveLog');
-    if(lg)lg.innerHTML='';
+    if(lg)lg.replaceChildren();
     snapshot.battleLog.forEach(entry=>{
       const mine=entry.actorId===multiplayer.playerId;
       const hit=entry.result==='hit'||entry.result==='sunk';
@@ -2834,7 +2896,7 @@
     document.getElementById('btnRotate').disabled=false;
     document.getElementById('pickerBox').style.display='';
     document.getElementById('fleetBox').style.display='none';
-    document.getElementById('moveLog').innerHTML='<div class="log-entry" style="color:#444;font-style:italic;">No shots fired yet...</div>';
+    resetMoveLogPlaceholder();
     setStatus('placing','Place your fleet for room '+multiplayer.roomCode);
     updateBoardHighlights();renderShipPicker();renderBoards();updateStartBtn();updateStats();
     multiplayer.suppressLobby=false;
@@ -3166,7 +3228,7 @@
     }
     if(arrangeActions)arrangeActions.hidden=phase!=='placing';
     if(yourLabel)yourLabel.textContent=phase==='placing'&&ready?'Confirm':'Your Fleet';
-    if(enemyLabel)enemyLabel.innerHTML=enemyIcon('small')+' Enemy Waters';
+    setTextWithEnemyIcon(enemyLabel,'Enemy Waters','small');
     if(yourHint){
       if(phase==='placing')yourHint.textContent=ready?'Start battle':'Place ships';
       else if(currentTurn==='ai')yourHint.textContent='Under attack';
@@ -3183,7 +3245,8 @@
     const b=document.getElementById('turnBanner');const t=document.getElementById('turnBannerTxt');
     b.classList.remove('show','you','ai');void b.offsetWidth;
     b.classList.add('show',who);
-    t.innerHTML=who==='you'?'⚓ YOUR TURN':`${enemyIcon()} ENEMY TURN`;
+    if(who==='you')t.textContent='⚓ YOUR TURN';
+    else t.replaceChildren(createEnemyIcon(),document.createTextNode(' ENEMY TURN'));
     inputLocked=true;
     renderTurnSensitiveBoards();
     if(who==='you')playYourTurnStinger();else playEnemyTurnStinger();
@@ -3202,7 +3265,7 @@
     const banner=document.createElement('div');
     banner.className='sink-banner';
     const who=isEnemyShip?'🎯 ENEMY':'💥 YOUR';
-    banner.innerHTML=`${who} ${ship.name} SUNK!`;
+    banner.textContent=`${who} ${ship.name} SUNK!`;
     document.body.appendChild(banner);
     setTimeout(()=>banner.remove(),SHOT_EFFECT_TIMING.sinkBannerMs);
   }
@@ -3650,7 +3713,7 @@
     document.getElementById('modalOverlay').classList.remove('show');
     document.getElementById('analysisOverlay').classList.remove('show');
     document.getElementById('howToOverlay').classList.remove('show');
-    document.getElementById('moveLog').innerHTML='<div class="log-entry" style="color:#444;font-style:italic;">No shots fired yet…</div>';
+    resetMoveLogPlaceholder('No shots fired yet…');
     setStatus('placing','Place your fleet to begin!');
     updateBoardHighlights();renderShipPicker();renderBoards();updateStartBtn();updateStats();
     setDifficulty(difficulty);
@@ -3959,8 +4022,23 @@
     return svg;
   }
 
+  function makeShipLogoWrap(ship,compact=false){
+    const wrap=document.createElement('div');
+    wrap.className='pi-iconwrap pi-'+ship.cls+'-bg';
+    if(compact)wrap.style.padding='1px';
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('class','pi-icon ship-logo');
+    svg.setAttribute('viewBox','0 0 100 100');
+    svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+    const use=document.createElementNS('http://www.w3.org/2000/svg','use');
+    use.setAttribute('href','#'+(ship.logoId||ship.icoId));
+    svg.appendChild(use);
+    wrap.appendChild(svg);
+    return wrap;
+  }
+
   function renderBoard(containerId,board,isEnemy,cellSize){
-    const cont=document.getElementById(containerId);cont.innerHTML='';
+    const cont=document.getElementById(containerId);cont.replaceChildren();
     if(boardCellRefs[containerId])boardCellRefs[containerId].clear();
     cellSize=cellSize||computeCellSize();
     for(let r=0;r<N;r++){
@@ -4048,18 +4126,27 @@
   }
 
   function renderShipPicker(){
-    const el=document.getElementById('shipPicker');el.innerHTML='';
+    const el=document.getElementById('shipPicker');el.replaceChildren();
     SHIPS.forEach(s=>{
       const placed=!!yourBoard.ships.find(x=>x.id===s.id);
       const item=document.createElement('div');
       item.className='picker-item'+(placed?' placed':'')+(selectedShipId===s.id?' selected':'')+(selectedSource==='grid'&&selectedShipId===s.id?' held':'');
       item.draggable=false;
       item.title=placed?'Tap to edit '+s.name:'Place '+s.name;
-      const logoId=s.logoId||s.icoId;
-      item.innerHTML=`
-        <div class="pi-iconwrap pi-${s.cls}-bg"><svg class="pi-icon ship-logo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"><use href="#${logoId}"/></svg></div>
-        <div class="pi-name">${s.name}<small>${s.short} / ${s.len} cells</small></div>
-        <div class="pi-cells">${'<div class="pic"></div>'.repeat(s.len)}</div>`;
+      const name=document.createElement('div');
+      name.className='pi-name';
+      name.appendChild(document.createTextNode(s.name));
+      const meta=document.createElement('small');
+      meta.textContent=s.short+' / '+s.len+' cells';
+      name.appendChild(meta);
+      const cells=document.createElement('div');
+      cells.className='pi-cells';
+      for(let i=0;i<s.len;i++){
+        const pic=document.createElement('div');
+        pic.className='pic';
+        cells.appendChild(pic);
+      }
+      item.replaceChildren(makeShipLogoWrap(s),name,cells);
       item.onclick=()=>selectShip(s.id);
       el.appendChild(item);
     });
@@ -4068,21 +4155,26 @@
   function renderShipLists(){
     const enemyHeading=document.getElementById('enemyFleetHeading');
     const yourHeading=document.getElementById('yourFleetHeading');
-    if(enemyHeading)enemyHeading.innerHTML=enemyIcon('small')+' Enemy Fleet';
-    if(yourHeading)yourHeading.innerHTML='⚓ Your Fleet';
+    setTextWithEnemyIcon(enemyHeading,'Enemy Fleet','small');
+    if(yourHeading)yourHeading.textContent='⚓ Your Fleet';
     renderShipList('enemyShipList',enemyBoard,true);
     renderShipList('yourShipList',yourBoard,false);}
   function renderShipList(elId,board,hideHits){
-    const el=document.getElementById(elId);el.innerHTML='';
+    const el=document.getElementById(elId);el.replaceChildren();
     board.ships.forEach(s=>{
       const item=document.createElement('div');item.className='ship-item'+(s.sunk?' sunk':'');
-      const logoId=s.logoId||s.icoId;
-      item.innerHTML=`
-        <div class="pi-iconwrap pi-${s.cls}-bg" style="padding:1px;"><svg class="pi-icon ship-logo" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"><use href="#${logoId}"/></svg></div>
-        <div class="ship-name">${s.name}</div>
-        <div class="ship-cells-small">${Array.from({length:s.len},(_,i)=>{
-          const h=(!hideHits&&i<s.hits.size)||(hideHits&&s.sunk);
-          return `<div class="sc${h?' hit':''}"></div>`;}).join('')}</div>`;
+      const name=document.createElement('div');
+      name.className='ship-name';
+      name.textContent=s.name;
+      const cells=document.createElement('div');
+      cells.className='ship-cells-small';
+      for(let i=0;i<s.len;i++){
+        const h=(!hideHits&&i<s.hits.size)||(hideHits&&s.sunk);
+        const cell=document.createElement('div');
+        cell.className='sc'+(h?' hit':'');
+        cells.appendChild(cell);
+      }
+      item.replaceChildren(makeShipLogoWrap(s,true),name,cells);
       el.appendChild(item);
     });
   }
@@ -4107,7 +4199,7 @@
   function coord(i){return String.fromCharCode(65+(i%N))+(Math.floor(i/N)+1);}
   function log(msg,cls){const lg=document.getElementById('moveLog');
     battleLog.push({msg,cls:cls||'',turn:battleLog.length+1});
-    if(lg.firstChild&&lg.firstChild.style&&lg.firstChild.style.fontStyle==='italic')lg.innerHTML='';
+    if(lg.firstChild&&lg.firstChild.style&&lg.firstChild.style.fontStyle==='italic')lg.replaceChildren();
     const e=document.createElement('div');e.className='log-entry '+(cls||'');e.textContent=msg;
     lg.insertBefore(e,lg.firstChild);
     while(lg.children.length>40)lg.removeChild(lg.lastChild);}
@@ -4196,7 +4288,7 @@
     const earned=achievements.filter(a=>a.earned);
     const shell=el.closest('.achievement-wrap,.analysis-achievements');
     if(shell)shell.style.display=earned.length?'':'none';
-    el.innerHTML='';
+    el.replaceChildren();
     earned.forEach(a=>{
       const card=document.createElement('div');
       card.className='achievement-badge';
@@ -4328,7 +4420,7 @@
     renderAchievements('analysisAchievements',achievements);
 
     const logBox=document.getElementById('analysisLog');
-    logBox.innerHTML='';
+    logBox.replaceChildren();
     [
       ['Opening search','First 8 shots reveal your search spread: '+formatPattern(playerMoves.slice(0,8))],
       ['Closing pattern','Last 8 shots reveal whether you finished contacts cleanly: '+formatPattern(playerMoves.slice(-8))],
@@ -4342,16 +4434,22 @@
     });
 
     const timeline=document.getElementById('analysisTimeline');
-    timeline.innerHTML='';
+    timeline.replaceChildren();
     battleMoves.forEach(m=>{
       const row=document.createElement('div');
       row.className='analysis-move '+m.result;
-      row.innerHTML=`<span>#${m.turn}</span><span>${analysisActorLabel(m.actor)}</span><span>${m.coord} - ${m.result.toUpperCase()}${m.shipName?' / '+m.shipName:''}</span>`;
+      const turn=document.createElement('span');
+      turn.textContent='#'+m.turn;
+      const actor=document.createElement('span');
+      actor.textContent=analysisActorLabel(m.actor);
+      const result=document.createElement('span');
+      result.textContent=m.coord+' - '+m.result.toUpperCase()+(m.shipName?' / '+m.shipName:'');
+      row.replaceChildren(turn,actor,result);
       timeline.appendChild(row);
     });
 
     const suggestions=document.getElementById('analysisSuggestions');
-    suggestions.innerHTML='';
+    suggestions.replaceChildren();
     buildSuggestions(playerMoves,won,playerAcc,aiAcc,endedBySurrender).forEach(text=>{
       const li=document.createElement('li');
       li.textContent=text;
