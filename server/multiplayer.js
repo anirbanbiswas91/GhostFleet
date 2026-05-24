@@ -26,8 +26,19 @@ const SOCKET_ORIGIN_PATTERNS = [
   /^http:\/\/127\.0\.0\.1(?::\d+)?$/i,
   /^http:\/\/\[::1\](?::\d+)?$/i
 ];
+const SOCKET_RATE_LIMITS = {
+  room_create: { limit: 8, windowMs: 60 * 1000 },
+  room_join: { limit: 20, windowMs: 60 * 1000 },
+  room_reconnect: { limit: 30, windowMs: 60 * 1000 },
+  room_cancel: { limit: 8, windowMs: 60 * 1000 },
+  fleet_submit: { limit: 12, windowMs: 60 * 1000 },
+  shot_fire: { limit: 60, windowMs: 60 * 1000 },
+  match_rematch: { limit: 8, windowMs: 60 * 1000 },
+  client_heartbeat: { limit: 60, windowMs: 60 * 1000 }
+};
 const rooms = new Map();
 const expiredRooms = new Map();
+const socketRateBuckets = new Map();
 
 function positiveIntEnv(name, fallback) {
   const value = Number.parseInt(process.env[name] || '', 10);
@@ -45,6 +56,41 @@ function socketOriginAllowed(origin) {
   if (!origin) return true;
   if (configuredSocketOrigins().includes(origin)) return true;
   return SOCKET_ORIGIN_PATTERNS.some(pattern => pattern.test(origin));
+}
+
+function socketRateIdentity(socket) {
+  const address = socket.handshake && socket.handshake.address ? socket.handshake.address : 'unknown';
+  return `${address}:${socket.id}`;
+}
+
+function cleanupSocketRateBuckets(now = Date.now()) {
+  for (const [key, bucket] of socketRateBuckets.entries()) {
+    if (bucket.resetAt <= now) socketRateBuckets.delete(key);
+  }
+}
+
+function consumeSocketRateLimit(socket, action) {
+  const config = SOCKET_RATE_LIMITS[action];
+  if (!config) return true;
+  const now = Date.now();
+  if (socketRateBuckets.size > 2000) cleanupSocketRateBuckets(now);
+  const key = `${action}:${socketRateIdentity(socket)}`;
+  let bucket = socketRateBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    bucket = { count: 0, resetAt: now + config.windowMs };
+    socketRateBuckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  return bucket.count <= config.limit;
+}
+
+function rateLimited(socket, action, handler) {
+  return payload => {
+    if (!consumeSocketRateLimit(socket, action)) {
+      return fail(socket, 'Too many requests. Slow down and try again shortly.', 'rate_limited');
+    }
+    return handler(payload);
+  };
 }
 
 function makeRoomCode() {
@@ -779,39 +825,39 @@ function handleCancelRoom(socket, payload = {}) {
 function attachSocketHandlers(io) {
   io.on('connection', socket => {
     // Triggered when a host creates a Teams-style room URL; validates clientId/grid size, creates slot 0, emits room_created and compatibility room:joined.
-    socket.on('create_room', payload => {
+    socket.on('create_room', rateLimited(socket, 'room_create', payload => {
       handleCreateRoom(io, socket, payload);
-    });
+    }));
 
     // Triggered when a host creates a room; validates clientId and board size, creates slot 0, emits room:joined and room:update.
-    socket.on('room:create', payload => {
+    socket.on('room:create', rateLimited(socket, 'room_create', payload => {
       handleCreateRoom(io, socket, payload);
-    });
+    }));
 
     // Triggered when a guest opens or enters a room URL; validates availability/clientId, joins or reconnects a slot, emits joined_room and compatibility room:joined.
-    socket.on('join_room', payload => {
+    socket.on('join_room', rateLimited(socket, 'room_join', payload => {
       handleJoinRoom(socket, payload);
-    });
+    }));
 
     // Triggered when player 2 enters a code; validates room availability and clientId, fills slot 1, emits room:joined and starts placement when ready.
-    socket.on('room:join', payload => {
+    socket.on('room:join', rateLimited(socket, 'room_join', payload => {
       handleJoinRoom(socket, payload);
-    });
+    }));
 
     // Triggered by a returning client on /room/:roomId; validates persistent clientId, migrates socket id, emits joined_room and resync.
-    socket.on('reconnect_room', payload => {
+    socket.on('reconnect_room', rateLimited(socket, 'room_reconnect', payload => {
       handleReconnectRoom(socket, payload);
-    });
+    }));
 
     // Triggered by stored client identity after reconnect; validates clientId/code, replaces the socket in the existing slot, emits room:joined and resync.
-    socket.on('match:rejoin', payload => {
+    socket.on('match:rejoin', rateLimited(socket, 'room_reconnect', payload => {
       handleReconnectRoom(socket, payload);
-    });
+    }));
 
     // Triggered when a host cancels a waiting share link; validates creator/waiting phase, tombstones the room, emits room_expired to caller.
-    socket.on('cancel_room', payload => {
+    socket.on('cancel_room', rateLimited(socket, 'room_cancel', payload => {
       handleCancelRoom(socket, payload);
-    });
+    }));
 
     // Legacy compatibility: triggered by older clients; validates room/player and marks lobby ready without affecting the auto-start slot flow.
     socket.on('player:ready', payload => {
@@ -823,7 +869,7 @@ function attachSocketHandlers(io) {
     });
 
     // Triggered when a player confirms fleet placement; validates phase/fleet, marks that slot placed, emits opponent_placement_done and starts battle when both are ready.
-    socket.on('fleet:submit', payload => {
+    socket.on('fleet:submit', rateLimited(socket, 'fleet_submit', payload => {
       const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
@@ -844,10 +890,10 @@ function attachSocketHandlers(io) {
       emitSnapshotToSlot(room, opponentSlot(slot), 'room:update');
       startBattleIfReady(room);
       validateRoomState(room);
-    });
+    }));
 
     // Triggered from the result modal; validates ended phase and records the slot rematch vote, then emits room:update or restarts placement.
-    socket.on('match:rematch', payload => {
+    socket.on('match:rematch', rateLimited(socket, 'match_rematch', payload => {
       const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
@@ -858,10 +904,10 @@ function attachSocketHandlers(io) {
       room.updatedAt = Date.now();
       emitRoom(room);
       startRematchIfReady(room);
-    });
+    }));
 
     // Triggered when a player fires; validates phase, slot turn, bounds, duplicate shots, and opponent board, then emits shot:result plus match:end or turn:update.
-    socket.on('shot:fire', payload => {
+    socket.on('shot:fire', rateLimited(socket, 'shot_fire', payload => {
       const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
@@ -903,7 +949,7 @@ function attachSocketHandlers(io) {
         emitRoom(room, 'turn:update');
       }
       validateRoomState(room);
-    });
+    }));
 
     // Triggered by explicit Exit Room; validates the socket room and tells the opponent before closing the room.
     socket.on('room:leave', payload => {
@@ -916,7 +962,7 @@ function attachSocketHandlers(io) {
     });
 
     // Triggered when a visible tab/app returns; validates clientId/code and sends a resync for the matched slot.
-    socket.on('client_heartbeat', payload => {
+    socket.on('client_heartbeat', rateLimited(socket, 'client_heartbeat', payload => {
       const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
@@ -924,7 +970,7 @@ function attachSocketHandlers(io) {
       if (room.phase === 'waiting') syncWaitingRoom(room);
       else emitResync(room, slot);
       validateRoomState(room);
-    });
+    }));
 
     // Triggered by Socket.IO transport loss; validates the stored slot, starts a grace timer, and emits room:update.
     socket.on('disconnect', () => {

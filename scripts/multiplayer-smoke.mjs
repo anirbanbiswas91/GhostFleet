@@ -91,6 +91,40 @@ async function waitTimeout(socket, expectedSlot, expectedStreak, timeoutMs = 600
   }
 }
 
+function waitForErrorCode(socket, expectedCode, timeoutMs = 6000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.off('error:message', onEvent);
+      reject(new Error(`Timed out waiting for error ${expectedCode}`));
+    }, timeoutMs);
+    const onEvent = payload => {
+      if (payload.code !== expectedCode) return;
+      clearTimeout(timer);
+      socket.off('error:message', onEvent);
+      resolve(payload);
+    };
+    socket.on('error:message', onEvent);
+  });
+}
+
+async function exerciseSocketRateLimits() {
+  const roomSpammer = await connectClient('smoke-rate-room');
+  const roomLimited = waitForErrorCode(roomSpammer, 'rate_limited');
+  for (let i = 0; i < 9; i += 1) {
+    emit(roomSpammer, 'create_room', { playerName: 'SpamRoom', gridSize: 8 });
+  }
+  await roomLimited;
+  roomSpammer.disconnect();
+
+  const shotSpammer = await connectClient('smoke-rate-shot');
+  const shotLimited = waitForErrorCode(shotSpammer, 'rate_limited');
+  for (let i = 0; i < 61; i += 1) {
+    emit(shotSpammer, 'shot:fire', { idx: i });
+  }
+  await shotLimited;
+  shotSpammer.disconnect();
+}
+
 async function exerciseWaitingRoomStartAfterReturn(eventName, label) {
   const hostId = `smoke-wait-host-${label}`;
   const guestId = `smoke-wait-guest-${label}`;
@@ -142,6 +176,7 @@ async function main() {
   server.stderr.on('data', chunk => process.stderr.write(chunk));
   try {
     await waitForHttp('/healthz');
+    await exerciseSocketRateLimits();
     await exerciseWaitingRoomStartAfterReturn('reconnect_room', 'rejoin');
     await exerciseWaitingRoomStartAfterReturn('client_heartbeat', 'heartbeat');
 
