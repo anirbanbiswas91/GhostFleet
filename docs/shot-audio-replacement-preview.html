@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GhostFleet Shot Audio Replacement Preview</title>
+  <style>
+    :root{
+      --bg:#02080d;
+      --panel:rgba(9,18,28,.9);
+      --line:rgba(226,185,111,.34);
+      --cyan:#78f4ef;
+      --gold:#f4cf82;
+      --text:#ecf7ff;
+      --muted:#9eb2c4;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 20% 12%,rgba(120,244,239,.16),transparent 34%),
+        radial-gradient(circle at 78% 28%,rgba(244,207,130,.12),transparent 32%),
+        linear-gradient(145deg,#03121b,#06101a 42%,#02080d);
+      display:grid;
+      place-items:center;
+      padding:28px;
+    }
+    main{
+      width:min(920px,100%);
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:linear-gradient(160deg,rgba(8,17,27,.94),rgba(13,15,27,.88));
+      box-shadow:0 24px 80px rgba(0,0,0,.42),0 0 34px rgba(120,244,239,.12);
+      padding:28px;
+    }
+    h1{
+      margin:0 0 8px;
+      color:var(--gold);
+      letter-spacing:.05em;
+      font-size:clamp(1.7rem,4vw,2.55rem);
+    }
+    p{color:var(--muted);line-height:1.55;margin:0 0 20px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:24px 0}
+    .card{
+      border:1px solid rgba(120,244,239,.2);
+      border-radius:12px;
+      background:rgba(2,8,13,.55);
+      padding:18px;
+    }
+    h2{margin:0 0 10px;color:var(--cyan);font-size:1.15rem;letter-spacing:.04em}
+    .source{font-family:"Courier New",monospace;font-size:.8rem;color:#d8e8f0;word-break:break-all}
+    label{display:grid;gap:8px;margin:14px 0;color:var(--muted);font-weight:700}
+    input[type="range"]{width:100%;accent-color:var(--gold)}
+    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+    button{
+      border:1px solid rgba(244,207,130,.45);
+      border-radius:10px;
+      background:linear-gradient(180deg,rgba(21,73,92,.9),rgba(10,35,52,.92));
+      color:#fff;
+      font-weight:900;
+      letter-spacing:.02em;
+      padding:12px 16px;
+      cursor:pointer;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 8px 22px rgba(0,0,0,.24);
+    }
+    button:hover,button:focus-visible{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(244,207,130,.14)}
+    .status{min-height:24px;color:var(--cyan);font-weight:800;margin-top:14px}
+    .note{border-top:1px solid rgba(255,255,255,.1);padding-top:18px;margin-top:20px;font-size:.92rem}
+    @media(max-width:700px){
+      body{padding:16px}
+      main{padding:20px}
+      .grid{grid-template-columns:1fr}
+      .actions{display:grid}
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>GhostFleet Shot Audio Preview</h1>
+    <p>Audition the proposed replacement sounds before wiring them into the live game. These controls play the provided WAV files directly through Web Audio with adjustable gain.</p>
+
+    <section class="grid" aria-label="Shot sound controls">
+      <article class="card">
+        <h2>Hit: Door / Wood Fast</h2>
+        <p class="source">docs/audio-preview/gf-hit-door-wood-fast-preview.wav</p>
+        <label>Hit volume <input id="hitGain" type="range" min="0" max="1.5" step="0.01" value="0.86"></label>
+        <button type="button" onclick="playCue('hit')">Play Hit</button>
+      </article>
+
+      <article class="card">
+        <h2>Miss: Water Splash</h2>
+        <p class="source">docs/audio-preview/gf-miss-water-splash-preview.wav</p>
+        <label>Miss volume <input id="missGain" type="range" min="0" max="1.5" step="0.01" value="0.76"></label>
+        <button type="button" onclick="playCue('miss')">Play Miss</button>
+      </article>
+    </section>
+
+    <label>Master volume <input id="masterGain" type="range" min="0" max="1" step="0.01" value="0.9"></label>
+
+    <div class="actions">
+      <button type="button" onclick="playCue('hit')">Hit</button>
+      <button type="button" onclick="playCue('miss')">Miss</button>
+      <button type="button" onclick="compare('hit','miss')">Compare Hit -> Miss</button>
+      <button type="button" onclick="compare('miss','hit')">Compare Miss -> Hit</button>
+    </div>
+    <div class="status" id="status">Ready.</div>
+
+    <p class="note">After approval, the live game should use these same files from <code>/assets/audio/shot/</code>. Sunk should remain on the existing Underwater Blast cue.</p>
+  </main>
+
+  <script>
+    const cues = {
+      hit: { url: 'audio-preview/gf-hit-door-wood-fast-preview.wav', gainId: 'hitGain', label: 'Hit' },
+      miss: { url: 'audio-preview/gf-miss-water-splash-preview.wav', gainId: 'missGain', label: 'Miss' }
+    };
+    let audioCtx;
+    const buffers = {};
+    const loads = {};
+
+    function ctx(){
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function status(message){
+      document.getElementById('status').textContent = message;
+    }
+
+    function loadCue(key){
+      const cue = cues[key];
+      if(!cue) return Promise.reject(new Error('Unknown cue: ' + key));
+      if(buffers[key]) return Promise.resolve(buffers[key]);
+      if(loads[key]) return loads[key];
+      loads[key] = fetch(cue.url)
+        .then(response => {
+          if(!response.ok) throw new Error('HTTP ' + response.status + ' for ' + cue.url);
+          return response.arrayBuffer();
+        })
+        .then(bytes => ctx().decodeAudioData(bytes))
+        .then(buffer => {
+          buffers[key] = buffer;
+          return buffer;
+        });
+      return loads[key];
+    }
+
+    function gainValue(id){
+      const el = document.getElementById(id);
+      return Math.max(0, Number(el && el.value) || 0);
+    }
+
+    async function playCue(key, delay = 0){
+      const cue = cues[key];
+      const buffer = await loadCue(key);
+      const context = ctx();
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      source.buffer = buffer;
+      gain.gain.value = gainValue(cue.gainId) * gainValue('masterGain');
+      source.connect(gain).connect(context.destination);
+      source.start(context.currentTime + delay);
+      status('Playing ' + cue.label + ' at gain ' + gain.gain.value.toFixed(2));
+      return buffer.duration;
+    }
+
+    async function compare(first, second){
+      const firstDuration = await playCue(first);
+      await playCue(second, Math.max(0.35, firstDuration + 0.25));
+      status('Comparing ' + cues[first].label + ' -> ' + cues[second].label);
+    }
+
+    Promise.all(Object.keys(cues).map(loadCue))
+      .then(() => status('Samples loaded. Ready.'))
+      .catch(error => status('Failed to load sample: ' + error.message));
+  </script>
+</body>
+</html>
