@@ -147,6 +147,15 @@ function normalizeClientId(payload) {
   return id || '';
 }
 
+function normalizeToken(payload) {
+  const token = String(payload && payload.token || '').trim().slice(0, 80);
+  return token || '';
+}
+
+function playerTokenMatches(player, payload) {
+  return !!player && !!player.token && normalizeToken(payload) === player.token;
+}
+
 function shipDefinition(id) {
   return SHIPS.find(ship => ship.id === Number(id));
 }
@@ -408,7 +417,10 @@ function findRoomAndSlot(socket, payload = {}) {
   if (slot < 0) {
     const clientId = normalizeClientId(payload) || socket.data.clientId || '';
     slot = findSlotByClientId(room, clientId);
-    if (slot >= 0) bindSocketToPlayer(room, socket, slot);
+    if (slot >= 0) {
+      if (!playerTokenMatches(room.players[slot], payload)) return { room, slot: -1 };
+      bindSocketToPlayer(room, socket, slot);
+    }
   }
   return { room, slot };
 }
@@ -780,6 +792,9 @@ function handleJoinRoom(socket, payload = {}) {
   if (!room) return emitRoomLookupFailure(socket, code);
   const reconnectSlot = findSlotByClientId(room, clientId);
   if (reconnectSlot >= 0) {
+    if (!playerTokenMatches(room.players[reconnectSlot], payload)) {
+      return fail(socket, 'Room session could not be verified. Refresh GhostFleet and try again.', 'invalid_token');
+    }
     const player = bindSocketToPlayer(room, socket, reconnectSlot);
     emitJoined(socket, room, reconnectSlot, player, clientId);
     if (room.phase === 'waiting') syncWaitingRoom(room);
@@ -805,6 +820,9 @@ function handleReconnectRoom(socket, payload = {}) {
   if (!room) return emitRoomLookupFailure(socket, code);
   const slot = findSlotByClientId(room, clientId);
   if (slot < 0) return handleJoinRoom(socket, payload);
+  if (!playerTokenMatches(room.players[slot], payload)) {
+    return fail(socket, 'Room session could not be verified. Refresh GhostFleet and try again.', 'invalid_token');
+  }
   const player = bindSocketToPlayer(room, socket, slot);
   emitJoined(socket, room, slot, player, clientId);
   if (room.phase === 'waiting') syncWaitingRoom(room);
