@@ -12,6 +12,7 @@ const rootDir = path.resolve(__dirname, '..');
 const clientDir = path.join(rootDir, 'client');
 const gameTemplatePath = path.join(clientDir, 'shared', 'game.html');
 const adsTxtPath = path.join(clientDir, 'ads.txt');
+const faviconPath = path.join(clientDir, 'assets', 'favicon.svg');
 const port = Number(process.env.PORT || 3000);
 const freeOnly = process.env.GHOSTFLEET_FREE_ONLY === 'true';
 
@@ -40,6 +41,11 @@ app.use('/shared', express.static(path.join(clientDir, 'shared'), {
 app.get('/ads.txt', (req, res) => {
   res.set('Cache-Control', 'public, max-age=3600');
   res.type('text/plain').sendFile(adsTxtPath);
+});
+
+app.get('/favicon.ico', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=604800');
+  res.type('image/svg+xml').sendFile(faviconPath);
 });
 
 function renderGame(tierName) {
