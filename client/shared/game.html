@@ -1420,6 +1420,7 @@
     updateExitControls();
   }
   function showOpponentChoices(){
+    syncPlayModeUrl('select');
     const choice=document.getElementById('opponentChoiceStep');
     const aiStep=document.getElementById('opponentAiStep');
     const intro=document.getElementById('opponentIntro');
@@ -1429,6 +1430,7 @@
   }
   function showAiDifficultyChoice(playCue=true){
     if(playCue)playChartMarkCue('ai');
+    syncPlayModeUrl('ai');
     const choice=document.getElementById('opponentChoiceStep');
     const aiStep=document.getElementById('opponentAiStep');
     const intro=document.getElementById('opponentIntro');
@@ -1450,6 +1452,7 @@
   function chooseAiOpponent(level){
     playGunsReadyCue('ai');
     opponentMode='ai';
+    syncPlayModeUrl('ai');
     syncOpponentMode();
     N=BOARD_SIZES.includes(aiSetupSize)?aiSetupSize:8;
     updateSizeButtons();
@@ -1461,6 +1464,7 @@
   function chooseHumanOpponent(playCue=true){
     if(playCue)playChartMarkCue('human');
     opponentMode='human';
+    syncPlayModeUrl('human');
     syncOpponentMode();
     multiplayer.roomBoardSize=BOARD_SIZES.includes(N)?N:8;
     updateMultiplayerRoomSize();
@@ -1483,6 +1487,7 @@
     if(MODE_SELECTION_ENABLED){
       opponentMode=null;
       syncOpponentMode();
+      syncPlayModeUrl('select',true);
     }
     newGame();
   }
@@ -1492,6 +1497,7 @@
     if(MODE_SELECTION_ENABLED){
       opponentMode=null;
       syncOpponentMode();
+      syncPlayModeUrl('select',true);
     }
     newGame();
   }
@@ -1629,6 +1635,7 @@
     if(MODE_SELECTION_ENABLED){
       opponentMode=null;
       syncOpponentMode();
+      syncPlayModeUrl('select',true);
     }
     newGame();
   }
@@ -2149,6 +2156,13 @@
       return mode==='ai'||mode==='human'?mode:'';
     }catch(_){return '';}
   }
+  function syncPlayModeUrl(mode='select',force=false){
+    try{
+      if(window.location.pathname.startsWith('/room/')&&!force)return;
+      const target=mode==='ai'?'/play?mode=ai':(mode==='human'?'/play?mode=human':'/play');
+      if(window.location.pathname+window.location.search!==target)history.replaceState({},'',target);
+    }catch(_){}
+  }
   function savedMultiplayerSession(){
     try{return JSON.parse(sessionStorage.getItem(mpStorageKey())||'null');}
     catch(_){return null;}
@@ -2652,6 +2666,7 @@
     leaveMultiplayerRoom(false);
     hideShareRoomScreen();
     opponentMode='human';
+    syncPlayModeUrl('human',true);
     syncOpponentMode();
     multiplayer.suppressLobby=true;
     newGame();
