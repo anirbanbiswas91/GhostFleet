@@ -1708,8 +1708,7 @@
     const b=audioCtx.createBuffer(1,l,audioCtx.sampleRate);const a=b.getChannelData(0);
     for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,p);return b;}
   const SHOT_AUDIO_SAMPLES={
-    miss:{url:'/assets/audio/shot/gf-miss-needle-splash.wav',gain:.76},
-    hit:{url:'/assets/audio/shot/gf-hit-ghost-hull-breach-short-b.wav',gain:.86}
+    miss:{url:'/assets/audio/shot/gf-miss-heavy-plunge.wav',gain:.76}
   };
   const shotAudioBuffers={};
   const shotAudioLoads={};
@@ -1877,7 +1876,21 @@
     cueNoise(t+.04,.55,.16,'lowpass',900,120,.8,.8);
     cueTone(420,'sine',t+.12,.7,.055,.05,.68,115,'bandpass',360,2);}
   function playSplash(){playShotAudioSample('miss');}
-  function playExplosion(){playShotAudioSample('hit');}
+  function playExplosion(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    const c=audioCtx.createBufferSource();c.buffer=noise(0.06,6);
+    const ng=audioCtx.createGain();ng.gain.value=0.7;
+    c.connect(ng).connect(audioOutput());c.start(t);
+    const r=audioCtx.createBufferSource();r.buffer=noise(1,0.5);
+    const f=audioCtx.createBiquadFilter();f.type='lowpass';
+    f.frequency.setValueAtTime(3500,t);f.frequency.exponentialRampToValueAtTime(70,t+1);
+    const ng2=audioCtx.createGain();ng2.gain.setValueAtTime(0.7,t);
+    ng2.gain.exponentialRampToValueAtTime(0.001,t+1);
+    r.connect(f).connect(ng2).connect(audioOutput());r.start(t);
+    const b=audioCtx.createOscillator(),bg=audioCtx.createGain();b.type='triangle';
+    b.frequency.setValueAtTime(55,t);b.frequency.exponentialRampToValueAtTime(15,t+0.8);
+    bg.gain.setValueAtTime(0,t);bg.gain.linearRampToValueAtTime(0.65,t+0.05);
+    bg.gain.exponentialRampToValueAtTime(0.001,t+0.85);
+    b.connect(bg).connect(audioOutput());b.start(t);b.stop(t+0.85);}
 
   // Sink boom — scales with ship size (subtle for DD, deep & long for CV)
   function playSinkBoom(shipLen){
