@@ -17,12 +17,34 @@ const TURN_TIMEOUT_MS = positiveIntEnv('GHOSTFLEET_TURN_TIMEOUT_MS', 60 * 1000);
 const TIMEOUT_FORFEIT_LIMIT = 3;
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PHASES = new Set(['waiting', 'placing', 'battle', 'ended']);
+const SOCKET_ORIGIN_PATTERNS = [
+  /^https:\/\/ghostfleet\.in$/i,
+  /^https:\/\/www\.ghostfleet\.in$/i,
+  /^https:\/\/[a-z0-9-]+\.up\.railway\.app$/i,
+  /^https:\/\/[a-z0-9-]+\.railway\.app$/i,
+  /^http:\/\/localhost(?::\d+)?$/i,
+  /^http:\/\/127\.0\.0\.1(?::\d+)?$/i,
+  /^http:\/\/\[::1\](?::\d+)?$/i
+];
 const rooms = new Map();
 const expiredRooms = new Map();
 
 function positiveIntEnv(name, fallback) {
   const value = Number.parseInt(process.env[name] || '', 10);
   return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function configuredSocketOrigins() {
+  return String(process.env.GHOSTFLEET_SOCKET_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+}
+
+function socketOriginAllowed(origin) {
+  if (!origin) return true;
+  if (configuredSocketOrigins().includes(origin)) return true;
+  return SOCKET_ORIGIN_PATTERNS.some(pattern => pattern.test(origin));
 }
 
 function makeRoomCode() {
@@ -931,7 +953,14 @@ function cleanupRooms() {
 
 export function attachMultiplayer(server) {
   const io = new Server(server, {
-    cors: { origin: '*' },
+    cors: {
+      origin(origin, callback) {
+        callback(null, socketOriginAllowed(origin));
+      }
+    },
+    allowRequest(req, callback) {
+      callback(null, socketOriginAllowed(req.headers.origin));
+    },
     pingTimeout: 60000,
     pingInterval: 25000,
     connectionStateRecovery: {

@@ -18,7 +18,16 @@ const freeOnly = process.env.GHOSTFLEET_FREE_ONLY === 'true';
 const app = express();
 const server = http.createServer(app);
 const multiplayer = attachMultiplayer(server);
+
+function applySecurityHeaders(req, res, next) {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()');
+  next();
+}
+
 app.disable('x-powered-by');
+app.use(applySecurityHeaders);
 app.use(express.json({ limit: '1mb' }));
 app.use('/assets', express.static(path.join(clientDir, 'assets'), {
   immutable: true,
