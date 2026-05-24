@@ -448,13 +448,20 @@ function validateRoomState(room) {
 }
 
 function startPlacementIfReady(room) {
-  if (room.phase !== 'waiting') return;
-  if (!room.players[0] || !room.players[1]) return;
-  if (!room.players[0].connected || !room.players[1].connected) return;
+  if (room.phase !== 'waiting') return false;
+  if (!room.players[0] || !room.players[1]) return false;
+  if (!room.players[0].connected || !room.players[1].connected) return false;
   room.phase = 'placing';
   room.updatedAt = Date.now();
   emitRoom(room, 'room_ready');
   emitRoom(room, 'match:startPlacement');
+  return true;
+}
+
+function syncWaitingRoom(room) {
+  if (startPlacementIfReady(room)) return true;
+  if (room.phase === 'waiting') emitRoom(room);
+  return false;
 }
 
 function startBattleIfReady(room) {
@@ -707,7 +714,7 @@ function handleJoinRoom(socket, payload = {}) {
   if (reconnectSlot >= 0) {
     const player = bindSocketToPlayer(room, socket, reconnectSlot);
     emitJoined(socket, room, reconnectSlot, player, clientId);
-    if (room.phase === 'waiting') emitRoom(room);
+    if (room.phase === 'waiting') syncWaitingRoom(room);
     else emitResync(room, reconnectSlot);
     validateRoomState(room);
     return;
@@ -717,8 +724,7 @@ function handleJoinRoom(socket, payload = {}) {
   if (slot < 0) return fail(socket, 'That room is full.', 'ROOM_FULL');
   const player = addPlayerToSlot(room, socket, slot, clientId, payload.playerName || payload.displayName);
   emitJoined(socket, room, slot, player, clientId);
-  emitRoom(room);
-  startPlacementIfReady(room);
+  syncWaitingRoom(room);
   validateRoomState(room);
 }
 
@@ -733,7 +739,8 @@ function handleReconnectRoom(socket, payload = {}) {
   if (slot < 0) return handleJoinRoom(socket, payload);
   const player = bindSocketToPlayer(room, socket, slot);
   emitJoined(socket, room, slot, player, clientId);
-  emitResync(room, slot);
+  if (room.phase === 'waiting') syncWaitingRoom(room);
+  else emitResync(room, slot);
   validateRoomState(room);
 }
 
@@ -790,8 +797,7 @@ function attachSocketHandlers(io) {
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       if (room.phase !== 'waiting') return fail(socket, 'Room readiness is only available before placement.', 'wrong_phase');
-      emitRoom(room);
-      startPlacementIfReady(room);
+      syncWaitingRoom(room);
     });
 
     // Triggered when a player confirms fleet placement; validates phase/fleet, marks that slot placed, emits opponent_placement_done and starts battle when both are ready.
@@ -893,7 +899,8 @@ function attachSocketHandlers(io) {
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       bindSocketToPlayer(room, socket, slot);
-      emitResync(room, slot);
+      if (room.phase === 'waiting') syncWaitingRoom(room);
+      else emitResync(room, slot);
       validateRoomState(room);
     });
 
