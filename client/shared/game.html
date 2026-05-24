@@ -1700,12 +1700,72 @@
     audioOutput();
     if(audioCtx.state==='suspended')audioCtx.resume();
     applyAudioState();
+    primeShotAudioSamples();
     return true;}
   function toggleSound(){soundOn=!soundOn;
     applyAudioState();if(soundOn)ensureAudio();}
   function noise(d,p=1){const l=Math.floor(audioCtx.sampleRate*d);
     const b=audioCtx.createBuffer(1,l,audioCtx.sampleRate);const a=b.getChannelData(0);
     for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,p);return b;}
+  const SHOT_AUDIO_SAMPLES={
+    miss:{url:'/assets/audio/shot/gf-miss-needle-splash.wav',gain:.76},
+    hit:{url:'/assets/audio/shot/gf-hit-ghost-hull-breach-short-b.wav',gain:.86}
+  };
+  const shotAudioBuffers={};
+  const shotAudioLoads={};
+  const shotAudioWarnings=new Set();
+
+  function decodeAudioBuffer(arrayBuffer){
+    try{
+      const promise=audioCtx.decodeAudioData(arrayBuffer.slice(0));
+      if(promise&&typeof promise.then==='function')return promise;
+    }catch(e){}
+    return new Promise((resolve,reject)=>audioCtx.decodeAudioData(arrayBuffer.slice(0),resolve,reject));
+  }
+  function loadShotAudioSample(key){
+    const cue=SHOT_AUDIO_SAMPLES[key];
+    if(!cue||!audioCtx)return Promise.resolve(null);
+    if(shotAudioBuffers[key])return Promise.resolve(shotAudioBuffers[key]);
+    if(shotAudioLoads[key])return shotAudioLoads[key];
+    shotAudioLoads[key]=fetch(cue.url)
+      .then(response=>{
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        return response.arrayBuffer();
+      })
+      .then(buffer=>decodeAudioBuffer(buffer))
+      .then(decoded=>{
+        shotAudioBuffers[key]=decoded;
+        return decoded;
+      })
+      .catch(error=>{
+        if(!shotAudioWarnings.has(key)){
+          shotAudioWarnings.add(key);
+          console.warn('Failed to load audio asset: '+cue.url,error);
+        }
+        return null;
+      });
+    return shotAudioLoads[key];
+  }
+  function primeShotAudioSamples(){
+    if(!audioCtx)return;
+    Object.keys(SHOT_AUDIO_SAMPLES).forEach(loadShotAudioSample);
+  }
+  function playShotAudioSample(key){
+    if(!ensureAudio())return false;
+    const cue=SHOT_AUDIO_SAMPLES[key];
+    const buffer=shotAudioBuffers[key];
+    if(!cue||!buffer){
+      loadShotAudioSample(key);
+      return false;
+    }
+    const source=audioCtx.createBufferSource();
+    const gain=audioCtx.createGain();
+    source.buffer=buffer;
+    gain.gain.value=cue.gain;
+    source.connect(gain).connect(audioOutput());
+    source.start(audioCtx.currentTime);
+    return true;
+  }
 
   function cueTone(freq,type,start,dur,gain,attack=0.02,release=dur,slideTo=null,filterType=null,filterFreq=1000,q=1){
     const o=audioCtx.createOscillator(),g=audioCtx.createGain();
@@ -1816,15 +1876,8 @@
     cueTone(72,'sine',t,.58,.22,.04,.54,28);
     cueNoise(t+.04,.55,.16,'lowpass',900,120,.8,.8);
     cueTone(420,'sine',t+.12,.7,.055,.05,.68,115,'bandpass',360,2);}
-  function playSplash(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    cueTone(240,'sine',t,.16,.052,.012,.14,96);
-    cueNoise(t+.02,.58,.12,'bandpass',1200,320,.72,1.05);
-    cueNoise(t+.12,.28,.035,'lowpass',480,180,.7,.9);}
-  function playExplosion(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    playTurnFogHorn(92,.062,.02);
-    cueNoise(t+.015,.12,.2,'highpass',500,null,.8,4.6);
-    cueTone(185,'sine',t+.05,.34,.055,.03,.31,72,'bandpass',230,2.3);
-    cueTone(58,'sine',t+.02,.5,.19,.03,.46,22);}
+  function playSplash(){playShotAudioSample('miss');}
+  function playExplosion(){playShotAudioSample('hit');}
 
   // Sink boom — scales with ship size (subtle for DD, deep & long for CV)
   function playSinkBoom(shipLen){
