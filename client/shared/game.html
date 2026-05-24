@@ -1402,6 +1402,7 @@
     opponentDisconnectTimer:null,
     opponentDisconnectUntil:null,
     lastWarningSecond:null,
+    turnWarning15Played:false,
     shotEffectUntil:0,
     shotEffectTimer:null,
     pendingTurnSnapshot:null,
@@ -1426,7 +1427,8 @@
     if(aiStep)aiStep.classList.remove('show');
     if(intro)intro.textContent='Command a haunted fleet across stormy-dark waters.';
   }
-  function showAiDifficultyChoice(){
+  function showAiDifficultyChoice(playCue=true){
+    if(playCue)playChartMarkCue('ai');
     const choice=document.getElementById('opponentChoiceStep');
     const aiStep=document.getElementById('opponentAiStep');
     const intro=document.getElementById('opponentIntro');
@@ -1446,6 +1448,7 @@
     if(overlay)overlay.classList.remove('show');
   }
   function chooseAiOpponent(level){
+    playGunsReadyCue('ai');
     opponentMode='ai';
     syncOpponentMode();
     N=BOARD_SIZES.includes(aiSetupSize)?aiSetupSize:8;
@@ -1455,7 +1458,8 @@
     hideMultiplayerLobby();
     newGame();
   }
-  function chooseHumanOpponent(){
+  function chooseHumanOpponent(playCue=true){
+    if(playCue)playChartMarkCue('human');
     opponentMode='human';
     syncOpponentMode();
     multiplayer.roomBoardSize=BOARD_SIZES.includes(N)?N:8;
@@ -1542,22 +1546,32 @@
     }
     document.body.classList.remove('turn-warning');
     multiplayer.lastWarningSecond=null;
+    multiplayer.turnWarning15Played=false;
   }
   function refreshMultiplayerCountdown(){
     const remaining=multiplayerTurnSecondsRemaining();
     const warn=multiplayer.myTurn&&remaining!==null&&remaining<=30&&phase==='playing';
     document.body.classList.toggle('turn-warning',!!warn);
     if(warn)statusState={cls:'yourturn',msg:'Fire now - '+remaining+' seconds remaining'};
-    if(warn&&remaining<=10&&remaining!==multiplayer.lastWarningSecond){
+    if(warn&&remaining<=15&&!multiplayer.turnWarning15Played){
+      multiplayer.turnWarning15Played=true;
+      playTurnWarning15Cue();
+    }
+    if(warn&&remaining<=5&&remaining!==multiplayer.lastWarningSecond){
       multiplayer.lastWarningSecond=remaining;
-      playUrgentTick();
+      playTurnCountdownCue(remaining);
     }
     refreshStatusReadout();
     updateModeUI();
     if(!multiplayerTurnTimerText())stopMultiplayerCountdown();
   }
   function syncMultiplayerTimer(snapshot){
-    multiplayer.turnDeadlineAt=snapshot&&snapshot.turnDeadlineAt?Number(snapshot.turnDeadlineAt):null;
+    const nextDeadline=snapshot&&snapshot.turnDeadlineAt?Number(snapshot.turnDeadlineAt):null;
+    if(nextDeadline!==multiplayer.turnDeadlineAt){
+      multiplayer.lastWarningSecond=null;
+      multiplayer.turnWarning15Played=false;
+    }
+    multiplayer.turnDeadlineAt=nextDeadline;
     multiplayer.turnDurationMs=snapshot&&snapshot.turnDurationMs?Number(snapshot.turnDurationMs):multiplayer.turnDurationMs;
     if(phase==='playing'&&multiplayer.turnDeadlineAt){
       if(!multiplayer.turnCountdownTimer)multiplayer.turnCountdownTimer=setInterval(refreshMultiplayerCountdown,1000);
@@ -1686,163 +1700,217 @@
     audioOutput();
     if(audioCtx.state==='suspended')audioCtx.resume();
     applyAudioState();
+    primeShotAudioSamples();
     return true;}
   function toggleSound(){soundOn=!soundOn;
     applyAudioState();if(soundOn)ensureAudio();}
   function noise(d,p=1){const l=Math.floor(audioCtx.sampleRate*d);
     const b=audioCtx.createBuffer(1,l,audioCtx.sampleRate);const a=b.getChannelData(0);
     for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,p);return b;}
+  const SHOT_AUDIO_SAMPLES={
+    miss:{url:'/assets/audio/shot/gf-miss-needle-splash.wav',gain:.76},
+    hit:{url:'/assets/audio/shot/gf-hit-ghost-hull-breach-short-b.wav',gain:.86}
+  };
+  const shotAudioBuffers={};
+  const shotAudioLoads={};
+  const shotAudioWarnings=new Set();
 
-  function playYourTurnStinger(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    [0,0.12].forEach((d,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-      o.type='sine';o.frequency.value=i?1320:880;
-      g.gain.setValueAtTime(0,t+d);g.gain.linearRampToValueAtTime(0.25,t+d+0.02);
-      g.gain.exponentialRampToValueAtTime(0.001,t+d+0.18);
-      o.connect(g).connect(audioOutput());o.start(t+d);o.stop(t+d+0.2);});}
-
-  function playUrgentTick(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type='square';o.frequency.value=1180;
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.14,t+0.01);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
-    o.connect(g).connect(audioOutput());o.start(t);o.stop(t+0.1);}
-
-  // Soft descending two-note chime for enemy turn
-  function playEnemyTurnStinger(){
-    if(!ensureAudio())return;
-    const t=audioCtx.currentTime;
-    [{f:784,d:0},{f:587,d:0.16}].forEach(({f,d})=>{
-      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-      o.type='sine';o.frequency.value=f;
-      g.gain.setValueAtTime(0,t+d);g.gain.linearRampToValueAtTime(0.22,t+d+0.02);
-      g.gain.exponentialRampToValueAtTime(0.001,t+d+0.55);
-      o.connect(g).connect(audioOutput());
-      o.start(t+d);o.stop(t+d+0.6);
-      const o2=audioCtx.createOscillator(),g2=audioCtx.createGain();
-      o2.type='triangle';o2.frequency.value=f*2;
-      g2.gain.setValueAtTime(0,t+d);g2.gain.linearRampToValueAtTime(0.06,t+d+0.02);
-      g2.gain.exponentialRampToValueAtTime(0.001,t+d+0.4);
-      o2.connect(g2).connect(audioOutput());
-      o2.start(t+d);o2.stop(t+d+0.45);
-    });
+  function decodeAudioBuffer(arrayBuffer){
+    try{
+      const promise=audioCtx.decodeAudioData(arrayBuffer.slice(0));
+      if(promise&&typeof promise.then==='function')return promise;
+    }catch(e){}
+    return new Promise((resolve,reject)=>audioCtx.decodeAudioData(arrayBuffer.slice(0),resolve,reject));
+  }
+  function loadShotAudioSample(key){
+    const cue=SHOT_AUDIO_SAMPLES[key];
+    if(!cue||!audioCtx)return Promise.resolve(null);
+    if(shotAudioBuffers[key])return Promise.resolve(shotAudioBuffers[key]);
+    if(shotAudioLoads[key])return shotAudioLoads[key];
+    shotAudioLoads[key]=fetch(cue.url)
+      .then(response=>{
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        return response.arrayBuffer();
+      })
+      .then(buffer=>decodeAudioBuffer(buffer))
+      .then(decoded=>{
+        shotAudioBuffers[key]=decoded;
+        return decoded;
+      })
+      .catch(error=>{
+        if(!shotAudioWarnings.has(key)){
+          shotAudioWarnings.add(key);
+          console.warn('Failed to load audio asset: '+cue.url,error);
+        }
+        return null;
+      });
+    return shotAudioLoads[key];
+  }
+  function primeShotAudioSamples(){
+    if(!audioCtx)return;
+    Object.keys(SHOT_AUDIO_SAMPLES).forEach(loadShotAudioSample);
+  }
+  function playShotAudioSample(key){
+    if(!ensureAudio())return false;
+    const cue=SHOT_AUDIO_SAMPLES[key];
+    const buffer=shotAudioBuffers[key];
+    if(!cue||!buffer){
+      loadShotAudioSample(key);
+      return false;
+    }
+    const source=audioCtx.createBufferSource();
+    const gain=audioCtx.createGain();
+    source.buffer=buffer;
+    gain.gain.value=cue.gain;
+    source.connect(gain).connect(audioOutput());
+    source.start(audioCtx.currentTime);
+    return true;
   }
 
+  function cueTone(freq,type,start,dur,gain,attack=0.02,release=dur,slideTo=null,filterType=null,filterFreq=1000,q=1){
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type||'sine';
+    o.frequency.setValueAtTime(Math.max(1,freq),start);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),start+dur);
+    g.gain.setValueAtTime(.0001,start);
+    g.gain.linearRampToValueAtTime(gain,start+attack);
+    g.gain.exponentialRampToValueAtTime(.001,start+release);
+    if(filterType){
+      const f=audioCtx.createBiquadFilter();
+      f.type=filterType;f.frequency.value=filterFreq;f.Q.value=q;
+      o.connect(f).connect(g).connect(audioOutput());
+    } else o.connect(g).connect(audioOutput());
+    o.start(start);o.stop(start+dur);
+  }
+  function cueNoise(start,dur,gain,filterType='lowpass',freq=1200,endFreq=null,q=1,curve=1.2){
+    const n=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();
+    n.buffer=noise(dur,curve);
+    f.type=filterType;f.frequency.setValueAtTime(freq,start);f.Q.value=q;
+    if(endFreq)f.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),start+dur);
+    g.gain.setValueAtTime(.0001,start);
+    g.gain.linearRampToValueAtTime(gain,start+.02);
+    g.gain.exponentialRampToValueAtTime(.001,start+dur);
+    n.connect(f).connect(g).connect(audioOutput());
+    n.start(start);
+  }
+  function cueBell(start,base,gain=.12){
+    [1,2.01,3.02].forEach((ratio,i)=>{
+      cueTone(base*ratio,'sine',start,.95+i*.08,gain/(i+1.45),.012,.9+i*.08,null,'bandpass',base*ratio*1.12,1);
+    });
+  }
+  function cueHelmClick(start,base=900,gain=.08){
+    cueTone(base,'triangle',start,.08,gain,.006,.075,null,'bandpass',base*1.1,1.4);
+    cueNoise(start,.065,gain*.22,'highpass',1800,null,.6,2);
+  }
+
+  function playTurnFogHorn(baseFreq,mainGain,harmonicGain){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueTone(baseFreq,'sine',t,.9,mainGain,.12,.82,baseFreq*.82);
+    cueTone(baseFreq*1.5,'sine',t+.02,.76,harmonicGain,.12,.74,baseFreq*1.2);}
+
+  function playTurnCompassRelay(enemy=false){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(enemy){
+      cueHelmClick(t,560,.046);
+      cueHelmClick(t+.105,430,.038);
+      cueTone(94,'sine',t+.02,.22,.024,.02,.2,76);
+    } else {
+      cueHelmClick(t,720,.048);
+      cueHelmClick(t+.105,880,.038);
+      cueTone(150,'sine',t+.02,.18,.018,.02,.16,132);
+    }}
+
+  function playYourTurnStinger(){playTurnCompassRelay(false);}
+
+  function playDeckShuffleCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.055,.11,.17,.24].forEach((d,i)=>cueHelmClick(t+d,420+i*65,.052));
+    cueNoise(t+.02,.42,.09,'bandpass',850,360,.8);
+    cueTone(96,'sine',t+.18,.32,.08,.02,.3,62);}
+  function playReadyBellCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueBell(t,440,.12);
+    cueBell(t+.18,660,.105);}
+  function playCompassTickCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueHelmClick(t,760,.065);
+    cueHelmClick(t+.07,940,.045);}
+  function playAnchorLiftCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.08,.16].forEach((d,i)=>cueHelmClick(t+d,320+i*45,.06));
+    cueNoise(t+.04,.44,.075,'highpass',740,240,.7);}
+  function playChartMarkCue(mode){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(mode==='human'){
+      cueHelmClick(t,540,.065);
+      cueHelmClick(t+.12,700,.052);
+      cueNoise(t+.03,.28,.026,'bandpass',820,310,.8);
+    } else {
+      cueHelmClick(t,620,.07);
+      cueNoise(t+.02,.24,.026,'bandpass',900,360,.8);
+      cueTone(146,'sine',t+.04,.26,.032,.02,.24,116);
+    }}
+  function playGunsReadyCue(mode){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(mode==='human'){
+      cueHelmClick(t,380,.075);
+      cueHelmClick(t+.11,520,.055);
+      cueNoise(t+.04,.18,.045,'highpass',700,null,.8,3);
+      cueTone(74,'sine',t+.08,.52,.085,.04,.48,54);
+    } else {
+      cueHelmClick(t,420,.08);
+      cueNoise(t+.04,.18,.05,'highpass',700,null,.8,3);
+      cueTone(82,'sine',t+.08,.52,.1,.04,.48,58);
+    }}
+  function playTurnWarning15Cue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.16,.32].forEach((d,i)=>cueTone(520+i*90,'sine',t+d,.26,.09/(i+1),.01,.24));}
+  function playTurnCountdownCue(remaining=5){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    const n=Math.max(0,Math.min(5,Number(remaining)||0));
+    const base=n===0?880:360+(5-n)*70;
+    cueTone(base,'sine',t,n===0?.38:.24,n===0?.16:.09,.01,n===0?.36:.22);
+    cueTone(base/4,'sine',t,.28,.035,.02,.26);}
+
+  function playUrgentTick(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueTone(880,'triangle',t,.09,.095,.006,.085,760,'bandpass',900,1.4);
+    cueNoise(t,.07,.018,'highpass',1800,null,.6,2.2);}
+
+  function playEnemyTurnStinger(){playTurnCompassRelay(true);}
+
   function playPlayerCannon(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const c=audioCtx.createBufferSource();c.buffer=noise(0.08,4);
-    const cf=audioCtx.createBiquadFilter();cf.type='highpass';cf.frequency.value=600;
-    const cg=audioCtx.createGain();cg.gain.value=0.55;
-    c.connect(cf).connect(cg).connect(audioOutput());c.start(t);
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sawtooth';
-    o.frequency.setValueAtTime(900,t+0.02);o.frequency.exponentialRampToValueAtTime(180,t+0.45);
-    g.gain.setValueAtTime(0,t+0.02);g.gain.linearRampToValueAtTime(0.18,t+0.06);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.45);
-    const f=audioCtx.createBiquadFilter();f.type='bandpass';f.Q.value=3;f.frequency.value=600;
-    o.connect(f).connect(g).connect(audioOutput());o.start(t+0.02);o.stop(t+0.45);
-    const b=audioCtx.createOscillator(),bg=audioCtx.createGain();b.type='sine';
-    b.frequency.setValueAtTime(140,t);b.frequency.exponentialRampToValueAtTime(40,t+0.25);
-    bg.gain.setValueAtTime(0.4,t);bg.gain.exponentialRampToValueAtTime(0.001,t+0.3);
-    b.connect(bg).connect(audioOutput());b.start(t);b.stop(t+0.3);}
+    cueNoise(t,.09,.34,'highpass',620,null,.8,4);
+    cueTone(126,'sine',t,.34,.3,.018,.32,42);
+    cueTone(540,'triangle',t+.025,.32,.075,.018,.3,210,'bandpass',520,2.4);}
   function playEnemyCannon(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const db=audioCtx.createOscillator(),dg=audioCtx.createGain();db.type='sine';
-    db.frequency.setValueAtTime(60,t);db.frequency.exponentialRampToValueAtTime(25,t+0.4);
-    dg.gain.setValueAtTime(0.25,t);dg.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-    db.connect(dg).connect(audioOutput());db.start(t);db.stop(t+0.5);
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(1400,t+0.15);o.frequency.exponentialRampToValueAtTime(180,t+0.85);
-    g.gain.setValueAtTime(0.05,t+0.15);g.gain.exponentialRampToValueAtTime(0.4,t+0.75);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.9);
-    const f=audioCtx.createBiquadFilter();f.type='bandpass';f.Q.value=8;f.frequency.value=800;
-    o.connect(f).connect(g).connect(audioOutput());o.start(t+0.15);o.stop(t+0.9);}
-  function playSplash(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';
-    o.frequency.setValueAtTime(450,t);o.frequency.exponentialRampToValueAtTime(70,t+0.1);
-    g.gain.setValueAtTime(0.4,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
-    o.connect(g).connect(audioOutput());o.start(t);o.stop(t+0.12);
-    const n=audioCtx.createBufferSource();n.buffer=noise(0.7,1.3);
-    const f=audioCtx.createBiquadFilter();f.type='bandpass';f.Q.value=0.7;
-    f.frequency.setValueAtTime(4500,t);f.frequency.exponentialRampToValueAtTime(700,t+0.7);
-    const ng=audioCtx.createGain();ng.gain.setValueAtTime(0.45,t);
-    ng.gain.exponentialRampToValueAtTime(0.001,t+0.7);
-    n.connect(f).connect(ng).connect(audioOutput());n.start(t);}
-  function playExplosion(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    const c=audioCtx.createBufferSource();c.buffer=noise(0.06,6);
-    const ng=audioCtx.createGain();ng.gain.value=0.7;
-    c.connect(ng).connect(audioOutput());c.start(t);
-    const r=audioCtx.createBufferSource();r.buffer=noise(1,0.5);
-    const f=audioCtx.createBiquadFilter();f.type='lowpass';
-    f.frequency.setValueAtTime(3500,t);f.frequency.exponentialRampToValueAtTime(70,t+1);
-    const ng2=audioCtx.createGain();ng2.gain.setValueAtTime(0.7,t);
-    ng2.gain.exponentialRampToValueAtTime(0.001,t+1);
-    r.connect(f).connect(ng2).connect(audioOutput());r.start(t);
-    const b=audioCtx.createOscillator(),bg=audioCtx.createGain();b.type='triangle';
-    b.frequency.setValueAtTime(55,t);b.frequency.exponentialRampToValueAtTime(15,t+0.8);
-    bg.gain.setValueAtTime(0,t);bg.gain.linearRampToValueAtTime(0.65,t+0.05);
-    bg.gain.exponentialRampToValueAtTime(0.001,t+0.85);
-    b.connect(bg).connect(audioOutput());b.start(t);b.stop(t+0.85);}
+    cueTone(72,'sine',t,.58,.22,.04,.54,28);
+    cueNoise(t+.04,.55,.16,'lowpass',900,120,.8,.8);
+    cueTone(420,'sine',t+.12,.7,.055,.05,.68,115,'bandpass',360,2);}
+  function playSplash(){playShotAudioSample('miss');}
+  function playExplosion(){playShotAudioSample('hit');}
 
   // Sink boom — scales with ship size (subtle for DD, deep & long for CV)
   function playSinkBoom(shipLen){
     if(!ensureAudio())return;
     const t=audioCtx.currentTime;
-    const scale=(shipLen-2)/3;             // 0..1 (DD..CV)
-    const baseFreq=70-scale*30;            // 70 → 40 Hz
-    const dur=0.6+scale*0.7;               // 0.6 → 1.3s
-    const vol=0.4+scale*0.3;               // 0.4 → 0.7
-
-    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-    o.type='sine';
-    o.frequency.setValueAtTime(baseFreq,t);
-    o.frequency.exponentialRampToValueAtTime(baseFreq*0.35,t+dur);
-    g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(vol,t+0.04);
-    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    o.connect(g).connect(audioOutput());
-    o.start(t);o.stop(t+dur);
-
-    const n=audioCtx.createBufferSource();
-    n.buffer=noise(dur,0.6);
-    const f=audioCtx.createBiquadFilter();
-    f.type='lowpass';
-    f.frequency.setValueAtTime(2000+scale*1500,t);
-    f.frequency.exponentialRampToValueAtTime(80,t+dur);
-    const ng=audioCtx.createGain();
-    ng.gain.setValueAtTime(0.35+scale*0.25,t);
-    ng.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    n.connect(f).connect(ng).connect(audioOutput());
-    n.start(t);
-
-    // Metallic groan only for big ships (BB, CV)
+    const scale=Math.max(0,Math.min(1,((shipLen||3)-2)/3));
+    cueTone(48-scale*10,'sine',t,1.2,.42+scale*.08,.04,1.12,16);
+    cueNoise(t+.02,1.05,.32+scale*.08,'lowpass',900+scale*260,55,.7,.55);
     if(shipLen>=4){
-      const m=audioCtx.createOscillator(),mg=audioCtx.createGain();
-      m.type='sawtooth';
-      m.frequency.setValueAtTime(180,t+0.1);
-      m.frequency.exponentialRampToValueAtTime(55,t+dur*0.9);
-      mg.gain.setValueAtTime(0.18,t+0.1);
-      mg.gain.exponentialRampToValueAtTime(0.001,t+dur);
-      const mf=audioCtx.createBiquadFilter();
-      mf.type='bandpass';mf.Q.value=4;mf.frequency.value=300;
-      m.connect(mf).connect(mg).connect(audioOutput());
-      m.start(t+0.1);m.stop(t+dur);
+      cueTone(138,'sawtooth',t+.16,.82,.085+scale*.035,.05,.78,42,'bandpass',190,3.2);
     }
   }
 
   function playVictory(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    [523.25,659.25,783.99,1046.5].forEach((f,i)=>{
-      const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='triangle';o.frequency.value=f;
-      g.gain.setValueAtTime(0,t+i*0.13);g.gain.linearRampToValueAtTime(0.28,t+i*0.13+0.02);
-      g.gain.exponentialRampToValueAtTime(0.001,t+i*0.13+0.45);
-      o.connect(g).connect(audioOutput());o.start(t+i*0.13);o.stop(t+i*0.13+0.5);});}
+    cueTone(164,'sine',t,.85,.08,.08,.78,138);
+    [392,523.25,659.25,783.99].forEach((f,i)=>{
+      const s=t+i*.14;
+      cueTone(f,'triangle',s,.52,.13,.018,.48,null,'bandpass',f*1.3,1.1);
+    });}
   function playDefeat(){if(!ensureAudio())return;const t=audioCtx.currentTime;
-    [392,311,233,175,130].forEach((f,i)=>{
-      const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sawtooth';o.frequency.value=f;
-      g.gain.setValueAtTime(0,t+i*0.2);g.gain.linearRampToValueAtTime(0.25,t+i*0.2+0.04);
-      g.gain.exponentialRampToValueAtTime(0.001,t+i*0.2+0.5);
-      o.connect(g).connect(audioOutput());o.start(t+i*0.2);o.stop(t+i*0.2+0.55);});}
+    [220,196,164,130].forEach((f,i)=>{
+      const s=t+i*.18;
+      cueTone(f,'sine',s,.62,.105,.04,.58,f*.7,'bandpass',f*1.4,1.2);
+    });
+    cueNoise(t+.12,.9,.07,'lowpass',700,120,.8,.8);}
 
-  function playPlayerFire(hit){playPlayerCannon();
-    setTimeout(()=>hit?playExplosion():playSplash(),380);}
-  function playEnemyFire(hit){playEnemyCannon();
-    setTimeout(()=>hit?playExplosion():playSplash(),850);}
+  function playShotOutcomeCue(hit,sunk,shipLen=0){
+    if(sunk)playSinkBoom(shipLen);
+    else if(hit)playExplosion();
+    else playSplash();
+  }
+  function playPlayerFire(hit,sunk=false,shipLen=0){playShotOutcomeCue(hit,sunk,shipLen);}
+  function playEnemyFire(hit,sunk=false,shipLen=0){playShotOutcomeCue(hit,sunk,shipLen);}
 
   function prefersReducedMotion(){
     return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2554,6 +2622,7 @@
     multiplayer.playerName=multiplayerName();
     N=multiplayer.roomBoardSize||N;
     updateSizeButtons();
+    playGunsReadyCue('human');
     sendMultiplayerEvent('create_room',{playerName:multiplayer.playerName,gridSize:N},'Creating room...');
   }
   function joinMultiplayerRoom(){
@@ -2561,6 +2630,7 @@
     const code=normalizeRoomCode(document.getElementById('mpCode').value||'');
     if(!code){setMultiplayerStatus('Enter the 6-letter room code from player 1.');return;}
     multiplayer.playerName=multiplayerName();
+    playGunsReadyCue('human');
     sendMultiplayerEvent('join_room',{roomId:code,playerName:multiplayer.playerName},'Joined. Preparing ship placement...');
   }
   function joinInviteRoom(){
@@ -2574,6 +2644,7 @@
     }
     if(input)input.value=name;
     multiplayer.playerName=name;
+    playGunsReadyCue('human');
     sendMultiplayerEvent('join_room',{roomId:code,playerName:name},'Joining battle...');
   }
   function cancelMultiplayerRoom(){
@@ -2756,6 +2827,7 @@
   function submitMultiplayerFleet(){
     if(!multiplayer.joined){showMultiplayerLobby('Create or join a room first.');return;}
     if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length||multiplayer.placementSubmitted)return;
+    playReadyBellCue();
     multiplayer.waitingForOpponent=true;
     multiplayer.placementSubmitted=true;
     inputLocked=true;
@@ -2868,6 +2940,7 @@
     const hit=!!shot.hit;
     const sunk=!!shot.sunk;
     let shipName=shot.shipName||'';
+    let shotShipLen=0;
     let shotAnimation=null;
     let sunkCelebration=null;
     if(mine){
@@ -2876,12 +2949,12 @@
       else enemyBoard.misses.add(idx);
       if(sunk&&shot.sunkShip){
         const ship=upsertRevealedEnemyShip(shot.sunkShip);
-        if(ship){ship.sunk=true;shipName=ship.name;ship.cells.forEach(cell=>enemyBoard.hits.add(cell));sunkCelebration={ship,isEnemyShip:true};}
+        if(ship){ship.sunk=true;shipName=ship.name;shotShipLen=ship.len;ship.cells.forEach(cell=>enemyBoard.hits.add(cell));sunkCelebration={ship,isEnemyShip:true};}
         log(`YOU sunk enemy ${shipName||'ship'}!`,'sunk-l');
       } else if(hit)log(`YOU hit at ${coord(idx)}`,'hit-l');
       else log(`YOU fired ${coord(idx)} - miss`,'you');
       recordMove('YOU',idx,hit,sunk,shipName);
-      playPlayerFire(hit);
+      playPlayerFire(hit,sunk,shotShipLen);
       shotAnimation={containerId:'enemyContainer',idx,hit,sunk};
     } else {
       yourBoard.shots.add(idx);aiShots++;lastAIShot=idx;
@@ -2890,11 +2963,11 @@
         yourBoard.hits.add(idx);aiHits++;
         if(ship){ship.hits.add(idx);shipName=ship.name;}
       } else yourBoard.misses.add(idx);
-      if(sunk&&ship){ship.sunk=true;shipName=ship.name;sunkCelebration={ship,isEnemyShip:false};log(`${multiplayerOpponentLabel()} sunk your ${ship.name}!`,'sunk-l');}
+      if(sunk&&ship){ship.sunk=true;shipName=ship.name;shotShipLen=ship.len;sunkCelebration={ship,isEnemyShip:false};log(`${multiplayerOpponentLabel()} sunk your ${ship.name}!`,'sunk-l');}
       else if(hit)log(`${multiplayerOpponentLabel()} hit at ${coord(idx)}`,'hit-l');
       else log(`${multiplayerOpponentLabel()} fired ${coord(idx)} - miss`,'ai');
       recordMove('AI',idx,hit,sunk,shipName);
-      playEnemyFire(hit);
+      playEnemyFire(hit,sunk,shotShipLen);
       shotAnimation={containerId:'yourContainer',idx,hit,sunk};
     }
     multiplayer.pendingShot=mine&&payload.snapshot&&payload.snapshot.phase!=='ended';
@@ -3094,7 +3167,7 @@
     if(who==='you')playYourTurnStinger();else playEnemyTurnStinger();
     setTimeout(()=>{b.classList.remove('show','you','ai');inputLocked=false;renderTurnSensitiveBoards();},durMs);}
 
-  // Sink celebration — rippling flash + banner + scaled boom
+  // Sink celebration - visual ripple flash and banner only; shot outcome audio plays separately.
   function celebrateSink(ship,isEnemyShip){
     const containerId=isEnemyShip?'enemyContainer':'yourContainer';
     ship.cells.forEach((idx,i)=>{
@@ -3110,7 +3183,6 @@
     banner.innerHTML=`${who} ${ship.name} SUNK!`;
     document.body.appendChild(banner);
     setTimeout(()=>banner.remove(),SHOT_EFFECT_TIMING.sinkBannerMs);
-    playSinkBoom(ship.len);
   }
 
   /* ─── Setup ─── */
@@ -3434,6 +3506,7 @@
     setArrangeSelection(ship.id,'grid',Math.min(selectedOffset,ship.len-1));
     setStatus('placing',ship.name+' rotated '+(nextOrient==='h'?'horizontal':'vertical'));
     renderShipPicker();renderBoards();flashPlacementFeedback(cells,true);updateStartBtn();
+    playCompassTickCue();
     return true;
   }
   function cancelArrangePointer(){
@@ -3477,6 +3550,7 @@
     setArrangeSelection(null,null,0);
     renderShipPicker();renderBoards();
     flashPlacementFeedback(yourBoard.ships.flatMap(s=>s.cells),true);
+    playDeckShuffleCue();
     updateStartBtn();}
   function clearSelectedShip(){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
@@ -3494,7 +3568,7 @@
     hoverCell=-1;
     clearPlacementPreview();
     setStatus('placing',removedDef.name+' cleared. Place it again.');
-    renderShipPicker();renderBoards();updateStartBtn();}
+    renderShipPicker();renderBoards();playAnchorLiftCue();updateStartBtn();}
   function clearFleet(){clearSelectedShip();}
   function rotateOrientation(){if(isMultiplayerPlacementLocked())return;
     if(phase==='placing'){
@@ -3502,6 +3576,7 @@
     }
     orientation=(orientation==='h'?'v':'h');
     setStatus('placing','Orientation: '+(orientation==='h'?'horizontal':'vertical'));
+    playCompassTickCue();
     updateHoverPreview();updateModeUI();}
   function tryPlaceShip(idx,shipId){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
     clearBattleAutoStart();
@@ -3569,6 +3644,7 @@
 
   function startBattle(auto=false){if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length)return;
     if(MULTIPLAYER_ENABLED){submitMultiplayerFleet();return;}
+    playReadyBellCue();
     if(battleAutoStartTimer){clearTimeout(battleAutoStartTimer);battleAutoStartTimer=null;}
     clearArrangeDrag();
     phase='playing';currentTurn='you';
@@ -3617,7 +3693,7 @@
       else log(`YOU hit at ${coord(idx)} 💥`,'hit-l');
     } else {enemyBoard.misses.add(idx);log(`YOU fired ${coord(idx)} — miss`,'you');}
     recordMove('YOU',idx,isHit,isSunk,ship?ship.name:'');
-    playPlayerFire(isHit);
+    playPlayerFire(isHit,isSunk,ship?ship.len:0);
     const effectMs=applyShotFeedback('enemyContainer',idx,isHit,isSunk);
 
     // Game over
@@ -3660,7 +3736,7 @@
       else log(`AI hit at ${coord(idx)} 💥`,'hit-l');
     } else {yourBoard.misses.add(idx);log(`AI fired ${coord(idx)} — miss`,'ai');}
     recordMove('AI',idx,isHit,isSunk,ship?ship.name:'');
-    playEnemyFire(isHit);
+    playEnemyFire(isHit,isSunk,ship?ship.len:0);
     const effectMs=applyShotFeedback('yourContainer',idx,isHit,isSunk);
 
     // Game over
@@ -4434,9 +4510,9 @@
       else newGame();
     } else if(requestedPlayMode==='ai'&&MODE_SELECTION_ENABLED){
       newGame();
-      showAiDifficultyChoice();
+      showAiDifficultyChoice(false);
     } else if(requestedPlayMode==='human'&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
-      chooseHumanOpponent();
+      chooseHumanOpponent(false);
     } else {
       newGame();
     }
