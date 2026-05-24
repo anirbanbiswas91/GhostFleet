@@ -154,7 +154,7 @@ async function exerciseWaitingRoomStartAfterReturn(eventName, label) {
   returnedHost.playerIndex = 0;
   const hostPlacement = once(returnedHost, 'match:startPlacement');
   const guestPlacement = once(guest, 'match:startPlacement');
-  emit(returnedHost, eventName, { roomId: room.roomId });
+  emit(returnedHost, eventName, { roomId: room.roomId, token: room.token });
   const [hostStart, guestStart] = await Promise.all([hostPlacement, guestPlacement]);
   if (hostStart.phase !== 'placing' || guestStart.phase !== 'placing') {
     throw new Error(`Expected ${eventName} to advance waiting room into placement.`);
@@ -164,6 +164,26 @@ async function exerciseWaitingRoomStartAfterReturn(eventName, label) {
   }
   returnedHost.disconnect();
   guest.disconnect();
+}
+
+async function exerciseReconnectTokenRejection() {
+  const hostId = 'smoke-token-host';
+  const host = await connectClient(hostId);
+  const created = once(host, 'room_created');
+  emit(host, 'create_room', { playerName: 'Token A', gridSize: 8 });
+  const room = await created;
+  host.roomCode = room.roomId;
+  host.playerIndex = room.playerIndex;
+  host.disconnect();
+  await wait(200);
+
+  const intruder = await connectClient(hostId);
+  intruder.roomCode = room.roomId;
+  intruder.playerIndex = 0;
+  const rejected = waitForErrorCode(intruder, 'invalid_token');
+  emit(intruder, 'reconnect_room', { roomId: room.roomId, token: 'tok_wrong' });
+  await rejected;
+  intruder.disconnect();
 }
 
 async function main() {
@@ -177,6 +197,7 @@ async function main() {
   try {
     await waitForHttp('/healthz');
     await exerciseSocketRateLimits();
+    await exerciseReconnectTokenRejection();
     await exerciseWaitingRoomStartAfterReturn('reconnect_room', 'rejoin');
     await exerciseWaitingRoomStartAfterReturn('client_heartbeat', 'heartbeat');
 
@@ -244,7 +265,7 @@ async function main() {
     p1r.roomCode = join1.roomId;
     p1r.playerIndex = 0;
     const resync = once(p1r, 'resync');
-    emit(p1r, 'reconnect_room', { roomId: join1.roomId });
+    emit(p1r, 'reconnect_room', { roomId: join1.roomId, token: join1.token });
     const restored = await resync;
     if (restored.playerIndex !== 0 || restored.phase !== 'battle') throw new Error('Expected reconnect resync for slot 0 in battle.');
 

@@ -2172,6 +2172,7 @@
   function multiplayerPayload(payload={}){
     const out={...payload,clientId:multiplayer.clientId||getMultiplayerClientId()};
     if(multiplayer.roomCode&&!out.code)out.code=multiplayer.roomCode;
+    if(multiplayer.token&&!out.token)out.token=multiplayer.token;
     if(multiplayer.playerIndex!==null&&multiplayer.playerIndex!==undefined)out.playerIndex=multiplayer.playerIndex;
     return out;
   }
