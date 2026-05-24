@@ -137,6 +137,7 @@
   .room-player strong{color:#ecfeff;}
   .room-player span{color:#94a3b8;text-transform:uppercase;letter-spacing:.8px;font-size:.62rem;font-weight:900;}
   .room-player.ready span{color:#6ee7b7;}
+  .room-player.offline span{color:#fca5a5;}
   .multiplayer-status{min-height:20px;color:#a7f3f0;font-size:.78rem;text-align:center;margin-top:8px;}
   .share-modal,.invite-modal,.reconnect-modal,.room-status-modal{max-width:680px;text-align:center;}
   .share-panel{display:grid;gap:12px;margin-top:14px;}
@@ -1013,7 +1014,7 @@
         <button class="modal-btn" type="button" onclick="shareRoomLink()">Share</button>
         <button class="modal-btn" type="button" onclick="shareRoomWhatsApp()">Share via WhatsApp</button>
       </div>
-      <div class="sonar-wait"><span class="sonar-dot"></span><span>Waiting for opponent to join...</span></div>
+      <div class="sonar-wait"><span class="sonar-dot"></span><span id="shareRoomWaitText">Waiting for opponent to join...</span></div>
       <button class="modal-btn mp-opponent-back" type="button" onclick="cancelMultiplayerRoom()">Back / Cancel Room</button>
     </div>
   </div>
@@ -2306,6 +2307,18 @@
     if(!link)return;
     window.open('https://wa.me/?text='+encodeURIComponent('Join my GhostFleet battle! '+link),'_blank','noopener');
   }
+  function multiplayerWaitingMessage(players=multiplayer.roomPlayers||[]){
+    const slots=[players&&players[0],players&&players[1]];
+    const occupied=slots.filter(player=>player&&player.id).length;
+    const disconnected=slots.find(player=>player&&player.id&&!player.connected);
+    if(occupied<2)return 'Waiting for opponent to join...';
+    if(disconnected)return 'Waiting for '+(disconnected.displayName||'opponent')+' to reconnect...';
+    return 'Preparing ship placement...';
+  }
+  function updateShareRoomWaitText(players=multiplayer.roomPlayers||[]){
+    const el=document.getElementById('shareRoomWaitText');
+    if(el)el.textContent=multiplayerWaitingMessage(players);
+  }
   function setMultiplayerSetupSize(size){
     if(multiplayer.joined)return;
     if(!BOARD_SIZES.includes(size))size=8;
@@ -2707,12 +2720,12 @@
     syncMultiplayerTimer(snapshot);
     if(multiplayer.joined)saveMultiplayerSession();
     if(snapshot.phase==='waiting'){
-      const occupied=(snapshot.players||[]).filter(player=>player&&player.id).length;
+      const waitMessage=multiplayerWaitingMessage(snapshot.players||[]);
       if(multiplayer.playerIndex===0){
-        setMultiplayerStatus(occupied<2?'Share this code with player 2.':'Joined. Preparing ship placement...');
+        setMultiplayerStatus(waitMessage==='Waiting for opponent to join...'?'Share this code with player 2.':waitMessage);
         showShareRoomScreen();
       } else {
-        showMultiplayerLobby(occupied<2?'Share this code with player 2.':'Joined. Preparing ship placement...');
+        showMultiplayerLobby(waitMessage);
       }
     }
     syncStatsFromMultiplayerSnapshot(snapshot);
@@ -2728,7 +2741,7 @@
       slots.forEach((player,index)=>{
         const row=document.createElement('div');
         const open=!player||!player.id;
-        row.className='room-player'+(!open&&player.lobbyReady?' ready':'');
+        row.className='room-player'+(!open&&player.lobbyReady?' ready':'')+(!open&&!player.connected?' offline':'');
         const slotLabel='Player '+(index+1);
         const name=open?(index===0?'Waiting for host':'Waiting for Player 2'):(player.playerIndex===multiplayer.playerIndex?(player.displayName+' (You)'):player.displayName);
         const state=open?'Open slot':(player.connected?(player.rematchRequested?'Rematch':(player.lobbyReady?'Ready':'Joined')):'Offline');
@@ -2736,6 +2749,7 @@
         list.appendChild(row);
       });
     });
+    updateShareRoomWaitText(source);
   }
   function updateSizeButtons(){
     document.querySelectorAll('.size-tab').forEach(t=>t.classList.toggle('active',t.textContent.trim().startsWith(String(N))));
@@ -2988,7 +3002,7 @@
         showShareRoomScreen();
       } else {
         hideShareRoomScreen();
-        showMultiplayerLobby('Waiting for player 2 to join.');
+        showMultiplayerLobby(multiplayerWaitingMessage(snapshot.players||[]));
       }
       showMultiplayerToast('Reconnected');
       return;

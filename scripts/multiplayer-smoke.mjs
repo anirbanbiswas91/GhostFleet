@@ -91,6 +91,47 @@ async function waitTimeout(socket, expectedSlot, expectedStreak, timeoutMs = 600
   }
 }
 
+async function exerciseWaitingRoomStartAfterReturn(eventName, label) {
+  const hostId = `smoke-wait-host-${label}`;
+  const guestId = `smoke-wait-guest-${label}`;
+  const host = await connectClient(hostId);
+  const hostCreated = once(host, 'room_created');
+  emit(host, 'create_room', { playerName: `Wait ${label} A`, gridSize: 8 });
+  const room = await hostCreated;
+  host.roomCode = room.roomId;
+  host.playerIndex = room.playerIndex;
+  host.disconnect();
+  await wait(200);
+
+  const guest = await connectClient(guestId);
+  const guestJoined = once(guest, 'joined_room');
+  const guestUpdate = once(guest, 'room:update');
+  emit(guest, 'join_room', { roomId: room.roomId, playerName: `Wait ${label} B` });
+  const joined = await guestJoined;
+  guest.roomCode = joined.roomId;
+  guest.playerIndex = joined.playerIndex;
+  const waiting = await guestUpdate;
+  if (waiting.phase !== 'waiting' || !waiting.players[0] || waiting.players[0].connected) {
+    throw new Error(`Expected waiting-room guest to see disconnected host before ${eventName}.`);
+  }
+
+  const returnedHost = await connectClient(hostId);
+  returnedHost.roomCode = room.roomId;
+  returnedHost.playerIndex = 0;
+  const hostPlacement = once(returnedHost, 'match:startPlacement');
+  const guestPlacement = once(guest, 'match:startPlacement');
+  emit(returnedHost, eventName, { roomId: room.roomId });
+  const [hostStart, guestStart] = await Promise.all([hostPlacement, guestPlacement]);
+  if (hostStart.phase !== 'placing' || guestStart.phase !== 'placing') {
+    throw new Error(`Expected ${eventName} to advance waiting room into placement.`);
+  }
+  if (hostStart.roomId !== room.roomId || guestStart.roomId !== room.roomId) {
+    throw new Error(`Expected ${eventName} placement to use the original room.`);
+  }
+  returnedHost.disconnect();
+  guest.disconnect();
+}
+
 async function main() {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: process.cwd(),
@@ -101,6 +142,9 @@ async function main() {
   server.stderr.on('data', chunk => process.stderr.write(chunk));
   try {
     await waitForHttp('/healthz');
+    await exerciseWaitingRoomStartAfterReturn('reconnect_room', 'rejoin');
+    await exerciseWaitingRoomStartAfterReturn('client_heartbeat', 'heartbeat');
+
     const p1 = await connectClient('smoke-client-a');
     const p2 = await connectClient('smoke-client-b');
 
