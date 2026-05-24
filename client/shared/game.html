@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#06121a"/>
 <meta name="google-adsense-account" content="ca-pub-8532666088459423"/>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"/>
 <title>GhostFleet</title>
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -113,6 +114,7 @@
   .multiplayer-field input{width:100%;border:1px solid rgba(125,211,252,.24);border-radius:8px;background:rgba(5,12,18,.84);
     color:#ecfeff;padding:11px 12px;font:700 .9rem inherit;outline:none;text-transform:none;}
   .multiplayer-field input:focus{border-color:#5eead4;box-shadow:0 0 0 2px rgba(94,234,212,.18);}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
   .multiplayer-field.room-code input{text-transform:uppercase;letter-spacing:3px;text-align:center;}
   .multiplayer-field.room-code{display:none;}
   .multiplayer-field.room-code.show{display:grid;}
@@ -966,7 +968,7 @@
     <div class="multiplayer-form">
       <div class="multiplayer-field">
         <label for="mpName">Player Name</label>
-        <input id="mpName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="nickname" placeholder="Captain"/>
+        <input id="mpName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="name" placeholder="Captain"/>
       </div>
       <div class="multiplayer-field multiplayer-size-field" id="mpSizeField">
         <label>Room Size</label>
@@ -1007,7 +1009,8 @@
     <div class="share-panel">
       <div class="share-code" id="shareRoomCode">------</div>
       <div class="room-size-display" id="shareRoomSize">Room size: 8×8</div>
-      <input class="share-url" id="shareRoomUrl" readonly value="" onclick="copyRoomLink()"/>
+      <label class="sr-only" for="shareRoomUrl">Invite link</label>
+      <input class="share-url" id="shareRoomUrl" readonly autocomplete="off" value="" onclick="copyRoomLink()"/>
       <div class="room-player-list" id="sharePlayers"></div>
       <div class="share-actions">
         <button class="modal-btn" id="copyRoomBtn" type="button" onclick="copyRoomLink()">Copy Invite Link</button>
@@ -1030,7 +1033,7 @@
     <div class="multiplayer-form">
       <div class="multiplayer-field">
         <label for="inviteName">Player Name</label>
-        <input id="inviteName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="nickname" placeholder="Captain"/>
+        <input id="inviteName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="name" placeholder="Captain"/>
       </div>
       <button class="modal-btn" type="button" onclick="joinInviteRoom()">Join Battle</button>
       <button class="modal-btn mp-opponent-back" type="button" onclick="startNewBattle()">Start New Game</button>

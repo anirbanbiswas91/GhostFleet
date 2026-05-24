@@ -184,6 +184,7 @@ function renderShell(meta, content) {
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#06121a"/>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"/>
 ${renderMetaTags(meta, true)}
 ${adsenseScript(true)}
 <style>${SITE_PAGE_CSS}</style>
