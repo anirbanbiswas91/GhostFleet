@@ -1807,8 +1807,8 @@
     const b=audioCtx.createBuffer(1,l,audioCtx.sampleRate);const a=b.getChannelData(0);
     for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,p);return b;}
   const SHOT_AUDIO_SAMPLES={
-    miss:{url:'/assets/audio/shot/gf-miss-water-splash.wav',gain:.76},
-    hit:{url:'/assets/audio/shot/gf-hit-wooden-screen-door.wav',gain:.86}
+    miss:{url:'/assets/audio/shot/gf-miss-user-miss.wav',gain:.76},
+    hit:{url:'/assets/audio/shot/gf-hit-user-hit.wav',gain:.86}
   };
   const shotAudioBuffers={};
   const shotAudioLoads={};
