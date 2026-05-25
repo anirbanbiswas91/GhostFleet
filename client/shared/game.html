@@ -191,7 +191,7 @@
   .brand-text{display:flex;flex-direction:column;align-items:flex-start;}
   .title-copy h1{margin-bottom:2px;}
   .title-help{justify-self:start;}
-  .title-status{justify-self:end;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+  .title-status{justify-self:end;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:nowrap;min-width:0;}
   .help-trigger{border:0;cursor:pointer;box-shadow:0 0 0 1px rgba(125,211,252,.18);}
   .bs-help{background:#0e7490;color:#fff;}
   .status-readout{display:inline-flex;align-items:center;justify-content:center;gap:7px;
@@ -207,7 +207,22 @@
   .status-readout.sr-aiturn::before,.status-readout.sr-lost::before{background:#ef4444;box-shadow:0 0 10px rgba(239,68,68,.82);}
   .status-readout.sr-yourturn::before{background:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.8);}
   .status-readout.sr-won::before{background:#facc15;box-shadow:0 0 10px rgba(250,204,21,.82);}
-  .mode-exit-btn{display:none;align-items:center;justify-content:center;min-height:34px;padding:6px 12px;
+  .turn-clock{--turn-clock-progress:100%;--turn-clock-color:#38bdf8;position:relative;display:inline-grid;place-items:center;
+    width:44px;height:44px;flex:0 0 44px;border-radius:50%;color:#f8fafc;font-size:.72rem;font-weight:950;letter-spacing:-.2px;
+    filter:drop-shadow(0 0 12px color-mix(in srgb,var(--turn-clock-color) 34%,transparent));}
+  .turn-clock[hidden]{display:none;}
+  .turn-clock::before{content:'';position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from -90deg,var(--turn-clock-color) var(--turn-clock-progress),rgba(148,163,184,.16) 0);
+    transform:scaleX(-1);box-shadow:0 0 0 1px rgba(226,185,111,.58),inset 0 0 0 1px rgba(94,234,212,.18);}
+  .turn-clock::after{content:'';position:absolute;inset:5px;border-radius:50%;
+    background:radial-gradient(circle at 50% 42%,rgba(13,27,36,.96),rgba(3,8,14,.98));
+    border:1px solid rgba(226,185,111,.36);box-shadow:inset 0 0 12px rgba(94,234,212,.13);}
+  .turn-clock span{position:relative;z-index:1;font-variant-numeric:tabular-nums;text-shadow:0 1px 6px rgba(0,0,0,.72);}
+  .turn-clock.enemy-turn{color:#fee2e2;}
+  .turn-clock.your-turn{color:#e0f2fe;}
+  .turn-clock.urgent{color:#fef3c7;animation:turnClockPulse 1s ease-in-out infinite;}
+  @keyframes turnClockPulse{50%{filter:drop-shadow(0 0 18px color-mix(in srgb,var(--turn-clock-color) 58%,transparent));}}
+  .mode-exit-btn{display:none;align-items:center;justify-content:center;min-height:34px;padding:6px 12px;flex:0 0 auto;
     border:1px solid rgba(226,185,111,.38);border-radius:999px;background:rgba(8,16,24,.42);
     color:#f8d88a;font-size:.72rem;font-weight:900;letter-spacing:.3px;cursor:pointer;
     transition:border-color .18s,box-shadow .18s,background .18s,transform .18s;}
@@ -589,9 +604,10 @@
     .subtitle{font-size:.76rem;text-align:left;}
     .title-help,.title-status{justify-self:stretch;}
     .help-trigger{width:100%;text-align:center;min-height:40px;display:flex;align-items:center;justify-content:center;}
-    .title-status{justify-self:center;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;gap:8px;}
+    .title-status{justify-self:center;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;}
     .status-readout{min-width:0;text-align:left;justify-content:flex-start;height:36px;min-height:36px;font-size:.7rem;
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .turn-clock{width:38px;height:38px;flex-basis:38px;font-size:.66rem;}
     .mode-exit-btn{height:36px;min-height:36px;padding:6px 10px;font-size:.68rem;white-space:nowrap;}
     .mode-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
     .mode-strip.phase-playing,.mode-strip.phase-ended{grid-template-columns:1fr;}
@@ -1081,6 +1097,9 @@
     </div>
     <div class="title-status" id="statusBadge">
       <span class="status-readout sr-placing" id="statusText">Place your fleet to begin!</span>
+      <div class="turn-clock" id="turnClock" hidden aria-live="polite" aria-label="Turn timer">
+        <span id="turnClockText">60s</span>
+      </div>
       <button class="mode-exit-btn" id="modeExitBtn" type="button" onclick="exitCurrentGame(true)">Exit Game</button>
     </div>
   </div>
@@ -1536,18 +1555,45 @@
     if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='playing'||!multiplayer.turnDeadlineAt)return null;
     return Math.max(0,Math.ceil((multiplayer.turnDeadlineAt-Date.now())/1000));
   }
-  function multiplayerTurnTimerText(){
+  function hideTurnClock(){
+    const clock=document.getElementById('turnClock');
+    const text=document.getElementById('turnClockText');
+    if(!clock)return;
+    clock.hidden=true;
+    clock.classList.remove('your-turn','enemy-turn','urgent');
+    clock.style.setProperty('--turn-clock-progress','0%');
+    if(text)text.textContent='';
+  }
+  function updateTurnClock(){
+    const clock=document.getElementById('turnClock');
+    const text=document.getElementById('turnClockText');
+    if(!clock||!text)return;
     const remaining=multiplayerTurnSecondsRemaining();
-    return remaining===null?'':remaining+'s';
+    if(remaining===null){
+      hideTurnClock();
+      return;
+    }
+    const durationSec=Math.max(1,Math.ceil((Number(multiplayer.turnDurationMs)||60000)/1000));
+    const shown=Math.max(0,Math.min(durationSec,remaining));
+    const progress=Math.max(0,Math.min(100,shown/durationSec*100));
+    const urgent=shown<=30;
+    const color=urgent?'#facc15':(multiplayer.myTurn?'#38bdf8':'#ef4444');
+    clock.hidden=false;
+    clock.classList.toggle('your-turn',!!multiplayer.myTurn);
+    clock.classList.toggle('enemy-turn',!multiplayer.myTurn);
+    clock.classList.toggle('urgent',urgent);
+    clock.style.setProperty('--turn-clock-color',color);
+    clock.style.setProperty('--turn-clock-progress',progress.toFixed(2)+'%');
+    text.textContent=shown+'s';
+    clock.setAttribute('aria-label',(multiplayer.myTurn?'Your':'Enemy')+' turn timer: '+shown+' seconds remaining');
   }
   function refreshStatusReadout(){
     const m={waiting:'sr-waiting',placing:'sr-placing',
       yourturn:'sr-yourturn',aiturn:'sr-aiturn',won:'sr-won',lost:'sr-lost'};
     const el=document.getElementById('statusText');
     if(!el)return;
-    const timer=multiplayerTurnTimerText();
     el.className='status-readout '+(m[statusState.cls]||'sr-waiting');
-    el.textContent=statusState.msg+(timer?' / '+timer:'');
+    el.textContent=statusState.msg;
   }
   function stopMultiplayerCountdown(){
     if(multiplayer.turnCountdownTimer){
@@ -1557,12 +1603,13 @@
     document.body.classList.remove('turn-warning');
     multiplayer.lastWarningSecond=null;
     multiplayer.turnWarning15Played=false;
+    hideTurnClock();
   }
   function refreshMultiplayerCountdown(){
     const remaining=multiplayerTurnSecondsRemaining();
     const warn=multiplayer.myTurn&&remaining!==null&&remaining<=30&&phase==='playing';
     document.body.classList.toggle('turn-warning',!!warn);
-    if(warn)statusState={cls:'yourturn',msg:'Fire now - '+remaining+' seconds remaining'};
+    if(warn)statusState={cls:'yourturn',msg:'Fire now'};
     if(warn&&remaining<=15&&!multiplayer.turnWarning15Played){
       multiplayer.turnWarning15Played=true;
       playTurnWarning15Cue();
@@ -1572,8 +1619,9 @@
       playTurnCountdownCue(remaining);
     }
     refreshStatusReadout();
+    updateTurnClock();
     updateModeUI();
-    if(!multiplayerTurnTimerText())stopMultiplayerCountdown();
+    if(remaining===null)stopMultiplayerCountdown();
   }
   function syncMultiplayerTimer(snapshot){
     const nextDeadline=snapshot&&snapshot.turnDeadlineAt?Number(snapshot.turnDeadlineAt):null;
@@ -3333,8 +3381,7 @@
     const totalShips=SHIPS.length*2;
     if(battleFill)battleFill.style.width=Math.round((totalSunk/totalShips)*100)+'%';
     if(battleText){
-      const timer=multiplayerTurnTimerText();
-      if(MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='playing')battleText.textContent=(multiplayer.myTurn?'Your turn':'Enemy turn')+(timer?' / '+timer:'');
+      if(MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='playing')battleText.textContent=multiplayer.myTurn?'Your turn':'Enemy turn';
       else battleText.textContent=phase==='placing'?(ready?'Ready':'Locked'):(totalSunk+' / '+totalShips+' sunk');
     }
     if(battleEnemy)battleEnemy.textContent='Enemy: '+(SHIPS.length-enemySunk)+' remain / '+enemySunk+' sunk';
