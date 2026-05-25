@@ -189,7 +189,7 @@ async function exerciseReconnectTokenRejection() {
 async function main() {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(PORT), GHOSTFLEET_FREE_ONLY: 'true', GHOSTFLEET_TURN_TIMEOUT_MS: '1500', GHOSTFLEET_DISCONNECT_GRACE_MS: '700' },
+    env: { ...process.env, PORT: String(PORT), GHOSTFLEET_FREE_ONLY: 'true', GHOSTFLEET_TURN_TIMEOUT_MS: '600', GHOSTFLEET_DISCONNECT_GRACE_MS: '1800' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   server.stdout.on('data', chunk => process.stdout.write(chunk));
@@ -242,7 +242,7 @@ async function main() {
     const battle = await p1Battle;
     await p2Battle;
     if (battle.turnSlot !== 0) throw new Error('Expected slot 0 to start.');
-    if (!battle.turnDeadlineAt || battle.turnDurationMs !== 1500) throw new Error('Expected battle snapshot to include turn deadline.');
+    if (!battle.turnDeadlineAt || battle.turnDurationMs !== 600) throw new Error('Expected battle snapshot to include turn deadline.');
 
     const wrongTurn = once(p2, 'error:message');
     emit(p2, 'shot:fire', { idx: 0 });
@@ -419,6 +419,55 @@ async function main() {
     const disconnectRematchError = await disconnectRematchRejected;
     if (disconnectRematchError.code !== 'rematch_unavailable') throw new Error('Expected disconnect_forfeit rematch rejection.');
     disconnectB.disconnect();
+
+    const handoffA = await connectClient('smoke-disconnect-handoff-a');
+    const handoffB = await connectClient('smoke-disconnect-handoff-b');
+    const handoffCreated = once(handoffA, 'room_created');
+    emit(handoffA, 'create_room', { playerName: 'Hand A', gridSize: 8 });
+    const handoffRoom = await handoffCreated;
+    handoffA.roomCode = handoffRoom.roomId;
+    handoffA.playerIndex = handoffRoom.playerIndex;
+    const handoffPlacementA = once(handoffA, 'match:startPlacement');
+    const handoffPlacementB = once(handoffB, 'match:startPlacement');
+    const handoffBJoined = once(handoffB, 'joined_room');
+    emit(handoffB, 'join_room', { roomId: handoffRoom.roomId, playerName: 'Hand B' });
+    const handoffJoinB = await handoffBJoined;
+    handoffB.roomCode = handoffJoinB.roomId;
+    handoffB.playerIndex = handoffJoinB.playerIndex;
+    await Promise.all([handoffPlacementA, handoffPlacementB]);
+    const handoffBattle = once(handoffA, 'match:startBattle');
+    emit(handoffA, 'fleet:submit', { fleet: SHIP_CELLS });
+    emit(handoffB, 'fleet:submit', { fleet: SHIP_CELLS });
+    await handoffBattle;
+    const handoffTimeout = once(handoffB, 'turn_timeout', 5000);
+    const handoffTurn = waitTurn(handoffB, 1, 5000);
+    handoffA.disconnect();
+    const handoffTimeoutPayload = await handoffTimeout;
+    if (handoffTimeoutPayload.previousTurnSlot !== 0 || handoffTimeoutPayload.turnSlot !== 1) {
+      throw new Error('Expected disconnected active player timeout to pass turn to opponent.');
+    }
+    await handoffTurn;
+    const handoffReturned = await connectClient('smoke-disconnect-handoff-a');
+    handoffReturned.roomCode = handoffRoom.roomId;
+    handoffReturned.playerIndex = 0;
+    const handoffReturnedJoined = once(handoffReturned, 'joined_room');
+    const handoffResync = once(handoffReturned, 'resync');
+    emit(handoffReturned, 'reconnect_room', { roomId: handoffRoom.roomId, token: handoffRoom.token });
+    await handoffReturnedJoined;
+    const handoffSnapshot = await handoffResync;
+    if (handoffSnapshot.turnSlot !== 1) throw new Error('Expected reconnected player to resync into opponent turn after timeout handoff.');
+    const handoffWrongTurn = waitForErrorCode(handoffReturned, 'not_your_turn');
+    emit(handoffReturned, 'shot:fire', { idx: SAFE_MISS_CELLS[12] });
+    await handoffWrongTurn;
+    handoffReturned.disconnect();
+    const handoffEnd = once(handoffB, 'match:end', 6000);
+    const handoffShot = await fireAndWait(handoffB, SAFE_MISS_CELLS[13]);
+    if (handoffShot.shot.hit) throw new Error('Expected opponent handoff shot to miss.');
+    const handoffForfeit = await handoffEnd;
+    if (handoffForfeit.winnerSlot !== 1 || handoffForfeit.endReason !== 'disconnect_forfeit') {
+      throw new Error('Expected disconnected player to forfeit after grace expiry following timeout handoff.');
+    }
+    handoffB.disconnect();
 
     const alternateA = await connectClient('smoke-alt-timeout-a');
     const alternateB = await connectClient('smoke-alt-timeout-b');
