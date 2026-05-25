@@ -172,6 +172,8 @@
   .modal-close{position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
     background:rgba(8,16,24,.92);color:#e5edf5;font-size:1.1rem;font-weight:900;cursor:pointer;}
   .modal-close:hover{border-color:#e2b96f;color:#e2b96f;}
+  .modal-home-btn{background:#111827;border-color:rgba(226,185,111,.34);color:#f7e4ae;}
+  .modal-home-btn:hover{border-color:#e2b96f;box-shadow:0 0 18px rgba(226,185,111,.18);}
 @media(max-width:700px){.howto-body{grid-template-columns:1fr;}}
   @media(max-width:520px){
     .share-actions{grid-template-columns:1fr;}
@@ -877,7 +879,7 @@
     <div class="stat-grid">
       <div class="stat-box"><div class="sval" id="modalShots">0</div><div class="slbl">Shots</div></div>
       <div class="stat-box"><div class="sval" id="modalAcc">0%</div><div class="slbl">Accuracy</div></div>
-      <div class="stat-box"><div class="sval" id="modalDiff">—</div><div class="slbl">Difficulty</div></div>
+      <div class="stat-box"><div class="sval" id="modalDiff">—</div><div class="slbl" id="modalDiffLabel">Difficulty</div></div>
     </div>
     <p id="modalMsg"></p>
     <div class="ad-slot postgame-ad" aria-label="Reserved post battle space"><span>Reserved space - post battle</span></div>
@@ -889,6 +891,7 @@
       <button class="modal-btn" onclick="openAnalysis()">View Analysis</button>
       <button class="modal-btn" id="modalNewGameBtn" onclick="closeModal(true)">New Game</button>
       <button class="modal-btn mode-exit-modal-btn" id="modalExitBtn" type="button" onclick="exitCurrentGame(false)">Exit Game</button>
+      <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
     </div>
   </div>
 </div>
@@ -925,6 +928,7 @@
       <button class="modal-btn" onclick="closeAnalysis()">Back</button>
       <button class="modal-btn" id="analysisNewGameBtn" onclick="closeModal(true)">New Game</button>
       <button class="modal-btn mode-exit-modal-btn" id="analysisExitBtn" type="button" onclick="exitCurrentGame(false)">Exit Game</button>
+      <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
     </div>
   </div>
 </div>
@@ -936,8 +940,8 @@
     <h2>How to Play</h2>
     <div class="howto-body" id="howToBody">
       <p><strong>Set up:</strong> Pick a ship from Fleet Dock, choose its direction, then tap your board to place it.</p>
-      <p><strong>Adjust:</strong> Tap a placed ship to edit it. Drag it to valid cells or rotate it. Tap empty water to leave edit mode.</p>
-      <p><strong>Quick setup:</strong> Auto-Place rerolls your whole fleet every time. To remove one ship, tap it on your grid, then press Clear-Ship(<kbd>C</kbd>).</p>
+      <p><strong>Adjust:</strong> Tap a placed ship to edit it. Drag it to valid cells or use Rotate (<kbd>R</kbd>). Tap empty water to leave edit mode.</p>
+      <p><strong>Quick setup:</strong> Auto-place (<kbd>A</kbd>) rerolls your whole fleet every time. To remove one ship, tap it on your grid, then press Clear (<kbd>C</kbd>).</p>
       <p><strong>Start:</strong> When all ships are placed, use Confirm in the Your Fleet control above the boards.</p>
       <p><strong>Battle:</strong> Tap Enemy Waters to fire. Use the board switch on phones to inspect your fleet.</p>
       <p><strong>Win:</strong> Sink every enemy ship before the enemy sinks yours.</p>
@@ -955,7 +959,7 @@
     <p id="opponentIntro">Command a haunted fleet across stormy-dark waters.</p>
     <div class="opponent-actions" id="opponentChoiceStep">
       <button class="modal-btn" type="button" onclick="showAiDifficultyChoice()">Play vs AI</button>
-      <button class="modal-btn" type="button" onclick="chooseHumanOpponent()">Play vs Human</button>
+      <button class="modal-btn" type="button" onclick="chooseHumanOpponent()">Play vs Friends</button>
     </div>
     <div class="opponent-ai-step" id="opponentAiStep">
       <p>Choose board size, then pick the AI difficulty to start your battle.</p>
@@ -971,6 +975,7 @@
       </div>
       <button class="modal-btn opponent-back" type="button" onclick="showOpponentChoices()">Back to Opponent Choice</button>
     </div>
+    <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
   </div>
 </div>
 
@@ -1012,6 +1017,7 @@
       <div class="room-player-list" id="mpPlayers"></div>
       <div class="multiplayer-status" id="mpStatus">Waiting for another captain...</div>
     </div>
+    <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
   </div>
 </div>
 
@@ -1035,6 +1041,7 @@
       </div>
       <div class="sonar-wait"><span class="sonar-dot"></span><span id="shareRoomWaitText">Waiting for opponent to join...</span></div>
       <button class="modal-btn mp-opponent-back" type="button" onclick="cancelMultiplayerRoom()">Back / Cancel Room</button>
+      <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
     </div>
   </div>
 </div>
@@ -1053,6 +1060,7 @@
       </div>
       <button class="modal-btn" type="button" onclick="joinInviteRoom()">Join Battle</button>
       <button class="modal-btn mp-opponent-back" type="button" onclick="startNewBattle()">Start New Game</button>
+      <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
     </div>
     <div class="multiplayer-status" id="inviteStatus"></div>
   </div>
@@ -1067,6 +1075,7 @@
       <button class="modal-btn" type="button" onclick="retryRoomReconnect()">Try Again</button>
       <button class="modal-btn" type="button" onclick="startNewBattle()">New Game</button>
     </div>
+    <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
   </div>
 </div>
 
@@ -1076,6 +1085,7 @@
     <h2 id="roomStatusTitle">Room Expired</h2>
     <p id="roomStatusMsg">This game has ended.</p>
     <button class="modal-btn" type="button" onclick="startNewBattle()">Start a New Game</button>
+    <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
   </div>
 </div>
 
@@ -1167,9 +1177,9 @@
       <button class="mobile-board-tab active" id="mobileYourTab" type="button" aria-controls="yourWrap" onclick="setMobileBoard('your')"><span id="mobileYourLabel">Your Fleet</span><small id="mobileYourHint">Place ships</small></button>
       <button class="mobile-board-tab" id="mobileEnemyTab" type="button" aria-controls="enemyWrap" onclick="setMobileBoard('enemy')"><span id="mobileEnemyLabel"><span class="enemy-emoji small" aria-hidden="true">😈</span> Enemy Waters</span><small id="mobileEnemyHint">Fire here</small></button>
       <div class="top-arrange-actions" id="topArrangeActions" aria-label="Arrange controls">
-        <button class="action-btn btn-shuffle" id="btnShuffle" type="button" onclick="autoPlace()">Auto-Place</button>
-        <button class="action-btn btn-rotate" id="btnRotate" type="button" onclick="rotateOrientation()">Rotate</button>
-        <button class="action-btn btn-clear" id="btnClear" type="button" onclick="clearSelectedShip()" title="Clear selected ship (C)" aria-label="Clear selected ship">Clear-Ship(C)</button>
+        <button class="action-btn btn-shuffle" id="btnShuffle" type="button" onclick="autoPlace()" title="Auto-place fleet (A)" aria-label="Auto-place fleet (A)">Auto-place (A)</button>
+        <button class="action-btn btn-rotate" id="btnRotate" type="button" onclick="rotateOrientation()" title="Rotate selected ship or placement direction (R)" aria-label="Rotate selected ship or placement direction (R)">Rotate (R)</button>
+        <button class="action-btn btn-clear" id="btnClear" type="button" onclick="clearSelectedShip()" title="Clear selected ship (C)" aria-label="Clear selected ship">Clear (C)</button>
       </div>
     </div>
     <div class="boards-row">
@@ -1244,27 +1254,27 @@
   const HOW_TO_COPY={
     mobile:[
       ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
-      ['Choose opponent','Pick AI for a solo battle or Human to create or join a room with another player.'],
+      ['Choose opponent','Pick AI for a solo battle or Friends to create or join a room with another player.'],
       ['Place ships','Carrier is selected first. Tap Your Fleet to place the selected ship, then the next unplaced ship is selected automatically.'],
-      ['Move or rotate','Tap a placed ship to edit it. Drag it to new cells or use Rotate. Tap empty water to leave edit mode. Green is valid; red is blocked.'],
-      ['Quick setup','Auto-Place rerolls the whole fleet every time. To remove one ship, tap it on your grid, then press Clear-Ship(C).'],
+      ['Move or rotate','Tap a placed ship to edit it. Drag it to new cells or use Rotate (R). Tap empty water to leave edit mode. Green is valid; red is blocked.'],
+      ['Quick setup','Auto-place (A) rerolls the whole fleet every time. To remove one ship, tap it on your grid, then press Clear (C).'],
       ['Start battle','When every ship is placed, use the Your Fleet control above the board to confirm or ready your fleet.'],
       ['Switch boards','In battle, use Enemy Waters and Your Fleet tabs. Fire only on Enemy Waters; use Your Fleet to inspect damage.'],
       ['Review','After the match, View Analysis shows achievements, move patterns, and better search suggestions.']
     ],
     desktop:[
       ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
-      ['Choose opponent','Pick AI for a solo battle or Human to create or join a room with another player.'],
-      ['Place ships','Use Fleet Dock on the right, then click your board to place the selected ship. Rotate changes direction before placement.'],
+      ['Choose opponent','Pick AI for a solo battle or Friends to create or join a room with another player.'],
+      ['Place ships','Use Fleet Dock on the right, then click your board to place the selected ship. Rotate (R) changes direction before placement.'],
       ['Edit layout','Click a placed ship to select it. Drag it to another valid position or rotate it. Click empty water to leave edit mode.'],
-      ['Fast setup','Auto-Place rerolls the whole fleet every time. Click a placed ship, then use Clear-Ship(C) or keyboard C to remove only that ship.'],
+      ['Fast setup','Auto-place (A) rerolls the whole fleet every time. Click a placed ship, then use Clear (C) to remove only that ship.'],
       ['Start battle','Once all ships are placed, use the Confirm / Start battle or Ready control above the boards.'],
       ['Battle view','Both boards stay visible: fire on Enemy Waters and watch damage on Your Fleet.'],
       ['Review','After victory or defeat, View Analysis breaks down accuracy, pressure, sinks, achievements, and improvement tips.']
     ],
     multiplayer:[
       ['Objective','Guess where the other captain hid their ships. Fire one cell per turn, use hits and misses to hunt them down, and sink every enemy ship before your fleet is destroyed. Whoever survives wins.'],
-      ['Create or join','Choose Human to create a room link instantly. Share the /room/XXXXXX link so another captain can join without typing a code.'],
+      ['Create or join','Choose Friends to create a room link instantly. Share the /room/XXXXXX link so another captain can join without typing a code.'],
       ['Room flow','Player 2 opens the shared link, enters a name, then both captains move into ship placement automatically.'],
       ['Place ships','Place your fleet normally. When all ships are placed, press Ready above the board to submit your fleet.'],
       ['Battle','Turns are controlled online. You can fire only when the turn banner says it is your turn.'],
@@ -1513,6 +1523,31 @@
       syncPlayModeUrl('select',true);
     }
     newGame();
+  }
+  function goHomeFromPlay(){
+    stopConfetti();
+    const overlays=['modalOverlay','analysisOverlay','opponentOverlay','multiplayerOverlay','shareRoomOverlay','inviteOverlay','reconnectOverlay','roomStatusOverlay'];
+    overlays.forEach(id=>{
+      const overlay=document.getElementById(id);
+      if(overlay)overlay.classList.remove('show');
+    });
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&multiplayer.socket){
+      const code=multiplayer.roomCode;
+      if(multiplayer.roomPhase==='waiting'&&multiplayer.playerIndex===0&&code){
+        multiplayer.socket.emit('cancel_room',multiplayerPayload({roomId:code}));
+      } else {
+        multiplayer.socket.emit('room:leave',multiplayerPayload({}));
+      }
+      leaveMultiplayerRoom(false);
+    } else {
+      hideMultiplayerLobby();
+      hideShareRoomScreen();
+      hideInviteOverlay();
+      hideReconnectOverlay();
+      hideRoomStatus();
+    }
+    sessionStorage.removeItem(mpStorageKey());
+    setTimeout(()=>{window.location.href='/home';},80);
   }
   function returnToOpponentChoice(){
     hideMultiplayerLobby();
@@ -2193,7 +2228,9 @@
   }
   function appendHowToText(parent,text){
     const tokens=[
-      {needle:'Clear-Ship(C)',parts:['Clear-Ship(',{kbd:'C'},')']},
+      {needle:'Auto-place (A)',parts:['Auto-place (',{kbd:'A'},')']},
+      {needle:'Rotate (R)',parts:['Rotate (',{kbd:'R'},')']},
+      {needle:'Clear (C)',parts:['Clear (',{kbd:'C'},')']},
       {needle:'keyboard C',parts:['keyboard ',{kbd:'C'}]}
     ];
     let rest=String(text||'');
@@ -2582,7 +2619,7 @@
     if(!MULTIPLAYER_ENABLED)return null;
     if(multiplayer.socket)return multiplayer.socket;
     if(typeof io!=='function'){
-      setMultiplayerStatus('Multiplayer transport did not load. Open GhostFleet from the Node or Railway server, then choose Human.');
+      setMultiplayerStatus('Multiplayer transport did not load. Open GhostFleet from the Node or Railway server, then choose Friends.');
       return null;
     }
     multiplayer.clientId=getMultiplayerClientId();
@@ -2699,7 +2736,7 @@
     if(sizeField)sizeField.classList.toggle('hidden',multiplayer.joinMode||multiplayer.joined);
     if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
     if(joinBtn)joinBtn.textContent=multiplayer.joinMode?'Enter Room':'Join Room';
-    if(createBtn)createBtn.textContent=multiplayer.joinMode?'Back to Human Setup':'Create Room';
+    if(createBtn)createBtn.textContent=multiplayer.joinMode?'Back to Friends Setup':'Create Room';
     if(joinBtn)joinBtn.style.order=multiplayer.joinMode?'-1':'';
     if(createBtn)createBtn.style.order=multiplayer.joinMode?'2':'';
     if(multiplayer.joinMode){
@@ -2726,7 +2763,7 @@
       if(settled)return;
       settled=true;
       restoreButtons();
-      setMultiplayerStatus('Still connecting. Check that the server is running, then reopen GhostFleet and choose Human.');
+      setMultiplayerStatus('Still connecting. Check that the server is running, then reopen GhostFleet and choose Friends.');
     },5000);
     socket.once('connect',()=>{
       if(settled)return;
@@ -2740,7 +2777,7 @@
       settled=true;
       clearTimeout(timeout);
       restoreButtons();
-      setMultiplayerStatus('Could not connect. Run npm start in GhostFleetRailway or use the Railway URL, then choose Human.');
+      setMultiplayerStatus('Could not connect. Run npm start in GhostFleetRailway or use the Railway URL, then choose Friends.');
     });
     return true;
   }
@@ -4552,7 +4589,10 @@
     document.getElementById('modalShots').textContent=shots;
     const finalAcc=shots>0?Math.round(hits/shots*100):0;
     document.getElementById('modalAcc').textContent=finalAcc+'%';
-    document.getElementById('modalDiff').textContent=MULTIPLAYER_ENABLED?'Human':DIFF_LABELS[difficulty];
+    const modalDiff=document.getElementById('modalDiff');
+    const modalDiffLabel=document.getElementById('modalDiffLabel');
+    if(modalDiffLabel)modalDiffLabel.textContent=MULTIPLAYER_ENABLED?'Mode':'Difficulty';
+    if(modalDiff)modalDiff.textContent=MULTIPLAYER_ENABLED?'Friends':DIFF_LABELS[difficulty];
     const playerMoves=battleMoves.filter(m=>m.actor==='YOU');
     const aiMoves=battleMoves.filter(m=>m.actor==='AI');
     const aiHitCount=aiMoves.filter(isDamageMove).length;
