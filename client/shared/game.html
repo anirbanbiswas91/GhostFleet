@@ -1935,7 +1935,7 @@
     if(!ensureAudio())return;
     const t=audioCtx.currentTime;
     const scale=Math.max(0,Math.min(1,((shipLen||3)-2)/3));
-    const sunkGain=1.25;
+    const sunkGain=1.5625;
     cueTone(48-scale*10,'sine',t,1.2,(.42+scale*.08)*sunkGain,.04,1.12,16);
     cueNoise(t+.02,1.05,(.32+scale*.08)*sunkGain,'lowpass',900+scale*260,55,.7,.55);
     if(shipLen>=4){
