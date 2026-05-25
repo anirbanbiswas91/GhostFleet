@@ -1,7 +1,7 @@
 {
   "id": "abyssal-radar",
   "label": "Abyssal Radar",
-  "subtitle": "Command a haunted fleet across stormy-dark waters.",
+  "subtitle": "Command a haunted fleet across stormy-dark waters",
   "bodyClass": "theme-abyssal-radar",
   "cssVars": {
     "--board-frame-bg": "rgba(27,52,83,.56)",

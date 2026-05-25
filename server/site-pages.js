@@ -113,7 +113,7 @@ export function renderHomePage() {
           <h1>GhostFleet</h1>
         </div>
       </div>
-      <p class="hero-copy">Command a haunted fleet across stormy-dark waters.</p>
+      <p class="hero-copy">Command a haunted fleet across stormy-dark waters</p>
       <div class="cta-grid" aria-label="Choose game mode">
         <a class="cta-card" href="/play?mode=ai">
           <span>Play vs AI</span>

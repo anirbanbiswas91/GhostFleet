@@ -17,7 +17,7 @@
     theme:{
       id:'classic',
       label:'Classic Storm',
-      subtitle:'Command a haunted fleet across stormy-dark waters.',
+      subtitle:'Command a haunted fleet across stormy-dark waters',
       bodyClass:'theme-classic',
       cssVars:{},
       assets:{shipMarks:{}}
@@ -172,8 +172,9 @@
   .modal-close{position:absolute;top:12px;right:14px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
     background:rgba(8,16,24,.92);color:#e5edf5;font-size:1.1rem;font-weight:900;cursor:pointer;}
   .modal-close:hover{border-color:#e2b96f;color:#e2b96f;}
-  .modal-home-btn{background:#111827;border-color:rgba(226,185,111,.34);color:#f7e4ae;}
+  .modal-home-btn{display:flex;align-items:center;justify-content:center;width:100%;margin-top:14px;background:#111827;border-color:rgba(226,185,111,.34);color:#f7e4ae;}
   .modal-home-btn:hover{border-color:#e2b96f;box-shadow:0 0 18px rgba(226,185,111,.18);}
+  .modal-buttons .modal-home-btn{width:auto;margin-top:0;}
 @media(max-width:700px){.howto-body{grid-template-columns:1fr;}}
   @media(max-width:520px){
     .share-actions{grid-template-columns:1fr;}
@@ -956,7 +957,7 @@
       <img src="/assets/ghostfleet-crest.jpg" alt="" aria-hidden="true"/>
       <h2>GhostFleet</h2>
     </div>
-    <p id="opponentIntro">Command a haunted fleet across stormy-dark waters.</p>
+    <p id="opponentIntro">Command a haunted fleet across stormy-dark waters</p>
     <div class="opponent-actions" id="opponentChoiceStep">
       <button class="modal-btn" type="button" onclick="showAiDifficultyChoice()">Play vs AI</button>
       <button class="modal-btn" type="button" onclick="chooseHumanOpponent()">Play vs Friends</button>
@@ -1102,7 +1103,7 @@
       </span>
       <div class="brand-text">
         <h1>GhostFleet</h1>
-        <p class="subtitle">Command a haunted fleet across stormy-dark waters.</p>
+        <p class="subtitle">Command a haunted fleet across stormy-dark waters</p>
       </div>
     </div>
     <div class="title-status" id="statusBadge">
@@ -1459,7 +1460,7 @@
     const intro=document.getElementById('opponentIntro');
     if(choice)choice.style.display='grid';
     if(aiStep)aiStep.classList.remove('show');
-    if(intro)intro.textContent='Command a haunted fleet across stormy-dark waters.';
+    if(intro)intro.textContent='Command a haunted fleet across stormy-dark waters';
   }
   function showAiDifficultyChoice(playCue=true){
     if(playCue)playChartMarkCue('ai');
