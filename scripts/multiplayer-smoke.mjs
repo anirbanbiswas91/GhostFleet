@@ -189,7 +189,7 @@ async function exerciseReconnectTokenRejection() {
 async function main() {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(PORT), GHOSTFLEET_FREE_ONLY: 'true', GHOSTFLEET_TURN_TIMEOUT_MS: '1500' },
+    env: { ...process.env, PORT: String(PORT), GHOSTFLEET_FREE_ONLY: 'true', GHOSTFLEET_TURN_TIMEOUT_MS: '1500', GHOSTFLEET_DISCONNECT_GRACE_MS: '700' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   server.stdout.on('data', chunk => process.stdout.write(chunk));
@@ -392,6 +392,33 @@ async function main() {
     emit(exitB, 'match:rematch');
     const exitRematchError = await exitRematchRejected;
     if (exitRematchError.code !== 'rematch_unavailable') throw new Error('Expected opponent_left rematch rejection.');
+
+    const disconnectA = await connectClient('smoke-disconnect-a');
+    const disconnectB = await connectClient('smoke-disconnect-b');
+    const disconnectCreated = once(disconnectA, 'room_created');
+    emit(disconnectA, 'create_room', { playerName: 'Drop A', gridSize: 8 });
+    const disconnectRoom = await disconnectCreated;
+    disconnectA.roomCode = disconnectRoom.roomId;
+    disconnectA.playerIndex = disconnectRoom.playerIndex;
+    const disconnectPlacementA = once(disconnectA, 'match:startPlacement');
+    const disconnectPlacementB = once(disconnectB, 'match:startPlacement');
+    const disconnectBJoined = once(disconnectB, 'joined_room');
+    emit(disconnectB, 'join_room', { roomId: disconnectRoom.roomId, playerName: 'Drop B' });
+    const disconnectJoinB = await disconnectBJoined;
+    disconnectB.roomCode = disconnectJoinB.roomId;
+    disconnectB.playerIndex = disconnectJoinB.playerIndex;
+    await Promise.all([disconnectPlacementA, disconnectPlacementB]);
+    const disconnectEnd = once(disconnectB, 'match:end', 5000);
+    disconnectA.disconnect();
+    const disconnectForfeit = await disconnectEnd;
+    if (disconnectForfeit.winnerSlot !== 1 || disconnectForfeit.endReason !== 'disconnect_forfeit') {
+      throw new Error('Expected disconnect grace expiry to award disconnect_forfeit win.');
+    }
+    const disconnectRematchRejected = once(disconnectB, 'error:message');
+    emit(disconnectB, 'match:rematch');
+    const disconnectRematchError = await disconnectRematchRejected;
+    if (disconnectRematchError.code !== 'rematch_unavailable') throw new Error('Expected disconnect_forfeit rematch rejection.');
+    disconnectB.disconnect();
 
     const alternateA = await connectClient('smoke-alt-timeout-a');
     const alternateB = await connectClient('smoke-alt-timeout-b');

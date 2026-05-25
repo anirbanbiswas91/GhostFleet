@@ -10,7 +10,7 @@ const SHIPS = [
 ];
 
 const ROOM_TTL_MS = 30 * 60 * 1000;
-const DISCONNECT_GRACE_MS = 90 * 1000;
+const DISCONNECT_GRACE_MS = positiveIntEnv('GHOSTFLEET_DISCONNECT_GRACE_MS', 90 * 1000);
 const ENDED_ROOM_GRACE_MS = 60 * 1000;
 const EXPIRED_ROOM_TTL_MS = 10 * 60 * 1000;
 const TURN_TIMEOUT_MS = positiveIntEnv('GHOSTFLEET_TURN_TIMEOUT_MS', 60 * 1000);
@@ -687,10 +687,15 @@ function disconnectSlot(room, slot, explicit = false) {
   room.disconnectTimers[slot] = setTimeout(() => {
     const current = rooms.get(room.code);
     if (!current) return;
+    current.disconnectTimers[slot] = null;
     const stale = current.players[slot];
     if (!stale || stale.connected) return;
     const other = opponentSlot(slot);
     if (current.players[other] && !current.players[other].connected && current.disconnectTimers[other]) return;
+    if ((current.phase === 'placing' || current.phase === 'battle') && current.players[other] && current.players[other].connected) {
+      finishMatch(current, other, 'disconnect_forfeit');
+      return;
+    }
     if (current.players[other] && current.players[other].connected) {
       emitToSlot(current, other, 'opponent_disconnected', {
         playerIndex: slot,

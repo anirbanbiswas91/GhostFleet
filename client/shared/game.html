@@ -1647,11 +1647,15 @@
     if(rematchAvailable&&multiplayer.rematchRequested)message='Waiting for '+multiplayerOpponentLabel()+' to rematch...';
     else if(rematchAvailable&&opponent&&opponent.rematchRequested)message=multiplayerOpponentLabel()+' wants a rematch.';
     if(multiplayer.endReason==='opponent_left')message=multiplayerOpponentLabel()+' left the room. Choose New Game or Exit Room.';
+    else if(multiplayer.endReason==='disconnect_forfeit'){
+      const won=snapshot.winnerSlot===multiplayer.playerIndex||snapshot.winner===multiplayer.playerId;
+      message=won?multiplayerOpponentLabel()+' failed to reconnect. Choose New Game or Exit Room.':'You failed to reconnect before the timer expired. Choose New Game or Exit Room.';
+    }
     else if(opponent&&!opponent.connected)message=multiplayerOpponentLabel()+' disconnected. Choose New Game or Exit Room.';
     setMultiplayerStatus(message);
     if(phase==='ended'){
       const msg=document.getElementById('modalMsg');
-      if(msg&&(multiplayer.rematchRequested||(opponent&&opponent.rematchRequested)||!opponent||!opponent.connected||multiplayer.endReason==='opponent_left'))msg.textContent=message;
+      if(msg&&(multiplayer.rematchRequested||(opponent&&opponent.rematchRequested)||!opponent||!opponent.connected||['opponent_left','disconnect_forfeit'].includes(multiplayer.endReason)))msg.textContent=message;
     }
     updatePostGameActions();
   }
@@ -3180,7 +3184,7 @@
     if(won)wins++;else losses++;
     multiplayer.rematchRequested=false;
     multiplayer.endReason=snapshot.endReason||'ships_sunk';
-    endedBySurrender=!won&&multiplayer.endReason==='timeout_surrender';
+    endedBySurrender=!won&&['timeout_surrender','disconnect_forfeit'].includes(multiplayer.endReason);
     lastGameWon=won;
     stopMultiplayerCountdown();
     stopOpponentDisconnectBanner();
@@ -4329,7 +4333,7 @@
   }
   function allowRoundAchievements(){
     if(endedBySurrender)return false;
-    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&['opponent_left','timeout_surrender'].includes(multiplayer.endReason))return false;
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&['opponent_left','timeout_surrender','disconnect_forfeit'].includes(multiplayer.endReason))return false;
     return true;
   }
 
@@ -4526,6 +4530,14 @@
       if(multiplayer.endReason==='opponent_left'&&won){
         modalSubtitle='Opponent left the room. You win by surrender.';
         specialResultMsg=multiplayerOpponentLabel()+' left the room. Victory awarded.';
+      } else if(multiplayer.endReason==='disconnect_forfeit'){
+        if(won){
+          modalSubtitle='Opponent failed to reconnect. You win by forfeit.';
+          specialResultMsg=multiplayerOpponentLabel()+' failed to reconnect before the timer expired.';
+        } else {
+          modalSubtitle='You failed to reconnect before the timer expired and forfeited the battle.';
+          specialResultMsg='Reconnect window expired. The battle was forfeited.';
+        }
       } else if(multiplayer.endReason==='timeout_surrender'){
         if(won){
           modalSubtitle='Opponent missed three turn timers. You win by surrender.';
