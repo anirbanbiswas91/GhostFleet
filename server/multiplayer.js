@@ -390,9 +390,6 @@ function bindSocketToPlayer(room, socket, slot) {
       msg: `${player.displayName} reconnected.`
     });
   }
-  if (room.turnTimerPaused && room.turn === slot) {
-    scheduleTurnTimer(room, room.pausedTurnRemainingMs || TURN_TIMEOUT_MS);
-  }
   return player;
 }
 
@@ -465,8 +462,6 @@ function scheduleEndedCleanup(room) {
 function scheduleTurnTimer(room, durationMs = TURN_TIMEOUT_MS) {
   clearTurnTimer(room);
   if (room.phase !== 'battle' || (room.turn !== 0 && room.turn !== 1)) return;
-  room.turnTimerPaused = false;
-  room.pausedTurnRemainingMs = null;
   room.turnDeadlineAt = Date.now() + durationMs;
   room.turnTimer = setTimeout(() => {
     const current = rooms.get(room.code);
@@ -503,14 +498,6 @@ function scheduleTurnTimer(room, durationMs = TURN_TIMEOUT_MS) {
     validateRoomState(current);
   }, durationMs);
   room.turnTimer.unref?.();
-}
-
-function pauseTurnTimer(room) {
-  if (!room.turnTimer || room.phase !== 'battle') return;
-  room.pausedTurnRemainingMs = Math.max(1000, (room.turnDeadlineAt || Date.now()) - Date.now());
-  clearTimeout(room.turnTimer);
-  room.turnTimer = null;
-  room.turnTimerPaused = true;
 }
 
 function validateRoomState(room) {
@@ -674,7 +661,6 @@ function disconnectSlot(room, slot, explicit = false) {
     }
     return;
   }
-  if (room.phase === 'battle' && room.turn === slot) pauseTurnTimer(room);
   const expiresAt = Date.now() + DISCONNECT_GRACE_MS;
   emitToSlot(room, opponentSlot(slot), 'opponent_temporarily_disconnected', {
     playerIndex: slot,
@@ -732,8 +718,6 @@ function newRoom(io, socket, payload = {}) {
     clientMap: {},
     turn: null,
     turnDeadlineAt: null,
-    turnTimerPaused: false,
-    pausedTurnRemainingMs: null,
     winnerSlot: null,
     endReason: '',
     battleLog: [],
