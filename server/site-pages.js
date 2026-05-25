@@ -55,7 +55,7 @@ const SITE_PAGES = {
       <p>GhostFleet includes battle stats and move analysis after each match, so players can review accuracy, pressure, ship sinks, and opportunities to improve the hunt. It is built as an independent web game focused on fast browser access, mobile-friendly play, and replayable naval strategy sessions.</p>
       <h2>How to Play GhostFleet</h2>
       <p>Each player hides a fleet on their own grid. Your Fleet shows your ship positions and incoming damage, while Enemy Waters is where you fire. On desktop, both boards stay visible; on mobile, use the Enemy Waters and Your Fleet tabs to switch views.</p>
-      <p>Place ships by selecting a vessel and choosing valid cells on your grid. Rotate ships to change direction, drag placed ships to adjust your layout, or click a placed ship and press C to remove only that ship. Auto-Place can randomly fill your whole fleet before you confirm.</p>
+      <p>Place ships by selecting a vessel and choosing valid cells on your grid. Rotate (R) ships to change direction, drag placed ships to adjust your layout, or click a placed ship and press C to remove only that ship. Auto-place (A) can randomly fill your whole fleet before you confirm.</p>
       <p>When the battle starts, fire at unrevealed cells on Enemy Waters. Red means hit and white means miss. A ship sinks when every cell it occupies has been hit. In multiplayer, both captains must confirm their fleets before turns begin, and each player fires once per turn.</p>
       <p>After the match, View Analysis shows accuracy, pressure, ships sunk, and tips to improve your next battle.</p>`
   },
@@ -82,8 +82,8 @@ const SITE_PAGES = {
 const DESKTOP_HOW_TO = [
   ['Objective', 'You and your opponent each hide a fleet of ships on your own grid. Take turns firing at each other&rsquo;s waters &mdash; hit every enemy ship before yours are sunk. Last fleet afloat wins.'],
   ['Your Grid vs Enemy Waters', 'You have two boards. Your Fleet shows where your ships are and tracks incoming hits. Enemy Waters is where you fire each turn. Both stay visible at all times.'],
-  ['Place Your Ships', 'Pick a ship from the Fleet Dock, then click your grid to place it. Use Rotate to change direction. Drag a placed ship to move it, or click it and press C to remove it.'],
-  ['Auto-Place', 'In a hurry? Hit Auto-Place to randomly scatter your entire fleet instantly. You can auto-place as many times as you like.'],
+  ['Place Your Ships', 'Pick a ship from the Fleet Dock, then click your grid to place it. Use Rotate (R) to change direction. Drag a placed ship to move it, or click it and press C to remove it.'],
+  ['Auto-place (A)', 'In a hurry? Hit Auto-place (A) to randomly scatter your entire fleet instantly. You can auto-place as many times as you like.'],
   ['Taking a Shot', 'Click any unrevealed cell on Enemy Waters to fire. &#128308; Red = hit. &#9898; White = miss. You fire once per turn, then your opponent fires back.'],
   ['Sinking a Ship', 'A ship sinks when every cell it occupies has been hit. The game tells you when a ship goes down &mdash; yours or theirs.'],
   ['Starting the Battle', 'Once all your ships are placed, click Confirm / Start Battle. In multiplayer, both players must be ready before the battle begins.'],
@@ -92,7 +92,7 @@ const DESKTOP_HOW_TO = [
 
 const MOBILE_HOW_TO = [
   ['The Goal', 'Both players hide ships on their own grid. Take turns guessing where the enemy fleet is hiding. Sink all their ships before they sink yours &mdash; last one floating wins.'],
-  ['Place Your Ships', 'Tap a ship from the dock, then tap your grid to place it. Tap a placed ship to move or rotate it. Press C to remove just that ship, or use Auto-Place to fill your grid randomly.'],
+  ['Place Your Ships', 'Tap a ship from the dock, then tap your grid to place it. Tap a placed ship to move or rotate it. Press C to remove just that ship, or use Auto-place (A) to fill your grid randomly.'],
   ['Switch Boards', 'Use the Enemy Waters and Your Fleet tabs to switch views. Fire on Enemy Waters. Check Your Fleet to see damage you&rsquo;ve taken.'],
   ['Fire!', 'Tap any cell on Enemy Waters to shoot. &#128308; Red = hit, &#9898; White = miss. One shot per turn. A ship sinks when every part of it is hit.'],
   ['Start the Battle', 'When all ships are placed, tap the button above your board to confirm. In multiplayer, both players confirm before the game starts.'],
@@ -120,7 +120,7 @@ export function renderHomePage() {
           <small>Practice against Easy, Med, or Hard difficulty.</small>
         </a>
         <a class="cta-card cta-human" href="/play?mode=human">
-          <span>Play vs Human</span>
+          <span>Play vs Friends</span>
           <small>Create a private room and share a code or link.</small>
         </a>
       </div>
