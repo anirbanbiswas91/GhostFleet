@@ -534,6 +534,20 @@
   .page-ad{grid-column:1/-1;max-width:760px;margin:2px auto 0;}
   .postgame-ad{min-height:58px;margin:14px 0 4px;}
   html[data-ads="false"] .ad-slot{display:none!important;}
+  .support-footer-link,.kofi-postgame-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    text-decoration:none;font-weight:900;letter-spacing:.2px;border:1px solid rgba(226,185,111,.62);color:#fff7d6;
+    background:linear-gradient(180deg,rgba(226,185,111,.16),rgba(226,185,111,.05)),rgba(6,15,24,.88);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 0 16px rgba(226,185,111,.12);}
+  .support-footer-link:hover,.kofi-postgame-link:hover{border-color:#f7d587;text-decoration:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 0 22px rgba(94,234,212,.16);}
+  .support-footer-link:focus-visible,.kofi-postgame-link:focus-visible{outline:3px solid rgba(94,234,212,.72);outline-offset:3px;}
+  .support-footer-link::before,.kofi-postgame-link::before{content:'';width:7px;height:7px;border-radius:50%;
+    background:#5eead4;box-shadow:0 0 12px rgba(94,234,212,.85);flex:0 0 auto;}
+  .support-footer-link{padding:5px 10px;border-radius:999px;color:#f8e7b6!important;}
+  .kofi-postgame-cta{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin:12px auto 0;
+    padding:7px 8px 7px 12px;width:max-content;max-width:100%;border:1px solid rgba(226,185,111,.34);border-radius:999px;
+    background:rgba(5,12,18,.56);color:#f8e7b6;font-size:.78rem;font-weight:900;}
+  .kofi-postgame-link{min-height:32px;border-radius:999px;padding:7px 12px;font-size:.78rem;}
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.77);z-index:1000;align-items:center;justify-content:center;}
   .modal-overlay.show{display:flex;}
   .modal{background:linear-gradient(135deg,rgba(13,17,23,.92),rgba(26,26,46,.92));border:3px solid #e2b96f;border-radius:18px;position:relative;
@@ -896,6 +910,10 @@
       <button class="modal-btn mode-exit-modal-btn" id="modalExitBtn" type="button" onclick="exitCurrentGame(false)">Exit Game</button>
       <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
     </div>
+    <div class="kofi-postgame-cta" aria-label="Optional GhostFleet support">
+      <span>Enjoyed the battle?</span>
+      <a class="kofi-postgame-link" href="https://ko-fi.com/ghostfleet" target="_blank" rel="noopener noreferrer">Support GhostFleet</a>
+    </div>
   </div>
 </div>
 
@@ -1227,6 +1245,7 @@
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms</a>
     <a href="/contact">Contact</a>
+    <a class="support-footer-link" href="https://ko-fi.com/ghostfleet" target="_blank" rel="noopener noreferrer">Tip the Captain</a>
   </nav>
   <p>&copy; 2026 GhostFleet. Free online naval strategy game.</p>
 </footer>

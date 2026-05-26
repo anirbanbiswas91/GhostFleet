@@ -126,6 +126,7 @@ Socket.IO must remain enabled even when `GHOSTFLEET_FREE_ONLY=true`, because Hum
 - Post-game screens must keep the full action contract available: View Analysis, Rematch for Human or New Game for AI, and Exit Room/Game. Analysis Back returns to the result modal.
 - Forfeit, opponent-left, and timeout-surrender results must not award or display achievements.
 - Ads are enabled for the free tier configuration, but production layout must stay non-interruptive.
+- Ko-fi support CTAs use plain external anchors only, never scripts. Keep them voluntary and non-interruptive: About page story section, footer link, compact post-game chip, and Home-only floating pill.
 - Premium is reserved for future work. Current premium visuals should remain classic/free parity unless a new premium design task says otherwise.
 - Random matchmaking, Stripe payments, and Abyssal Radar premium theming are future milestones.
 
