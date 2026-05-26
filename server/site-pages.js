@@ -2,6 +2,7 @@ const SITE_ORIGIN = 'https://ghostfleet.in';
 export const ADSENSE_CLIENT_ID = 'ca-pub-8532666088459423';
 const SOCIAL_IMAGE = `${SITE_ORIGIN}/assets/ghostfleet-ocean-cliff.jpg`;
 const CONTACT_EMAIL = 'ghostfleet2026@gmail.com';
+const KOFI_URL = 'https://ko-fi.com/ghostfleet';
 
 const HOME_META = {
   title: 'GhostFleet \u2014 Free Online Naval Strategy Game',
@@ -53,6 +54,13 @@ const SITE_PAGES = {
       <p>GhostFleet is a free online naval strategy game built for quick tactical battles in a modern browser. You command a hidden fleet, read the grid, and use every hit or miss to narrow down where the enemy ships are waiting. It is designed to be easy to start, but rewarding for players who enjoy pattern reading, probability, and careful turn-by-turn decisions.</p>
       <p>You can play directly at <a href="https://ghostfleet.in">https://ghostfleet.in</a> with no download and no account required. Solo players can practice against AI difficulty modes, while online players can create multiplayer rooms and share private room codes with friends. The room-code flow keeps matches simple: one player creates a room, shares the link or code, and both players place fleets before taking turns.</p>
       <p>GhostFleet includes battle stats and move analysis after each match, so players can review accuracy, pressure, ship sinks, and opportunities to improve the hunt. It is built as an independent web game focused on fast browser access, mobile-friendly play, and replayable naval strategy sessions.</p>
+      <section class="support-section" aria-labelledby="support-heading">
+        <div>
+          <h2 id="support-heading">Support the Fleet</h2>
+          <p>GhostFleet is an indie browser game experiment built with AI tools, late-night testing, and a love for old-school naval battles. If you enjoy it, you can support future development here and help keep the fleet sailing.</p>
+        </div>
+        <a class="support-button" href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">Support GhostFleet</a>
+      </section>
       <h2>How to Play GhostFleet</h2>
       <p>Each player hides a fleet on their own grid. Your Fleet shows your ship positions and incoming damage, while Enemy Waters is where you fire. On desktop, both boards stay visible; on mobile, use the Enemy Waters and Your Fleet tabs to switch views.</p>
       <p>Place ships by selecting a vessel and choosing valid cells on your grid. Rotate (R) ships to change direction, drag placed ships to adjust your layout, or click a placed ship and press C to remove only that ship. Auto-place (A) can randomly fill your whole fleet before you confirm.</p>
@@ -135,7 +143,11 @@ export function renderHomePage() {
         ${renderCards(MOBILE_HOW_TO)}
       </div>
     </section>
-  </main>`);
+  </main>
+  <a class="kofi-floating" href="${KOFI_URL}" target="_blank" rel="noopener noreferrer" aria-label="Support GhostFleet on Ko-fi">
+    <span class="kofi-desktop-label">Support GhostFleet</span>
+    <span class="kofi-mobile-label">Support</span>
+  </a>`);
 }
 
 export function renderSitePage(pageKey) {
@@ -216,6 +228,7 @@ export const SITE_FOOTER = `<footer class="site-footer" aria-label="Site links">
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms</a>
     <a href="/contact">Contact</a>
+    <a class="support-footer-link" href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">Tip the Captain</a>
   </nav>
   <p>&copy; 2026 GhostFleet. Free online naval strategy game.</p>
 </footer>`;
@@ -264,6 +277,25 @@ const SITE_PAGE_CSS = `
   .back-link{display:inline-flex;margin:0 0 14px;color:#a7f3f0;text-decoration:none;font-weight:900;letter-spacing:.4px}
   .text-page h1{font-size:clamp(2rem,5vw,3rem);margin:0 0 18px}
   .text-page h2{text-align:left;color:#7dd3fc;font-size:1.02rem;margin:26px 0 10px}
+  .support-section{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin:24px 0;
+    border:1px solid rgba(94,234,212,.26);border-radius:14px;padding:18px;
+    background:linear-gradient(135deg,rgba(94,234,212,.08),transparent 36%),rgba(5,12,18,.62)}
+  .support-section h2{margin:0 0 8px;color:#e2b96f}
+  .support-section p{margin:0}
+  .support-button,.support-footer-link,.kofi-floating{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    text-decoration:none;font-weight:900;letter-spacing:.25px;border:1px solid rgba(226,185,111,.64);color:#fff7d6;
+    background:linear-gradient(180deg,rgba(226,185,111,.18),rgba(226,185,111,.06)),rgba(6,15,24,.92);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 0 18px rgba(226,185,111,.14)}
+  .support-button:hover,.support-footer-link:hover,.kofi-floating:hover{border-color:#f7d587;text-decoration:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),0 0 24px rgba(94,234,212,.18);transform:translateY(-1px)}
+  .support-button:focus-visible,.support-footer-link:focus-visible,.kofi-floating:focus-visible{outline:3px solid rgba(94,234,212,.72);outline-offset:3px}
+  .support-button::before,.support-footer-link::before,.kofi-floating::before{content:'';width:8px;height:8px;border-radius:50%;
+    background:#5eead4;box-shadow:0 0 12px rgba(94,234,212,.85);flex:0 0 auto}
+  .support-button{min-height:42px;border-radius:999px;padding:10px 18px;white-space:nowrap}
+  .support-footer-link{padding:5px 10px;border-radius:999px;color:#f8e7b6!important}
+  .kofi-floating{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));
+    z-index:5;border-radius:999px;padding:10px 15px;font-size:.86rem;backdrop-filter:blur(10px)}
+  .kofi-mobile-label{display:none}
   .site-footer{text-align:center;color:#9fb2c2;font-size:.82rem;margin-top:10px}
   .site-footer nav{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
   .site-footer a{color:#d8c48b;text-decoration:none;font-weight:900}
@@ -283,6 +315,11 @@ const SITE_PAGE_CSS = `
     .howto-mobile{display:grid;grid-template-columns:1fr}
     .howto-card{min-height:auto}
     h2{text-align:left}
+    .support-section{grid-template-columns:1fr;padding:16px}
+    .support-button{justify-self:start}
+    .kofi-floating{right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));padding:9px 12px;font-size:.78rem}
+    .kofi-desktop-label{display:none}
+    .kofi-mobile-label{display:inline}
     .site-footer nav{gap:8px 12px}
   }
 `;
