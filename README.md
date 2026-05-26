@@ -1,6 +1,6 @@
 # GhostFleet
 
-GhostFleet is a web-based strategy game inspired by tactical naval combat, with AI and room-code Human multiplayer in the main deployment.
+GhostFleet is a web-based strategy game inspired by tactical naval combat, with AI and room-code Human multiplayer in the main deployment. Play at ghostfleet.in
 
 One Railway-deployable Node app serving GhostFleet game routes:
 
