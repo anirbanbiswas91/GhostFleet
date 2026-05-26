@@ -1443,7 +1443,8 @@
     shotEffectTimer:null,
     pendingTurnSnapshot:null,
     pendingEndSnapshot:null,
-    endReason:''
+    endReason:'',
+    navigatingHome:false
   };
   let statusState={cls:'placing',msg:'Place your fleet to begin!'};
 
@@ -1527,7 +1528,11 @@
     }
     newGame();
   }
+  function isHomeRedirecting(){
+    return !!(multiplayer&&multiplayer.navigatingHome);
+  }
   function goHomeFromPlay(){
+    multiplayer.navigatingHome=true;
     stopConfetti();
     const overlays=['modalOverlay','analysisOverlay','opponentOverlay','multiplayerOverlay','shareRoomOverlay','inviteOverlay','reconnectOverlay','roomStatusOverlay'];
     overlays.forEach(id=>{
@@ -1550,7 +1555,7 @@
       hideRoomStatus();
     }
     sessionStorage.removeItem(mpStorageKey());
-    setTimeout(()=>{window.location.href='/home';},80);
+    setTimeout(()=>{window.location.replace('/home');},80);
   }
   function returnToOpponentChoice(){
     hideMultiplayerLobby();
@@ -2433,6 +2438,7 @@
     }
   }
   function showShareRoomScreen(){
+    if(isHomeRedirecting())return;
     hideOpponentOverlay();
     hideMultiplayerLobby();
     const overlay=document.getElementById('shareRoomOverlay');
@@ -2498,6 +2504,7 @@
     });
   }
   function showMultiplayerLobby(message){
+    if(isHomeRedirecting())return;
     if(!MULTIPLAYER_ENABLED)return;
     const overlay=document.getElementById('multiplayerOverlay');
     if(overlay)overlay.classList.add('show');
@@ -2526,6 +2533,7 @@
     if(overlay)overlay.classList.remove('show');
   }
   function showInviteOverlay(code,message){
+    if(isHomeRedirecting())return;
     const room=normalizeRoomCode(code);
     if(!room)return;
     multiplayer.roomCode=room;
@@ -2544,6 +2552,7 @@
     if(overlay)overlay.classList.remove('show');
   }
   function showReconnectOverlay(message){
+    if(isHomeRedirecting())return;
     const overlay=document.getElementById('reconnectOverlay');
     const msg=document.getElementById('reconnectMsg');
     const actions=document.getElementById('reconnectActions');
@@ -2564,6 +2573,7 @@
     if(overlay)overlay.classList.remove('show');
   }
   function showRoomStatus(title,message){
+    if(isHomeRedirecting())return;
     hideOpponentOverlay();hideMultiplayerLobby();hideShareRoomScreen();hideInviteOverlay();hideReconnectOverlay();
     const overlay=document.getElementById('roomStatusOverlay');
     const titleEl=document.getElementById('roomStatusTitle');
@@ -2641,13 +2651,15 @@
         setMultiplayerStatus('Restoring room '+roomId+'...');
       }
     });
-    socket.on('room_created',payload=>handleMultiplayerJoined(payload,{created:true}));
-    socket.on('joined_room',payload=>handleMultiplayerJoined(payload,{joined:true}));
+    socket.on('room_created',payload=>{if(isHomeRedirecting())return;handleMultiplayerJoined(payload,{created:true});});
+    socket.on('joined_room',payload=>{if(isHomeRedirecting())return;handleMultiplayerJoined(payload,{joined:true});});
     socket.on('room:joined',payload=>{
+      if(isHomeRedirecting())return;
       if(payload&&payload.roomId&&payload.roomId===multiplayer.roomCode)return;
       handleMultiplayerJoined(payload,{legacy:true});
     });
     socket.on('room:update',snapshot=>{
+      if(isHomeRedirecting())return;
       if(snapshot&&snapshot.phase==='placing'&&phase==='ended'&&multiplayer.rematchRequested){
         beginMultiplayerPlacement(snapshot);
         return;
@@ -2655,31 +2667,37 @@
       applyMultiplayerSnapshot(snapshot);
     });
     socket.on('room_ready',snapshot=>{
+      if(isHomeRedirecting())return;
       hideShareRoomScreen();
       applyMultiplayerSnapshot(snapshot);
     });
-    socket.on('match:startPlacement',beginMultiplayerPlacement);
-    socket.on('match:startBattle',beginMultiplayerBattle);
-    socket.on('turn:update',handleMultiplayerTurn);
-    socket.on('shot:result',handleMultiplayerShot);
-    socket.on('match:end',finishMultiplayerMatch);
-    socket.on('game_over',finishMultiplayerMatch);
-    socket.on('resync',handleMultiplayerResync);
+    socket.on('match:startPlacement',snapshot=>{if(isHomeRedirecting())return;beginMultiplayerPlacement(snapshot);});
+    socket.on('match:startBattle',snapshot=>{if(isHomeRedirecting())return;beginMultiplayerBattle(snapshot);});
+    socket.on('turn:update',payload=>{if(isHomeRedirecting())return;handleMultiplayerTurn(payload);});
+    socket.on('shot:result',payload=>{if(isHomeRedirecting())return;handleMultiplayerShot(payload);});
+    socket.on('match:end',snapshot=>{if(isHomeRedirecting())return;finishMultiplayerMatch(snapshot);});
+    socket.on('game_over',snapshot=>{if(isHomeRedirecting())return;finishMultiplayerMatch(snapshot);});
+    socket.on('resync',snapshot=>{if(isHomeRedirecting())return;handleMultiplayerResync(snapshot);});
     socket.on('opponent_placement_done',payload=>{
+      if(isHomeRedirecting())return;
       setMultiplayerStatus((payload&&payload.msg)||'Opponent is ready. Waiting for you.');
       if(phase==='placing')setStatus('waiting','Opponent is ready. Waiting for you.');
     });
     socket.on('turn_timeout',payload=>{
+      if(isHomeRedirecting())return;
       setMultiplayerStatus((payload&&payload.msg)||'Turn timed out.');
     });
     socket.on('opponent_temporarily_disconnected',payload=>{
+      if(isHomeRedirecting())return;
       showOpponentDisconnectBanner(payload);
     });
     socket.on('opponent_reconnected',payload=>{
+      if(isHomeRedirecting())return;
       stopOpponentDisconnectBanner();
       showMultiplayerToast((payload&&payload.msg)||'Opponent reconnected');
     });
     socket.on('opponent_disconnected',payload=>{
+      if(isHomeRedirecting())return;
       clearMultiplayerShotPacing();
       multiplayer.pendingShot=false;
       inputLocked=true;
@@ -2688,11 +2706,13 @@
       sessionStorage.removeItem(mpStorageKey());
     });
     socket.on('room_expired',payload=>{
+      if(isHomeRedirecting())return;
       sessionStorage.removeItem(mpStorageKey());
       multiplayer.joined=false;
       showRoomStatus('Room Expired',(payload&&payload.msg)||'This game has ended. Both players left the room.');
     });
     socket.on('error:message',payload=>{
+      if(isHomeRedirecting())return;
       clearMultiplayerShotPacing();
       setMultiplayerStatus((payload&&payload.message)||'Multiplayer error.');
       if(payload&&(payload.code==='ROOM_NOT_FOUND'||payload.code==='room_not_found')){
@@ -2721,9 +2741,11 @@
       renderBoards();
     });
     socket.on('disconnect',()=>{
+      if(isHomeRedirecting())return;
       if(multiplayer.joined)setMultiplayerStatus('Connection lost. Reconnecting...');
     });
     socket.on('connect_error',()=>{
+      if(isHomeRedirecting())return;
       setMultiplayerStatus('Could not reach the multiplayer server. Make sure you opened the game from npm start, not as a file.');
     });
     return socket;
