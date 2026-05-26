@@ -282,17 +282,19 @@ const SITE_PAGE_CSS = `
     background:linear-gradient(135deg,rgba(94,234,212,.08),transparent 36%),rgba(5,12,18,.62)}
   .support-section h2{margin:0 0 8px;color:#e2b96f}
   .support-section p{margin:0}
-  .support-button,.support-footer-link,.kofi-floating{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  .support-button,.kofi-floating{display:inline-flex;align-items:center;justify-content:center;gap:8px;
     text-decoration:none;font-weight:900;letter-spacing:.25px;border:1px solid rgba(226,185,111,.64);color:#fff7d6;
     background:linear-gradient(180deg,rgba(226,185,111,.18),rgba(226,185,111,.06)),rgba(6,15,24,.92);
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 0 18px rgba(226,185,111,.14)}
-  .support-button:hover,.support-footer-link:hover,.kofi-floating:hover{border-color:#f7d587;text-decoration:none;
+  .support-button:hover,.kofi-floating:hover{border-color:#f7d587;text-decoration:none;
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),0 0 24px rgba(94,234,212,.18);transform:translateY(-1px)}
-  .support-button:focus-visible,.support-footer-link:focus-visible,.kofi-floating:focus-visible{outline:3px solid rgba(94,234,212,.72);outline-offset:3px}
-  .support-button::before,.support-footer-link::before,.kofi-floating::before{content:'';width:8px;height:8px;border-radius:50%;
+  .support-button:focus-visible,.kofi-floating:focus-visible{outline:3px solid rgba(94,234,212,.72);outline-offset:3px}
+  .support-button::before,.kofi-floating::before{content:'';width:8px;height:8px;border-radius:50%;
     background:#5eead4;box-shadow:0 0 12px rgba(94,234,212,.85);flex:0 0 auto}
   .support-button{min-height:42px;border-radius:999px;padding:10px 18px;white-space:nowrap}
-  .support-footer-link{padding:5px 10px;border-radius:999px;color:#f8e7b6!important}
+  .support-footer-link{display:inline;color:#d8c48b!important;text-decoration:none;font-weight:900;padding:0;line-height:inherit}
+  .support-footer-link:hover{text-decoration:underline}
+  .support-footer-link:focus-visible{outline:2px solid rgba(94,234,212,.72);outline-offset:3px;border-radius:3px}
   .kofi-floating{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));
     z-index:5;border-radius:999px;padding:10px 15px;font-size:.86rem;backdrop-filter:blur(10px)}
   .kofi-mobile-label{display:none}
