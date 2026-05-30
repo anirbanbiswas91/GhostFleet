@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { attachMultiplayer } from './multiplayer.js';
 import { getTierConfig, isPremiumAllowed, listTiers } from './tier-configs.js';
 import { isKnownTier } from './validation.js';
+import { AppError, NotFoundError, httpErrorBody } from './errors.js';
 import { adsenseScript, renderHomePage, renderSitePage } from './site-pages.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -120,43 +121,28 @@ app.get('/api/tier', (req, res) => {
 app.get('/api/tier/:tier', asyncRoute(async (req, res) => {
   const { tier } = req.params;
   if (!isKnownTier(tier)) {
-    return res.status(404).json({
-      error: 'unknown_tier',
-      message: 'Unknown GhostFleet tier.'
-    });
+    throw new NotFoundError('Unknown GhostFleet tier.', 'unknown_tier');
   }
   if (freeOnly && tier !== 'free') {
-    return res.status(404).json({
-      error: 'tier_disabled',
-      message: 'Only the free GhostFleet tier is enabled in this deployment.'
-    });
+    throw new NotFoundError('Only the free GhostFleet tier is enabled in this deployment.', 'tier_disabled');
   }
   res.json(await getTierConfig(tier));
 }));
 
-app.post('/api/billing/checkout', (req, res) => {
-  if (freeOnly) return res.status(404).json({ error: 'billing_disabled' });
-  res.status(501).json({
-    error: 'billing_not_enabled',
-    message: 'Stripe Checkout is reserved for the payment milestone.'
-  });
-});
+function billingDisabled(feature) {
+  return (req, res) => {
+    if (freeOnly) throw new NotFoundError('Billing is disabled in this deployment.', 'billing_disabled');
+    throw new AppError(`${feature} is reserved for the payment milestone.`, {
+      code: 'billing_not_enabled',
+      status: 501,
+      expose: true
+    });
+  };
+}
 
-app.post('/api/billing/portal', (req, res) => {
-  if (freeOnly) return res.status(404).json({ error: 'billing_disabled' });
-  res.status(501).json({
-    error: 'billing_not_enabled',
-    message: 'Stripe Customer Portal is reserved for the payment milestone.'
-  });
-});
-
-app.post('/api/billing/webhook', (req, res) => {
-  if (freeOnly) return res.status(404).json({ error: 'billing_disabled' });
-  res.status(501).json({
-    error: 'billing_not_enabled',
-    message: 'Stripe webhook handling is reserved for the payment milestone.'
-  });
-});
+app.post('/api/billing/checkout', billingDisabled('Stripe Checkout'));
+app.post('/api/billing/portal', billingDisabled('Stripe Customer Portal'));
+app.post('/api/billing/webhook', billingDisabled('Stripe webhook handling'));
 
 function healthCheck(req, res) {
   res.json({
@@ -172,8 +158,25 @@ function healthCheck(req, res) {
 app.get('/healthz', healthCheck);
 app.get('/health', healthCheck);
 
-app.use((req, res) => {
-  res.status(404).type('text').send('GhostFleet route not found');
+// Unmatched routes funnel through the centralized error handler below.
+app.use((req, res, next) => {
+  next(new NotFoundError('GhostFleet route not found'));
+});
+
+// Centralized error handler: logs unexpected errors server-side (with stack),
+// and responds with a normalized { error: { code, message } } body. Stack
+// traces are never sent to the client.
+// eslint-disable-next-line no-unused-vars -- Express requires the 4-arg signature.
+app.use((err, req, res, next) => {
+  const { status, body } = httpErrorBody(err);
+  // Log only genuinely unexpected errors (not the expected, exposable ones like
+  // validation / not-found / billing stubs) to keep server logs useful.
+  const expected = err instanceof AppError && err.expose;
+  if (!expected) {
+    console.error(`[GhostFleet] Unhandled error on ${req.method} ${req.originalUrl}:`, err);
+  }
+  if (res.headersSent) return next(err);
+  res.status(status).json(body);
 });
 
 // Only bind the port when executed directly (e.g. `node server/index.js` / `npm start`).

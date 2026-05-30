@@ -18,7 +18,8 @@ test('isKnownTier accepts known tiers only', () => {
 test('GET /api/tier/:tier rejects an unknown tier with a safe 404', async () => {
   const res = await request(app).get('/api/tier/banana');
   assert.equal(res.status, 404);
-  assert.equal(res.body.error, 'unknown_tier');
+  assert.equal(res.body.error.code, 'unknown_tier');
+  assert.equal(typeof res.body.error.message, 'string');
 });
 
 test('GET /api/tier/:tier does not crash on dangerous keys (no 500)', async () => {
