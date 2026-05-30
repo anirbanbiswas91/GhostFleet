@@ -1034,3 +1034,18 @@ export function attachMultiplayer(server) {
     }
   };
 }
+
+// Pure helpers exported for unit testing only. These are the same functions
+// used by the live Socket.IO handlers above — exporting them does not change
+// any runtime, gameplay, or payload behavior.
+export const __testing = {
+  SHIPS,
+  normalizeRoomCode,
+  cleanName,
+  normalizeBoardSize,
+  cellCoord,
+  opponentSlot,
+  shipDefinition,
+  validateFleet,
+  resolveShot
+};

@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import request from 'supertest';
+import { app } from '../server/index.js';
+
+test('GET /healthz returns ok JSON', async () => {
+  const res = await request(app).get('/healthz');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.service, 'ghostfleet-railway');
+  assert.ok(res.body.multiplayer, 'expected multiplayer stats in health payload');
+});
+
+test('GET /health is an alias of /healthz', async () => {
+  const res = await request(app).get('/health');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+});
+
+test('GET /api/tier lists available tiers', async () => {
+  const res = await request(app).get('/api/tier');
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body.tiers), 'tiers should be an array');
+  assert.ok(res.body.tiers.includes('free'), 'free tier should be listed');
+});
+
+test('GET /api/tier/:tier returns the free tier config', async () => {
+  const res = await request(app).get('/api/tier/free');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.tier, 'free');
+  assert.ok(res.body.ads, 'tier config should include an ads block');
+});
+
+test('GET /home serves HTML', async () => {
+  const res = await request(app).get('/home');
+  assert.equal(res.status, 200);
+  assert.match(res.headers['content-type'], /text\/html/);
+});
+
+test('unknown route returns 404', async () => {
+  const res = await request(app).get('/this-route-does-not-exist');
+  assert.equal(res.status, 404);
+  assert.match(res.text, /not found/i);
+});
