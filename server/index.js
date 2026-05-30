@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { attachMultiplayer } from './multiplayer.js';
 import { getTierConfig, isPremiumAllowed, listTiers } from './tier-configs.js';
+import { isKnownTier } from './validation.js';
 import { adsenseScript, renderHomePage, renderSitePage } from './site-pages.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -102,13 +103,20 @@ app.get('/api/tier', (req, res) => {
 });
 
 app.get('/api/tier/:tier', (req, res) => {
-  if (freeOnly && req.params.tier !== 'free') {
+  const { tier } = req.params;
+  if (!isKnownTier(tier)) {
+    return res.status(404).json({
+      error: 'unknown_tier',
+      message: 'Unknown GhostFleet tier.'
+    });
+  }
+  if (freeOnly && tier !== 'free') {
     return res.status(404).json({
       error: 'tier_disabled',
       message: 'Only the free GhostFleet tier is enabled in this deployment.'
     });
   }
-  res.json(getTierConfig(req.params.tier));
+  res.json(getTierConfig(tier));
 });
 
 app.post('/api/billing/checkout', (req, res) => {

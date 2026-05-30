@@ -18,11 +18,16 @@ export function listTiers() {
 }
 
 export function getTierConfig(tierName = 'free') {
-  const tier = tiers[tierName] || tiers.free;
+  // Use an own-property check so unknown names and dangerous keys such as
+  // "__proto__"/"constructor" safely fall back to the free tier instead of
+  // resolving to a prototype object (which previously threw on theme lookup).
+  const hasTier = Object.prototype.hasOwnProperty.call(tiers, tierName);
+  const tier = hasTier ? tiers[tierName] : tiers.free;
+  const resolvedName = hasTier ? tierName : 'free';
   const theme = readJson(path.join(themeDir, tier.themeManifest));
   return {
     ...tier,
-    tier: tierName,
+    tier: resolvedName,
     theme
   };
 }
