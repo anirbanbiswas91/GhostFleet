@@ -35,9 +35,9 @@ test('GET /api/tier/:tier still serves a valid tier', async () => {
   assert.equal(res.body.tier, 'free');
 });
 
-test('getTierConfig falls back to free for unknown/dangerous names without throwing', () => {
-  assert.doesNotThrow(() => getTierConfig('__proto__'));
-  assert.equal(getTierConfig('__proto__').tier, 'free');
-  assert.equal(getTierConfig('banana').tier, 'free');
-  assert.equal(getTierConfig('free').tier, 'free', 'valid tier unchanged');
+test('getTierConfig falls back to free for unknown/dangerous names without rejecting', async () => {
+  await assert.doesNotReject(() => getTierConfig('__proto__'));
+  assert.equal((await getTierConfig('__proto__')).tier, 'free');
+  assert.equal((await getTierConfig('banana')).tier, 'free');
+  assert.equal((await getTierConfig('free')).tier, 'free', 'valid tier unchanged');
 });
