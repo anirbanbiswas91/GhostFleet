@@ -3,6 +3,7 @@
 // HTTP errors are normalized to:  { error: { code, message } }
 // Socket errors keep the existing client-compatible shape:  { code, message }
 // (emitted on the existing "error:message" event by server/multiplayer.js).
+import { config as envConfig } from './config.js';
 
 export class AppError extends Error {
   constructor(message, { code = 'INTERNAL_ERROR', status = 500, expose = false } = {}) {
@@ -46,7 +47,7 @@ const GENERIC_MESSAGE = 'Internal server error.';
 // production, non-exposable (unexpected) errors collapse to a generic message
 // so internals are not leaked; in development the real message is kept to aid
 // debugging.
-export function httpErrorBody(err, { production = process.env.NODE_ENV === 'production' } = {}) {
+export function httpErrorBody(err, { production = envConfig.nodeEnv === 'production' } = {}) {
   if (err instanceof AppError && err.expose) {
     return { status: err.status, body: { error: { code: err.code, message: err.message } } };
   }
