@@ -1,13 +1,20 @@
 import { randomBytes } from 'node:crypto';
 import { Server } from 'socket.io';
-
-const SHIPS = [
-  { id: 0, name: 'Carrier', short: 'CV', cls: 'cv', len: 5 },
-  { id: 1, name: 'Battleship', short: 'BB', cls: 'bb', len: 4 },
-  { id: 2, name: 'Cruiser', short: 'CA', cls: 'ca', len: 3 },
-  { id: 3, name: 'Submarine', short: 'SS', cls: 'ss', len: 3 },
-  { id: 4, name: 'Destroyer', short: 'DD', cls: 'dd', len: 2 }
-];
+import { SHIPS, shipDefinition, sanitizeShip } from './multiplayer/ships.js';
+import {
+  ROOM_CODE_ALPHABET,
+  cellCoord,
+  opponentSlot,
+  normalizeRoomCode,
+  roomUrl,
+  cleanName,
+  normalizeBoardSize,
+  normalizeClientId,
+  normalizeToken,
+  playerTokenMatches
+} from './multiplayer/helpers.js';
+import { validateFleet } from './multiplayer/FleetValidator.js';
+import { resolveShot } from './multiplayer/ShotResolver.js';
 
 const ROOM_TTL_MS = 30 * 60 * 1000;
 const DISCONNECT_GRACE_MS = positiveIntEnv('GHOSTFLEET_DISCONNECT_GRACE_MS', 90 * 1000);
@@ -15,7 +22,6 @@ const ENDED_ROOM_GRACE_MS = 60 * 1000;
 const EXPIRED_ROOM_TTL_MS = 10 * 60 * 1000;
 const TURN_TIMEOUT_MS = positiveIntEnv('GHOSTFLEET_TURN_TIMEOUT_MS', 60 * 1000);
 const TIMEOUT_FORFEIT_LIMIT = 3;
-const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PHASES = new Set(['waiting', 'placing', 'battle', 'ended']);
 const SOCKET_ORIGIN_PATTERNS = [
   /^https:\/\/ghostfleet\.in$/i,
@@ -122,15 +128,6 @@ function makeRoomCode() {
   throw new Error('Unable to allocate room code');
 }
 
-function normalizeRoomCode(value) {
-  const code = String(value || '').trim().toUpperCase();
-  return code.length === 6 && [...code].every(char => ROOM_CODE_ALPHABET.includes(char)) ? code : '';
-}
-
-function roomUrl(code) {
-  return `/room/${code}`;
-}
-
 function tombstoneRoom(code, reason = 'expired') {
   if (!code) return;
   expiredRooms.set(code, { reason, expiresAt: Date.now() + EXPIRED_ROOM_TTL_MS });
@@ -148,42 +145,6 @@ function roomExpired(code) {
 
 function makeId(prefix) {
   return `${prefix}_${randomBytes(8).toString('hex')}`;
-}
-
-function cleanName(value) {
-  const name = String(value || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-  return name || 'Captain';
-}
-
-function normalizeBoardSize(value) {
-  const size = Number(value);
-  return [8, 10, 12].includes(size) ? size : 8;
-}
-
-function normalizeClientId(payload) {
-  const id = String(payload && payload.clientId || '').trim().slice(0, 80);
-  return id || '';
-}
-
-function normalizeToken(payload) {
-  const token = String(payload && payload.token || '').trim().slice(0, 80);
-  return token || '';
-}
-
-function playerTokenMatches(player, payload) {
-  return !!player && !!player.token && normalizeToken(payload) === player.token;
-}
-
-function shipDefinition(id) {
-  return SHIPS.find(ship => ship.id === Number(id));
-}
-
-function cellCoord(idx, size) {
-  return String.fromCharCode(65 + (idx % size)) + (Math.floor(idx / size) + 1);
-}
-
-function opponentSlot(slot) {
-  return slot === 0 ? 1 : 0;
 }
 
 function connectedPlayers(room) {
@@ -226,20 +187,6 @@ function publicPlayer(player, slot) {
     misses: Array.from(player.misses),
     sunkCount: player.board ? player.board.ships.filter(ship => ship.sunk).length : 0,
     timeoutStreak: player.timeoutStreak || 0
-  };
-}
-
-function sanitizeShip(ship, revealCells = false) {
-  return {
-    id: ship.id,
-    name: ship.name,
-    short: ship.short,
-    cls: ship.cls,
-    len: ship.len,
-    orient: ship.orient,
-    sunk: ship.sunk,
-    cells: revealCells ? [...ship.cells] : [],
-    hits: [...ship.hits]
   };
 }
 
@@ -333,39 +280,6 @@ function emitResyncToRoom(room) {
 
 function fail(socket, message, code = 'invalid_request') {
   socket.emit('error:message', { code, message });
-}
-
-function validateFleet(rawFleet, boardSize) {
-  if (!Array.isArray(rawFleet)) return { ok: false, error: 'Fleet payload is missing.' };
-  if (rawFleet.length !== SHIPS.length) return { ok: false, error: 'Place every ship before readying up.' };
-  const occupied = new Set();
-  const seen = new Set();
-  const ships = [];
-  for (const item of rawFleet) {
-    const def = shipDefinition(item && item.id);
-    if (!def || seen.has(def.id)) return { ok: false, error: 'Fleet contains an unknown or duplicate ship.' };
-    const cells = Array.isArray(item.cells) ? item.cells.map(Number) : [];
-    const orient = item.orient === 'v' ? 'v' : 'h';
-    if (cells.length !== def.len) return { ok: false, error: `${def.name} has the wrong length.` };
-    if (cells.some(idx => !Number.isInteger(idx) || idx < 0 || idx >= boardSize * boardSize)) {
-      return { ok: false, error: `${def.name} is outside the board.` };
-    }
-    const rows = cells.map(idx => Math.floor(idx / boardSize));
-    const cols = cells.map(idx => idx % boardSize);
-    const sorted = [...cells].sort((a, b) => a - b);
-    const isHorizontal = rows.every(row => row === rows[0]) && sorted.every((idx, index) => index === 0 || idx === sorted[index - 1] + 1);
-    const isVertical = cols.every(col => col === cols[0]) && sorted.every((idx, index) => index === 0 || idx === sorted[index - 1] + boardSize);
-    if ((orient === 'h' && !isHorizontal) || (orient === 'v' && !isVertical)) {
-      return { ok: false, error: `${def.name} is not placed in a straight line.` };
-    }
-    for (const idx of cells) {
-      if (occupied.has(idx)) return { ok: false, error: 'Ships cannot overlap.' };
-      occupied.add(idx);
-    }
-    seen.add(def.id);
-    ships.push({ ...def, orient, cells: sorted, hits: new Set(), sunk: false });
-  }
-  return { ok: true, board: { ships } };
 }
 
 function createPlayer(socket, slot, clientId, displayName, token = '') {
@@ -596,50 +510,6 @@ function startRematchIfReady(room) {
   if (!room.players[0] || !room.players[1]) return;
   if (!room.players.every(player => player.rematchRequested)) return;
   resetRoomForRematch(room);
-}
-
-function resolveShot(room, shooterSlot, idx) {
-  const shooter = room.players[shooterSlot];
-  const targetSlot = opponentSlot(shooterSlot);
-  const target = room.players[targetSlot];
-  if (!target || !target.board) return { ok: false, error: 'Opponent is not ready.' };
-  const cell = Number(idx);
-  if (!Number.isInteger(cell) || cell < 0 || cell >= room.boardSize * room.boardSize) {
-    return { ok: false, error: 'Shot is outside the board.' };
-  }
-  if (shooter.shots.has(cell)) return { ok: false, error: 'That cell has already been fired on.' };
-  shooter.shots.add(cell);
-  const ship = target.board.ships.find(candidate => candidate.cells.includes(cell));
-  let result = 'miss';
-  let sunkShip = null;
-  if (ship) {
-    result = 'hit';
-    shooter.hits.add(cell);
-    ship.hits.add(cell);
-    if (ship.hits.size === ship.len) {
-      ship.sunk = true;
-      result = 'sunk';
-      sunkShip = sanitizeShip(ship, true);
-    }
-  } else {
-    shooter.misses.add(cell);
-  }
-  const won = target.board.ships.every(candidate => candidate.sunk);
-  const entry = {
-    turn: room.battleLog.length + 1,
-    actorId: shooter.id,
-    actorSlot: shooterSlot,
-    actorName: shooter.displayName,
-    targetId: target.id,
-    targetSlot,
-    idx: cell,
-    coord: cellCoord(cell, room.boardSize),
-    result,
-    shipName: sunkShip ? sunkShip.name : ''
-  };
-  room.battleLog.push(entry);
-  room.updatedAt = Date.now();
-  return { ok: true, shooter, shooterSlot, target, targetSlot, entry, result, sunkShip, won };
 }
 
 function finishMatch(room, winnerSlot, endReason = 'ships_sunk') {
