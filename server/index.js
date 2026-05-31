@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { attachMultiplayer } from './multiplayer.js';
 import { getTierConfig, isPremiumAllowed, listTiers } from './tier-configs.js';
 import { adsenseScript, renderHomePage, renderSitePage } from './site-pages.js';
@@ -153,6 +153,12 @@ app.use((req, res) => {
   res.status(404).type('text').send('GhostFleet route not found');
 });
 
-server.listen(port, () => {
-  console.log(`GhostFleet Railway app listening on port ${port}`);
-});
+// Only bind the port when executed directly (e.g. `node server/index.js` / `npm start`).
+// When imported by tests, the app/server are exported without listening.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  server.listen(port, () => {
+    console.log(`GhostFleet Railway app listening on port ${port}`);
+  });
+}
+
+export { app, server, multiplayer };
