@@ -1,0 +1,3536 @@
+
+  const SHIPS=[
+    {id:0,name:'Carrier',short:'CV',cls:'cv',len:5,icoId:'ship-mark-cv',logoId:'ship-logo-cv',img:'/assets/ships-grid/ship-grid-cv.png'},
+    {id:1,name:'Battleship',short:'BB',cls:'bb',len:4,icoId:'ship-mark-bb',logoId:'ship-logo-bb',img:'/assets/ships-grid/ship-grid-bb.png'},
+    {id:2,name:'Cruiser',short:'CA',cls:'ca',len:3,icoId:'ship-mark-ca',logoId:'ship-logo-ca',img:'/assets/ships-grid/ship-grid-ca.png'},
+    {id:3,name:'Submarine',short:'SS',cls:'ss',len:3,icoId:'ship-mark-ss',logoId:'ship-logo-ss',img:'/assets/ships-grid/ship-grid-ss.png'},
+    {id:4,name:'Destroyer',short:'DD',cls:'dd',len:2,icoId:'ship-mark-dd',logoId:'ship-logo-dd',img:'/assets/ships-grid/ship-grid-dd.png'}
+  ];
+  const DIFF_LABELS={easy:'Easy',hard:'Med',expert:'Hard'};
+  const BOARD_SIZES=[8,10,12];
+  const BOARD_VISUAL_SCALE=.97;
+  const TURN_WAIT_SCALE=1.35;
+  const BANNER_WAIT_SCALE=.75;
+  const ACHIEVEMENT_ICONS={
+    firstBlood:'/assets/achievement-first-blood-gold.png',
+    precisionStriker:'/assets/achievement-precision-striker-gold.png',
+    unsinkable:'/assets/achievement-unsinkable-gold.png'
+  };
+  const TIER_CONFIG=window.GHOSTFLEET_BOOTSTRAP||{};
+  const MULTIPLAYER_AVAILABLE=!!(TIER_CONFIG.features&&TIER_CONFIG.features.roomCodeMultiplayer);
+  const MODE_SELECTION_ENABLED=TIER_CONFIG.tier==='free'&&MULTIPLAYER_AVAILABLE&&!!(TIER_CONFIG.features&&TIER_CONFIG.features.singlePlayerAI);
+  let opponentMode=(TIER_CONFIG.tier==='premium'&&MULTIPLAYER_AVAILABLE)?'human':(MODE_SELECTION_ENABLED?null:'ai');
+  let MULTIPLAYER_ENABLED=opponentMode==='human'&&MULTIPLAYER_AVAILABLE;
+  const HOW_TO_COPY={
+    mobile:[
+      ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
+      ['Choose opponent','Pick AI for a solo battle or Friends to create or join a room with another player.'],
+      ['Place ships','Carrier is selected first. Tap Your Fleet to place the selected ship, then the next unplaced ship is selected automatically.'],
+      ['Move or rotate','Tap a placed ship to edit it. Drag it to new cells or use Rotate (R). Tap empty water to leave edit mode. Green is valid; red is blocked.'],
+      ['Quick setup','Auto-place (A) rerolls the whole fleet every time. To remove one ship, tap it on your grid, then press Clear (C).'],
+      ['Start battle','When every ship is placed, use the Your Fleet control above the board to confirm or ready your fleet.'],
+      ['Switch boards','In battle, use Enemy Waters and Your Fleet tabs. Fire only on Enemy Waters; use Your Fleet to inspect damage.'],
+      ['Review','After the match, View Analysis shows achievements, move patterns, and better search suggestions.']
+    ],
+    desktop:[
+      ['Objective','Guess where enemy ships are hidden on the grid. Fire one cell per turn, use hits and misses to find them, and sink every enemy ship before your fleet is destroyed. Whoever still has ships afloat wins.'],
+      ['Choose opponent','Pick AI for a solo battle or Friends to create or join a room with another player.'],
+      ['Place ships','Use Fleet Dock on the right, then click your board to place the selected ship. Rotate (R) changes direction before placement.'],
+      ['Edit layout','Click a placed ship to select it. Drag it to another valid position or rotate it. Click empty water to leave edit mode.'],
+      ['Fast setup','Auto-place (A) rerolls the whole fleet every time. Click a placed ship, then use Clear (C) to remove only that ship.'],
+      ['Start battle','Once all ships are placed, use the Confirm / Start battle or Ready control above the boards.'],
+      ['Battle view','Both boards stay visible: fire on Enemy Waters and watch damage on Your Fleet.'],
+      ['Review','After victory or defeat, View Analysis breaks down accuracy, pressure, sinks, achievements, and improvement tips.']
+    ],
+    multiplayer:[
+      ['Objective','Guess where the other captain hid their ships. Fire one cell per turn, use hits and misses to hunt them down, and sink every enemy ship before your fleet is destroyed. Whoever survives wins.'],
+      ['Create or join','Choose Friends to create a room link instantly. Share the /room/XXXXXX link so another captain can join without typing a code.'],
+      ['Room flow','Player 2 opens the shared link, enters a name, then both captains move into ship placement automatically.'],
+      ['Place ships','Place your fleet normally. When all ships are placed, press Ready above the board to submit your fleet.'],
+      ['Battle','Turns are controlled online. You can fire only when the turn banner says it is your turn.'],
+      ['Privacy','Enemy ships stay hidden until they are sunk or the match ends.'],
+      ['Review','After the match, View Analysis summarizes your shots, pressure, achievements, and improvement tips.']
+    ]
+  };
+
+  const CORE_VISUAL_ASSETS=[
+    '/assets/ghostfleet-ocean-cliff.jpg',
+    '/assets/ghostfleet-crest.jpg'
+  ];
+  const failedAssets=new Set();
+  let assetFallbackRefreshQueued=false;
+
+  function normalizeAssetUrl(value){
+    const raw=String(value||'').trim();
+    if(!raw)return raw;
+    const cssUrlMatch=raw.match(/^url\((['"]?)(.*?)\1\)$/i);
+    if(cssUrlMatch)return `url("${normalizeAssetUrl(cssUrlMatch[2])}")`;
+    if(/^(?:https?:|data:|blob:|\/|#)/i.test(raw))return raw;
+    return '/'+raw.replace(/^\.?\//,'').replace(/^\/+/,'');
+  }
+  function normalizeCssAssetValue(value){
+    if(typeof value!=='string')return value;
+    if(value.includes('assets/')||/^url\(/i.test(value))return normalizeAssetUrl(value);
+    return value;
+  }
+  function canonicalAssetUrl(value){
+    const normalized=normalizeAssetUrl(value);
+    try{
+      const url=new URL(normalized,window.location.origin);
+      if(url.origin===window.location.origin)return url.pathname+url.search;
+      return url.href;
+    }catch(_err){return normalized;}
+  }
+  function isFailedAsset(value){
+    return failedAssets.has(canonicalAssetUrl(value));
+  }
+  function scheduleAssetFallbackRefresh(){
+    if(assetFallbackRefreshQueued)return;
+    assetFallbackRefreshQueued=true;
+    setTimeout(()=>{
+      assetFallbackRefreshQueued=false;
+      refreshVisualAssetFallbacks();
+      if(yourBoard&&enemyBoard){
+        renderBoards();
+        renderShipPicker();
+        renderShipLists();
+      }
+    },0);
+  }
+  function reportAssetFailure(url,element){
+    const canonical=canonicalAssetUrl(url);
+    if(!canonical||failedAssets.has(canonical))return;
+    failedAssets.add(canonical);
+    console.warn('Failed to load asset:',canonical);
+    if(element&&element.classList)element.classList.add('asset-failed');
+    if(canonical.includes('/assets/ghostfleet-ocean-cliff.jpg'))document.body.classList.add('asset-bg-failed');
+    scheduleAssetFallbackRefresh();
+  }
+  function preloadVisualAsset(url){
+    const normalized=normalizeAssetUrl(url);
+    if(!normalized||normalized.startsWith('#'))return;
+    const img=new Image();
+    img.onload=()=>failedAssets.delete(canonicalAssetUrl(normalized));
+    img.onerror=()=>reportAssetFailure(normalized);
+    img.src=normalized;
+  }
+  function collectVisualAssetUrls(){
+    const urls=[...CORE_VISUAL_ASSETS,...SHIPS.map(ship=>ship.img),...Object.values(ACHIEVEMENT_ICONS)];
+    const themeAssets=(TIER_CONFIG.theme&&TIER_CONFIG.theme.assets)||{};
+    if(themeAssets.gridTexture)urls.push(themeAssets.gridTexture);
+    if(themeAssets.panelAccent)urls.push(themeAssets.panelAccent);
+    Object.values(themeAssets.shipMarks||{}).forEach(url=>urls.push(url));
+    return [...new Set(urls.filter(Boolean).map(normalizeAssetUrl))];
+  }
+  function refreshVisualAssetFallbacks(){
+    document.querySelectorAll('img').forEach(img=>{
+      if(isFailedAsset(img.currentSrc||img.src||img.getAttribute('src')))img.classList.add('asset-failed');
+    });
+  }
+  function validateVisualAssets(){
+    collectVisualAssetUrls().forEach(preloadVisualAsset);
+    window.addEventListener('error',event=>{
+      const target=event.target;
+      if(target&&target.tagName==='IMG')reportAssetFailure(target.currentSrc||target.src||target.getAttribute('src'),target);
+    },true);
+  }
+
+  function applyTierConfig(){
+    const theme=TIER_CONFIG.theme||{};
+    document.documentElement.dataset.tier=TIER_CONFIG.tier||'free';
+    document.documentElement.dataset.ads=String(!!(TIER_CONFIG.ads&&TIER_CONFIG.ads.enabled));
+    document.documentElement.dataset.gameMode=opponentMode||'select';
+    document.body.classList.remove('theme-classic');
+    if(theme.bodyClass)document.body.classList.add(theme.bodyClass);
+    Object.entries(theme.cssVars||{}).forEach(([key,value])=>{
+      document.documentElement.style.setProperty(key,normalizeCssAssetValue(value));
+    });
+    const subtitle=document.querySelector('.subtitle');
+    if(subtitle&&theme.subtitle)subtitle.textContent=theme.subtitle;
+    const shipMarks=(theme.assets&&theme.assets.shipMarks)||{};
+    SHIPS.forEach(ship=>{
+      if(shipMarks[ship.cls])ship.img=normalizeAssetUrl(shipMarks[ship.cls]);
+    });
+  }
+
+  let N=8,difficulty='easy',phase='placing',aiSetupSize=8;
+  let yourBoard,enemyBoard;
+  let lastPlayerShot=-1,lastAIShot=-1;
+  let shots=0,hits=0,aiShots=0,aiHits=0,wins=0,losses=0;
+  let selectedShipId=null,orientation='h',hoverCell=-1,currentTurn='placing';
+  let previewCellsCurrent=[];
+  let selectedSource='dock',selectedOffset=0,isDragging=false,dragState=null,boardPointer=null;
+  let suppressNextBoardClick=false;
+  let aiTargetQueue=[],aiHitChain=[],aiOrientation=null;
+  let aiKnownEmpty=new Set();
+  let soundOn=true,masterVolume=.65,masterGain=null;
+  let inputLocked=false;
+  let battleAutoStartTimer=null;
+  let battleLog=[];
+  let battleMoves=[];
+  let lastGameWon=false;
+  let endedBySurrender=false;
+  let activeMobileBoard='your';
+  const boardCellRefs={enemyContainer:new Map(),yourContainer:new Map()};
+  let dragPreviewFrame=null,dragPreviewPoint=null;
+  let multiplayer={
+    enabled:MULTIPLAYER_ENABLED,
+    socket:null,
+    joined:false,
+    roomCode:'',
+    playerId:'',
+    playerIndex:null,
+    clientId:'',
+    token:'',
+    playerName:'',
+    opponentName:'',
+    roomPlayers:[],
+    roomBoardSize:8,
+    lobbyReady:false,
+    roomPhase:'idle',
+    turnSlot:null,
+    myTurn:false,
+    waitingForOpponent:false,
+    pendingShot:false,
+    placementSubmitted:false,
+    rematchRequested:false,
+    suppressLobby:false,
+    joinMode:false,
+    resumeBound:false,
+    restoring:false,
+    turnDeadlineAt:null,
+    turnDurationMs:60000,
+    turnCountdownTimer:null,
+    reconnectFailTimer:null,
+    opponentDisconnectTimer:null,
+    opponentDisconnectUntil:null,
+    lastWarningSecond:null,
+    turnWarning15Played:false,
+    shotEffectUntil:0,
+    shotEffectTimer:null,
+    pendingTurnSnapshot:null,
+    pendingEndSnapshot:null,
+    endReason:'',
+    navigatingHome:false
+  };
+  let statusState={cls:'placing',msg:'Place your fleet to begin!'};
+
+  function syncOpponentMode(){
+    MULTIPLAYER_ENABLED=opponentMode==='human'&&MULTIPLAYER_AVAILABLE;
+    multiplayer.enabled=MULTIPLAYER_ENABLED;
+    document.documentElement.dataset.gameMode=opponentMode||'select';
+    renderHowTo();
+    updateMultiplayerRoomLabel();
+    updateExitControls();
+  }
+  function showOpponentChoices(){
+    syncPlayModeUrl('select');
+    const choice=document.getElementById('opponentChoiceStep');
+    const aiStep=document.getElementById('opponentAiStep');
+    const intro=document.getElementById('opponentIntro');
+    if(choice)choice.style.display='grid';
+    if(aiStep)aiStep.classList.remove('show');
+    if(intro)intro.textContent='Command a haunted fleet across stormy-dark waters';
+  }
+  function showAiDifficultyChoice(playCue=true){
+    if(playCue)playChartMarkCue('ai');
+    syncPlayModeUrl('ai');
+    const choice=document.getElementById('opponentChoiceStep');
+    const aiStep=document.getElementById('opponentAiStep');
+    const intro=document.getElementById('opponentIntro');
+    if(choice)choice.style.display='none';
+    if(aiStep)aiStep.classList.add('show');
+    if(intro)intro.textContent='Choose board size and AI difficulty.';
+    setAiSetupSize(aiSetupSize||N||8);
+  }
+  function showOpponentOverlay(){
+    if(!MODE_SELECTION_ENABLED)return;
+    showOpponentChoices();
+    const overlay=document.getElementById('opponentOverlay');
+    if(overlay)overlay.classList.add('show');
+  }
+  function hideOpponentOverlay(){
+    const overlay=document.getElementById('opponentOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function chooseAiOpponent(level){
+    playGunsReadyCue('ai');
+    opponentMode='ai';
+    syncPlayModeUrl('ai');
+    syncOpponentMode();
+    N=BOARD_SIZES.includes(aiSetupSize)?aiSetupSize:8;
+    updateSizeButtons();
+    setDifficulty(level||'easy');
+    hideOpponentOverlay();
+    hideMultiplayerLobby();
+    newGame();
+  }
+  function chooseHumanOpponent(playCue=true){
+    if(playCue)playChartMarkCue('human');
+    opponentMode='human';
+    syncPlayModeUrl('human');
+    syncOpponentMode();
+    multiplayer.roomBoardSize=BOARD_SIZES.includes(N)?N:8;
+    updateMultiplayerRoomSize();
+    hideOpponentOverlay();
+    multiplayer.suppressLobby=true;
+    newGame();
+    multiplayer.suppressLobby=false;
+    multiplayer.playerName=savedPlayerName();
+    showMultiplayerLobby('Enter your name, choose a room size, then create or join a room.');
+  }
+  function startNewBattle(){
+    stopConfetti();
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
+    sessionStorage.removeItem(mpStorageKey());
+    if(window.location.pathname.startsWith('/room/'))history.pushState({},'','/play');
+    hideShareRoomScreen?.();
+    hideInviteOverlay?.();
+    hideReconnectOverlay?.();
+    hideRoomStatus?.();
+    if(MODE_SELECTION_ENABLED){
+      opponentMode=null;
+      syncOpponentMode();
+      syncPlayModeUrl('select',true);
+    }
+    newGame();
+  }
+  function isHomeRedirecting(){
+    return !!(multiplayer&&multiplayer.navigatingHome);
+  }
+  function goHomeFromPlay(){
+    multiplayer.navigatingHome=true;
+    stopConfetti();
+    const overlays=['modalOverlay','analysisOverlay','opponentOverlay','multiplayerOverlay','shareRoomOverlay','inviteOverlay','reconnectOverlay','roomStatusOverlay'];
+    overlays.forEach(id=>{
+      const overlay=document.getElementById(id);
+      if(overlay)overlay.classList.remove('show');
+    });
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&multiplayer.socket){
+      const code=multiplayer.roomCode;
+      if(multiplayer.roomPhase==='waiting'&&multiplayer.playerIndex===0&&code){
+        multiplayer.socket.emit('cancel_room',multiplayerPayload({roomId:code}));
+      } else {
+        multiplayer.socket.emit('room:leave',multiplayerPayload({}));
+      }
+      leaveMultiplayerRoom(false);
+    } else {
+      hideMultiplayerLobby();
+      hideShareRoomScreen();
+      hideInviteOverlay();
+      hideReconnectOverlay();
+      hideRoomStatus();
+    }
+    sessionStorage.removeItem(mpStorageKey());
+    setTimeout(()=>{window.location.replace('/home');},80);
+  }
+  function returnToOpponentChoice(){
+    hideMultiplayerLobby();
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined)leaveMultiplayerRoom();
+    if(MODE_SELECTION_ENABLED){
+      opponentMode=null;
+      syncOpponentMode();
+      syncPlayModeUrl('select',true);
+    }
+    newGame();
+  }
+  function currentExitLabel(){
+    return MULTIPLAYER_ENABLED?'Exit Room':'Exit Game';
+  }
+  function updateExitControls(){
+    const label=currentExitLabel();
+    ['modeExitBtn','modalExitBtn','analysisExitBtn'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(!btn)return;
+      btn.textContent=label;
+      btn.setAttribute('aria-label',label);
+    });
+  }
+  function multiplayerCanRematch(){
+    return MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='ended'&&multiplayer.endReason==='ships_sunk';
+  }
+  function updatePostGameActions(){
+    const humanMatch=MULTIPLAYER_ENABLED&&multiplayer.joined;
+    const rematchAvailable=multiplayerCanRematch();
+    const label=rematchAvailable?(multiplayer.rematchRequested?'Waiting...':'Rematch'):'New Game';
+    ['modalNewGameBtn','analysisNewGameBtn'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(!btn)return;
+      btn.textContent=label;
+      btn.disabled=rematchAvailable&&multiplayer.rematchRequested;
+    });
+    updateExitControls();
+  }
+  function multiplayerTurnSecondsRemaining(){
+    if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='playing'||!multiplayer.turnDeadlineAt)return null;
+    return Math.max(0,Math.ceil((multiplayer.turnDeadlineAt-Date.now())/1000));
+  }
+  function hideTurnClock(){
+    const clock=document.getElementById('turnClock');
+    const text=document.getElementById('turnClockText');
+    if(!clock)return;
+    clock.hidden=true;
+    clock.classList.remove('your-turn','enemy-turn','urgent');
+    clock.style.setProperty('--turn-clock-progress','0%');
+    if(text)text.textContent='';
+  }
+  function updateTurnClock(){
+    const clock=document.getElementById('turnClock');
+    const text=document.getElementById('turnClockText');
+    if(!clock||!text)return;
+    const remaining=multiplayerTurnSecondsRemaining();
+    if(remaining===null){
+      hideTurnClock();
+      return;
+    }
+    const durationSec=Math.max(1,Math.ceil((Number(multiplayer.turnDurationMs)||60000)/1000));
+    const shown=Math.max(0,Math.min(durationSec,remaining));
+    const progress=Math.max(0,Math.min(100,shown/durationSec*100));
+    const urgent=shown<=30;
+    const color=urgent?'#facc15':(multiplayer.myTurn?'#38bdf8':'#ef4444');
+    clock.hidden=false;
+    clock.classList.toggle('your-turn',!!multiplayer.myTurn);
+    clock.classList.toggle('enemy-turn',!multiplayer.myTurn);
+    clock.classList.toggle('urgent',urgent);
+    clock.style.setProperty('--turn-clock-color',color);
+    clock.style.setProperty('--turn-clock-progress',progress.toFixed(2)+'%');
+    text.textContent=shown+'s';
+    clock.setAttribute('aria-label',(multiplayer.myTurn?'Your':'Enemy')+' turn timer: '+shown+' seconds remaining');
+  }
+  function refreshStatusReadout(){
+    const m={waiting:'sr-waiting',placing:'sr-placing',
+      yourturn:'sr-yourturn',aiturn:'sr-aiturn',won:'sr-won',lost:'sr-lost'};
+    const el=document.getElementById('statusText');
+    if(!el)return;
+    el.className='status-readout '+(m[statusState.cls]||'sr-waiting');
+    el.textContent=statusState.msg;
+  }
+  function stopMultiplayerCountdown(){
+    if(multiplayer.turnCountdownTimer){
+      clearInterval(multiplayer.turnCountdownTimer);
+      multiplayer.turnCountdownTimer=null;
+    }
+    document.body.classList.remove('turn-warning');
+    multiplayer.lastWarningSecond=null;
+    multiplayer.turnWarning15Played=false;
+    hideTurnClock();
+  }
+  function refreshMultiplayerCountdown(){
+    const remaining=multiplayerTurnSecondsRemaining();
+    const warn=multiplayer.myTurn&&remaining!==null&&remaining<=30&&phase==='playing';
+    document.body.classList.toggle('turn-warning',!!warn);
+    if(warn)statusState={cls:'yourturn',msg:'Fire now'};
+    if(warn&&remaining<=15&&!multiplayer.turnWarning15Played){
+      multiplayer.turnWarning15Played=true;
+      playTurnWarning15Cue();
+    }
+    if(warn&&remaining<=5&&remaining!==multiplayer.lastWarningSecond){
+      multiplayer.lastWarningSecond=remaining;
+      playTurnCountdownCue(remaining);
+    }
+    refreshStatusReadout();
+    updateTurnClock();
+    updateModeUI();
+    if(remaining===null)stopMultiplayerCountdown();
+  }
+  function syncMultiplayerTimer(snapshot){
+    const nextDeadline=snapshot&&snapshot.turnDeadlineAt?Number(snapshot.turnDeadlineAt):null;
+    if(nextDeadline!==multiplayer.turnDeadlineAt){
+      multiplayer.lastWarningSecond=null;
+      multiplayer.turnWarning15Played=false;
+    }
+    multiplayer.turnDeadlineAt=nextDeadline;
+    multiplayer.turnDurationMs=snapshot&&snapshot.turnDurationMs?Number(snapshot.turnDurationMs):multiplayer.turnDurationMs;
+    if(phase==='playing'&&multiplayer.turnDeadlineAt){
+      if(!multiplayer.turnCountdownTimer)multiplayer.turnCountdownTimer=setInterval(refreshMultiplayerCountdown,1000);
+      refreshMultiplayerCountdown();
+    } else {
+      stopMultiplayerCountdown();
+      refreshStatusReadout();
+    }
+  }
+  function updateMultiplayerEndState(snapshot){
+    if(!MULTIPLAYER_ENABLED||!snapshot||snapshot.phase!=='ended')return;
+    const opponent=snapshot.opponent;
+    const rematchAvailable=multiplayerCanRematch();
+    let message=rematchAvailable?'Match ended. Choose Rematch to play again or Exit Room.':'Match ended. Choose New Game to play again or Exit Room.';
+    if(rematchAvailable&&multiplayer.rematchRequested)message='Waiting for '+multiplayerOpponentLabel()+' to rematch...';
+    else if(rematchAvailable&&opponent&&opponent.rematchRequested)message=multiplayerOpponentLabel()+' wants a rematch.';
+    if(multiplayer.endReason==='opponent_left')message=multiplayerOpponentLabel()+' left the room. Choose New Game or Exit Room.';
+    else if(multiplayer.endReason==='disconnect_forfeit'){
+      const won=snapshot.winnerSlot===multiplayer.playerIndex||snapshot.winner===multiplayer.playerId;
+      message=won?multiplayerOpponentLabel()+' failed to reconnect. Choose New Game or Exit Room.':'You failed to reconnect before the timer expired. Choose New Game or Exit Room.';
+    }
+    else if(opponent&&!opponent.connected)message=multiplayerOpponentLabel()+' disconnected. Choose New Game or Exit Room.';
+    setMultiplayerStatus(message);
+    if(phase==='ended'){
+      const msg=document.getElementById('modalMsg');
+      if(msg&&(multiplayer.rematchRequested||(opponent&&opponent.rematchRequested)||!opponent||!opponent.connected||['opponent_left','disconnect_forfeit'].includes(multiplayer.endReason)))msg.textContent=message;
+    }
+    updatePostGameActions();
+  }
+  function requestMultiplayerRematch(){
+    if(!MULTIPLAYER_ENABLED||!multiplayer.joined||phase!=='ended'){startNewBattle();return;}
+    if(!multiplayerCanRematch()){
+      leaveMultiplayerRoom(false);
+      startNewBattle();
+      return;
+    }
+    if(multiplayer.rematchRequested)return;
+    stopConfetti();
+    multiplayer.rematchRequested=true;
+    document.getElementById('analysisOverlay').classList.remove('show');
+    document.getElementById('modalOverlay').classList.add('show');
+    setMultiplayerStatus('Waiting for '+multiplayerOpponentLabel()+' to rematch...');
+    const msg=document.getElementById('modalMsg');
+    if(msg)msg.textContent='Waiting for '+multiplayerOpponentLabel()+' to rematch...';
+    updatePostGameActions();
+    sendMultiplayerEvent('match:rematch',{},'Waiting for '+multiplayerOpponentLabel()+' to rematch...');
+  }
+  function exitCurrentGame(confirmFirst=true){
+    if(confirmFirst&&phase!=='ended'){
+      const prompt=MULTIPLAYER_ENABLED?'Leave this room?':'Exit this game?';
+      if(!window.confirm(prompt))return;
+    }
+    document.getElementById('modalOverlay').classList.remove('show');
+    document.getElementById('analysisOverlay').classList.remove('show');
+    document.getElementById('howToOverlay').classList.remove('show');
+    stopConfetti();
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined)leaveMultiplayerRoom();
+    else hideMultiplayerLobby();
+    if(MODE_SELECTION_ENABLED){
+      opponentMode=null;
+      syncOpponentMode();
+      syncPlayModeUrl('select',true);
+    }
+    newGame();
+  }
+  function exitMultiplayerRoom(){exitCurrentGame(false);}
+  const SHOT_EFFECT_TIMING=Object.freeze({
+    missRippleMs:1400,
+    missRippleDelayMs:240,
+    hitCoreMs:1160,
+    hitDropsMs:1240,
+    hitMs:1240,
+    missMs:1640,
+    sunkMs:2800,
+    sinkBannerMs:3000,
+    explosionFrameMs:{hit:92,sunk:116},
+    explosionCleanupMs:{hit:1240,sunk:1640}
+  });
+  function applyShotTimingCssVars(){
+    const root=document.documentElement;
+    root.style.setProperty('--shot-miss-ripple-duration',SHOT_EFFECT_TIMING.missRippleMs+'ms');
+    root.style.setProperty('--shot-miss-ripple-delay',SHOT_EFFECT_TIMING.missRippleDelayMs+'ms');
+    root.style.setProperty('--shot-hit-core-duration',SHOT_EFFECT_TIMING.hitCoreMs+'ms');
+    root.style.setProperty('--shot-hit-drops-duration',SHOT_EFFECT_TIMING.hitDropsMs+'ms');
+    root.style.setProperty('--shot-sunk-duration',SHOT_EFFECT_TIMING.sunkMs+'ms');
+    root.style.setProperty('--shot-sink-banner-duration',SHOT_EFFECT_TIMING.sinkBannerMs+'ms');
+  }
+  function shotEffectDuration(isHit,isSunk=false){
+    if(isSunk)return SHOT_EFFECT_TIMING.sunkMs;
+    return isHit?SHOT_EFFECT_TIMING.hitMs:SHOT_EFFECT_TIMING.missMs;
+  }
+  applyShotTimingCssVars();
+  // External sprite swaps should be horizontal transparent strips: 4-6 square frames, same frame size.
+  const EXPLOSION_CONFIG={
+    frameCount:6,
+    frameSize:96,
+    frameMs:SHOT_EFFECT_TIMING.explosionFrameMs,
+    scale:{hit:1.45,sunk:1.75},
+    maxActiveSprites:7,
+    forceCleanupMs:SHOT_EFFECT_TIMING.explosionCleanupMs,
+    reducedMotionFallback:true
+  };
+  const explosionSheets={hit:null,sunk:null};
+  const activeExplosionSprites=[];
+
+  function turnDelay(ms){
+    return Math.round(ms*TURN_WAIT_SCALE);
+  }
+  function bannerDelay(ms){
+    return Math.round(ms*BANNER_WAIT_SCALE);
+  }
+
+  /* ─── Audio ─── */
+  let audioCtx=null;
+  function applyAudioState(){
+    const muted=!soundOn||masterVolume<=0;
+    const b=document.getElementById('soundBtn');
+    if(b){b.textContent=muted?'🔇':'🔊';b.classList.toggle('muted',muted);}
+    if(masterGain&&audioCtx)masterGain.gain.setTargetAtTime(muted?0:masterVolume,audioCtx.currentTime,.03);
+  }
+  function audioOutput(){
+    if(!masterGain&&audioCtx){
+      masterGain=audioCtx.createGain();
+      masterGain.gain.value=(!soundOn||masterVolume<=0)?0:masterVolume;
+      masterGain.connect(audioCtx.destination);
+    }
+    return masterGain||audioCtx.destination;
+  }
+  function ensureAudio(){if(!soundOn||masterVolume<=0)return false;
+    if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return false;}}
+    audioOutput();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    applyAudioState();
+    primeShotAudioSamples();
+    return true;}
+  function toggleSound(){soundOn=!soundOn;
+    applyAudioState();if(soundOn)ensureAudio();}
+  function noise(d,p=1){const l=Math.floor(audioCtx.sampleRate*d);
+    const b=audioCtx.createBuffer(1,l,audioCtx.sampleRate);const a=b.getChannelData(0);
+    for(let i=0;i<l;i++)a[i]=(Math.random()*2-1)*Math.pow(1-i/l,p);return b;}
+  const SHOT_AUDIO_SAMPLES={
+    miss:{url:'/assets/audio/shot/gf-hit-user-hit.wav',gain:.86},
+    hit:{url:'/assets/audio/shot/gf-miss-user-miss.wav',gain:.57}
+  };
+  const shotAudioBuffers={};
+  const shotAudioLoads={};
+  const shotAudioWarnings=new Set();
+
+  function decodeAudioBuffer(arrayBuffer){
+    try{
+      const promise=audioCtx.decodeAudioData(arrayBuffer.slice(0));
+      if(promise&&typeof promise.then==='function')return promise;
+    }catch(e){}
+    return new Promise((resolve,reject)=>audioCtx.decodeAudioData(arrayBuffer.slice(0),resolve,reject));
+  }
+  function loadShotAudioSample(key){
+    const cue=SHOT_AUDIO_SAMPLES[key];
+    if(!cue||!audioCtx)return Promise.resolve(null);
+    if(shotAudioBuffers[key])return Promise.resolve(shotAudioBuffers[key]);
+    if(shotAudioLoads[key])return shotAudioLoads[key];
+    shotAudioLoads[key]=fetch(cue.url)
+      .then(response=>{
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        return response.arrayBuffer();
+      })
+      .then(buffer=>decodeAudioBuffer(buffer))
+      .then(decoded=>{
+        shotAudioBuffers[key]=decoded;
+        return decoded;
+      })
+      .catch(error=>{
+        if(!shotAudioWarnings.has(key)){
+          shotAudioWarnings.add(key);
+          console.warn('Failed to load audio asset: '+cue.url,error);
+        }
+        return null;
+      });
+    return shotAudioLoads[key];
+  }
+  function primeShotAudioSamples(){
+    if(!audioCtx)return;
+    Object.keys(SHOT_AUDIO_SAMPLES).forEach(loadShotAudioSample);
+  }
+  function playShotAudioSample(key){
+    if(!ensureAudio())return false;
+    const cue=SHOT_AUDIO_SAMPLES[key];
+    const buffer=shotAudioBuffers[key];
+    if(!cue||!buffer){
+      loadShotAudioSample(key);
+      return false;
+    }
+    const source=audioCtx.createBufferSource();
+    const gain=audioCtx.createGain();
+    source.buffer=buffer;
+    gain.gain.value=cue.gain;
+    source.connect(gain).connect(audioOutput());
+    source.start(audioCtx.currentTime);
+    return true;
+  }
+
+  function cueTone(freq,type,start,dur,gain,attack=0.02,release=dur,slideTo=null,filterType=null,filterFreq=1000,q=1){
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type||'sine';
+    o.frequency.setValueAtTime(Math.max(1,freq),start);
+    if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),start+dur);
+    g.gain.setValueAtTime(.0001,start);
+    g.gain.linearRampToValueAtTime(gain,start+attack);
+    g.gain.exponentialRampToValueAtTime(.001,start+release);
+    if(filterType){
+      const f=audioCtx.createBiquadFilter();
+      f.type=filterType;f.frequency.value=filterFreq;f.Q.value=q;
+      o.connect(f).connect(g).connect(audioOutput());
+    } else o.connect(g).connect(audioOutput());
+    o.start(start);o.stop(start+dur);
+  }
+  function cueNoise(start,dur,gain,filterType='lowpass',freq=1200,endFreq=null,q=1,curve=1.2){
+    const n=audioCtx.createBufferSource(),f=audioCtx.createBiquadFilter(),g=audioCtx.createGain();
+    n.buffer=noise(dur,curve);
+    f.type=filterType;f.frequency.setValueAtTime(freq,start);f.Q.value=q;
+    if(endFreq)f.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),start+dur);
+    g.gain.setValueAtTime(.0001,start);
+    g.gain.linearRampToValueAtTime(gain,start+.02);
+    g.gain.exponentialRampToValueAtTime(.001,start+dur);
+    n.connect(f).connect(g).connect(audioOutput());
+    n.start(start);
+  }
+  function cueBell(start,base,gain=.12){
+    [1,2.01,3.02].forEach((ratio,i)=>{
+      cueTone(base*ratio,'sine',start,.95+i*.08,gain/(i+1.45),.012,.9+i*.08,null,'bandpass',base*ratio*1.12,1);
+    });
+  }
+  function cueHelmClick(start,base=900,gain=.08){
+    cueTone(base,'triangle',start,.08,gain,.006,.075,null,'bandpass',base*1.1,1.4);
+    cueNoise(start,.065,gain*.22,'highpass',1800,null,.6,2);
+  }
+
+  function playTurnFogHorn(baseFreq,mainGain,harmonicGain){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueTone(baseFreq,'sine',t,.9,mainGain,.12,.82,baseFreq*.82);
+    cueTone(baseFreq*1.5,'sine',t+.02,.76,harmonicGain,.12,.74,baseFreq*1.2);}
+
+  function playTurnCompassRelay(enemy=false){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(enemy){
+      cueHelmClick(t,560,.046);
+      cueHelmClick(t+.105,430,.038);
+      cueTone(94,'sine',t+.02,.22,.024,.02,.2,76);
+    } else {
+      cueHelmClick(t,720,.048);
+      cueHelmClick(t+.105,880,.038);
+      cueTone(150,'sine',t+.02,.18,.018,.02,.16,132);
+    }}
+
+  function playYourTurnStinger(){playTurnCompassRelay(false);}
+
+  function playDeckShuffleCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.055,.11,.17,.24].forEach((d,i)=>cueHelmClick(t+d,420+i*65,.052));
+    cueNoise(t+.02,.42,.09,'bandpass',850,360,.8);
+    cueTone(96,'sine',t+.18,.32,.08,.02,.3,62);}
+  function playReadyBellCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueBell(t,440,.12);
+    cueBell(t+.18,660,.105);}
+  function playCompassTickCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueHelmClick(t,760,.065);
+    cueHelmClick(t+.07,940,.045);}
+  function playAnchorLiftCue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.08,.16].forEach((d,i)=>cueHelmClick(t+d,320+i*45,.06));
+    cueNoise(t+.04,.44,.075,'highpass',740,240,.7);}
+  function playChartMarkCue(mode){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(mode==='human'){
+      cueHelmClick(t,540,.065);
+      cueHelmClick(t+.12,700,.052);
+      cueNoise(t+.03,.28,.026,'bandpass',820,310,.8);
+    } else {
+      cueHelmClick(t,620,.07);
+      cueNoise(t+.02,.24,.026,'bandpass',900,360,.8);
+      cueTone(146,'sine',t+.04,.26,.032,.02,.24,116);
+    }}
+  function playGunsReadyCue(mode){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    if(mode==='human'){
+      cueHelmClick(t,380,.075);
+      cueHelmClick(t+.11,520,.055);
+      cueNoise(t+.04,.18,.045,'highpass',700,null,.8,3);
+      cueTone(74,'sine',t+.08,.52,.085,.04,.48,54);
+    } else {
+      cueHelmClick(t,420,.08);
+      cueNoise(t+.04,.18,.05,'highpass',700,null,.8,3);
+      cueTone(82,'sine',t+.08,.52,.1,.04,.48,58);
+    }}
+  function playTurnWarning15Cue(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [0,.16,.32].forEach((d,i)=>cueTone(520+i*90,'sine',t+d,.26,.09/(i+1),.01,.24));}
+  function playTurnCountdownCue(remaining=5){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    const n=Math.max(0,Math.min(5,Number(remaining)||0));
+    const base=n===0?880:360+(5-n)*70;
+    cueTone(base,'sine',t,n===0?.38:.24,n===0?.16:.09,.01,n===0?.36:.22);
+    cueTone(base/4,'sine',t,.28,.035,.02,.26);}
+
+  function playUrgentTick(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueTone(880,'triangle',t,.09,.095,.006,.085,760,'bandpass',900,1.4);
+    cueNoise(t,.07,.018,'highpass',1800,null,.6,2.2);}
+
+  function playEnemyTurnStinger(){playTurnCompassRelay(true);}
+
+  function playSplash(){playShotAudioSample('miss');}
+  function playExplosion(){playShotAudioSample('hit');}
+
+  // Sink boom — scales with ship size (subtle for DD, deep & long for CV)
+  function playSinkBoom(shipLen){
+    if(!ensureAudio())return;
+    const t=audioCtx.currentTime;
+    const scale=Math.max(0,Math.min(1,((shipLen||3)-2)/3));
+    const sunkGain=1.5625;
+    cueTone(48-scale*10,'sine',t,1.2,(.42+scale*.08)*sunkGain,.04,1.12,16);
+    cueNoise(t+.02,1.05,(.32+scale*.08)*sunkGain,'lowpass',900+scale*260,55,.7,.55);
+    if(shipLen>=4){
+      cueTone(138,'sawtooth',t+.16,.82,(.085+scale*.035)*sunkGain,.05,.78,42,'bandpass',190,3.2);
+    }
+  }
+
+  function playVictory(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    cueTone(164,'sine',t,.85,.08,.08,.78,138);
+    [392,523.25,659.25,783.99].forEach((f,i)=>{
+      const s=t+i*.14;
+      cueTone(f,'triangle',s,.52,.13,.018,.48,null,'bandpass',f*1.3,1.1);
+    });}
+  function playDefeat(){if(!ensureAudio())return;const t=audioCtx.currentTime;
+    [220,196,164,130].forEach((f,i)=>{
+      const s=t+i*.18;
+      cueTone(f,'sine',s,.62,.105,.04,.58,f*.7,'bandpass',f*1.4,1.2);
+    });
+    cueNoise(t+.12,.9,.07,'lowpass',700,120,.8,.8);}
+
+  function playShotOutcomeCue(hit,sunk,shipLen=0){
+    if(sunk)playSinkBoom(shipLen);
+    else if(hit)playExplosion();
+    else playSplash();
+  }
+  function playPlayerFire(hit,sunk=false,shipLen=0){playShotOutcomeCue(hit,sunk,shipLen);}
+  function playEnemyFire(hit,sunk=false,shipLen=0){playShotOutcomeCue(hit,sunk,shipLen);}
+
+  function prefersReducedMotion(){
+    return window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function drawExplosionFrame(ctx,x,y,frame,isSunk){
+    const s=EXPLOSION_CONFIG.frameSize;
+    const p=frame/(EXPLOSION_CONFIG.frameCount-1);
+    const cx=x+s/2,cy=y+s/2;
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.globalCompositeOperation='lighter';
+    const smokeRadius=12+p*(isSunk?44:32);
+    const smoke=ctx.createRadialGradient(0,0,1,0,0,smokeRadius);
+    smoke.addColorStop(0,'rgba(255,255,255,'+(0.24-p*.12)+')');
+    smoke.addColorStop(.35,'rgba(148,163,184,'+(0.24-p*.08)+')');
+    smoke.addColorStop(.75,'rgba(15,23,42,'+(0.30-p*.18)+')');
+    smoke.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle=smoke;
+    ctx.beginPath();
+    ctx.arc(0,0,smokeRadius,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.globalCompositeOperation='lighter';
+    const core=7+p*(isSunk?35:25);
+    const glow=ctx.createRadialGradient(0,0,1,0,0,core*1.55);
+    glow.addColorStop(0,'rgba(255,255,255,'+(1-p*.5)+')');
+    glow.addColorStop(.18,'rgba(255,229,127,'+(1-p*.35)+')');
+    glow.addColorStop(.48,'rgba(255,112,36,'+(0.9-p*.25)+')');
+    glow.addColorStop(.78,'rgba(191,35,18,'+(0.52-p*.2)+')');
+    glow.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=glow;
+    ctx.beginPath();
+    ctx.arc(0,0,core*1.55,0,Math.PI*2);
+    ctx.fill();
+
+    const splash=isSunk?14:10;
+    for(let i=0;i<splash;i++){
+      const a=(Math.PI*2/splash)*i+p*.45;
+      const dist=9+p*(isSunk?39:30)+(i%2)*2;
+      const r=1.8+(1-p)*(i%3+1);
+      ctx.save();
+      ctx.rotate(a);
+      ctx.globalAlpha=Math.max(0,.75-p*.55);
+      ctx.fillStyle=i%2?'#ecfeff':'#7dd3fc';
+      ctx.beginPath();
+      ctx.ellipse(dist,0,r*1.6,r,0,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const shards=isSunk?12:9;
+    for(let i=0;i<shards;i++){
+      const a=(Math.PI*2/shards)*i+p*.9;
+      const dist=10+p*(isSunk?42:32)+((i%3)*2);
+      const len=(isSunk?18:13)*(1-p*.45);
+      ctx.save();
+      ctx.rotate(a);
+      ctx.globalAlpha=Math.max(0,.9-p*.7);
+      ctx.fillStyle=i%2?'#ffd166':'#ff6b35';
+      ctx.beginPath();
+      ctx.moveTo(dist,-2);
+      ctx.lineTo(dist+len,0);
+      ctx.lineTo(dist,2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha=Math.max(0,.55-p*.42);
+    ctx.strokeStyle='rgba(255,239,188,.95)';
+    ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.arc(0,0,12+p*(isSunk?42:34),0,Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function getExplosionSheet(isSunk){
+    const key=isSunk?'sunk':'hit';
+    if(explosionSheets[key])return explosionSheets[key];
+    const sheet=document.createElement('canvas');
+    const size=EXPLOSION_CONFIG.frameSize;
+    sheet.width=size*EXPLOSION_CONFIG.frameCount;
+    sheet.height=size;
+    const ctx=sheet.getContext('2d');
+    for(let frame=0;frame<EXPLOSION_CONFIG.frameCount;frame++)drawExplosionFrame(ctx,frame*size,0,frame,isSunk);
+    explosionSheets[key]=sheet;
+    return sheet;
+  }
+
+  function cleanupExplosionSprite(entry){
+    if(!entry||entry.done)return;
+    entry.done=true;
+    if(entry.raf)cancelAnimationFrame(entry.raf);
+    if(entry.delayTimer)clearTimeout(entry.delayTimer);
+    if(entry.forceTimer)clearTimeout(entry.forceTimer);
+    entry.canvas.remove();
+    const idx=activeExplosionSprites.indexOf(entry);
+    if(idx>=0)activeExplosionSprites.splice(idx,1);
+  }
+
+  function registerExplosionSprite(canvas,type){
+    const entry={canvas,type,frame:0,raf:null,delayTimer:null,forceTimer:null,done:false};
+    activeExplosionSprites.push(entry);
+    const limit=isMobileLayout()?3:EXPLOSION_CONFIG.maxActiveSprites;
+    while(activeExplosionSprites.length>limit)cleanupExplosionSprite(activeExplosionSprites[0]);
+    entry.forceTimer=setTimeout(()=>cleanupExplosionSprite(entry),EXPLOSION_CONFIG.forceCleanupMs[type]);
+    return entry;
+  }
+
+  function playExplosionSprite(cell,isSunk){
+    if(EXPLOSION_CONFIG.reducedMotionFallback&&prefersReducedMotion())return;
+    const type=isSunk?'sunk':'hit';
+    const sheet=getExplosionSheet(isSunk);
+    const canvas=document.createElement('canvas');
+    canvas.className='explosion-sprite '+(isSunk?'sunk-sprite':'hit-sprite');
+    const size=EXPLOSION_CONFIG.frameSize;
+    canvas.width=size;
+    canvas.height=size;
+    const scale=EXPLOSION_CONFIG.scale[type]*(isMobileLayout()?.82:1)*100;
+    canvas.style.width=scale+'%';
+    canvas.style.height=scale+'%';
+    cell.appendChild(canvas);
+    const ctx=canvas.getContext('2d');
+    const entry=registerExplosionSprite(canvas,type);
+    const step=()=>{
+      if(entry.done)return;
+      ctx.clearRect(0,0,size,size);
+      ctx.drawImage(sheet,entry.frame*size,0,size,size,0,0,size,size);
+      entry.frame++;
+      if(entry.frame<EXPLOSION_CONFIG.frameCount){
+        entry.delayTimer=setTimeout(()=>{entry.raf=requestAnimationFrame(step);},EXPLOSION_CONFIG.frameMs[type]);
+      } else cleanupExplosionSprite(entry);
+    };
+    step();
+  }
+
+  function getBoardCell(containerId,idx){
+    const cache=boardCellRefs[containerId];
+    let cell=cache&&cache.get(idx);
+    if(cell&&cell.isConnected)return cell;
+    const cont=document.getElementById(containerId);
+    cell=cont&&cont.querySelector(`.cell[data-idx="${idx}"]`);
+    if(cell&&cache)cache.set(idx,cell);
+    return cell;
+  }
+
+  function renderBoardById(containerId,cellSize){
+    if(containerId==='enemyContainer')renderBoard(containerId,enemyBoard,true,cellSize);
+    else if(containerId==='yourContainer')renderBoard(containerId,yourBoard,false,cellSize);
+  }
+
+  function renderVisibleMobileBoard(cellSize){
+    if(!isMobileLayout())return false;
+    renderBoardById(activeMobileBoard==='enemy'?'enemyContainer':'yourContainer',cellSize||computeCellSize());
+    return true;
+  }
+
+  function renderTurnSensitiveBoards(){
+    renderBoards({scope:isMobileLayout()?'visible':'enemy'});
+  }
+
+  function animateShot(containerId,idx,isHit,isSunk=false){
+    const cell=getBoardCell(containerId,idx);
+    const duration=shotEffectDuration(isHit,isSunk);
+    if(!cell)return duration;
+    const fx=document.createElement('span');
+    fx.className='shot-fx '+(isHit?'hit-splash':'miss-ripple');
+    cell.appendChild(fx);
+    if(isHit)playExplosionSprite(cell,isSunk);
+    setTimeout(()=>fx.remove(),duration);
+    return duration;
+  }
+
+  function applyShotFeedback(containerId,idx,isHit,isSunk=false){
+    renderBoards({scope:containerId==='enemyContainer'?'enemy':'your'});
+    renderShipLists();
+    updateStats();
+    updateModeUI();
+    return animateShot(containerId,idx,isHit,isSunk);
+  }
+
+  function flashPlacementFeedback(cells,ok){
+    cells.forEach(idx=>{
+      const cell=getBoardCell('yourContainer',idx);
+      if(!cell)return;
+      const cls=ok?'place-ok':'place-bad';
+      cell.classList.remove('place-ok','place-bad');
+      void cell.offsetWidth;
+      cell.classList.add(cls);
+      setTimeout(()=>cell.classList.remove(cls),480);
+    });
+  }
+
+  function enemyIcon(extraClass=''){
+    return `<span class="enemy-emoji ${extraClass}" aria-hidden="true">😈</span>`;
+  }
+
+  function createEnemyIcon(extraClass=''){
+    const icon=document.createElement('span');
+    icon.className=['enemy-emoji',extraClass].filter(Boolean).join(' ');
+    icon.setAttribute('aria-hidden','true');
+    icon.textContent='\u{1F608}';
+    return icon;
+  }
+  function setTextWithEnemyIcon(el,label,extraClass='small'){
+    if(!el)return;
+    el.replaceChildren(createEnemyIcon(extraClass),document.createTextNode(' '+label));
+  }
+  function resetMoveLogPlaceholder(text='No shots fired yet...'){
+    const lg=document.getElementById('moveLog');
+    if(!lg)return;
+    const entry=document.createElement('div');
+    entry.className='log-entry';
+    entry.style.color='#444';
+    entry.style.fontStyle='italic';
+    entry.textContent=text;
+    lg.replaceChildren(entry);
+  }
+
+  function isMobileHowTo(){
+    return window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+  }
+  function appendHowToText(parent,text){
+    const tokens=[
+      {needle:'Auto-place (A)',parts:['Auto-place (',{kbd:'A'},')']},
+      {needle:'Rotate (R)',parts:['Rotate (',{kbd:'R'},')']},
+      {needle:'Clear (C)',parts:['Clear (',{kbd:'C'},')']},
+      {needle:'keyboard C',parts:['keyboard ',{kbd:'C'}]}
+    ];
+    let rest=String(text||'');
+    while(rest){
+      let next=null;
+      tokens.forEach(token=>{
+        const index=rest.indexOf(token.needle);
+        if(index>=0&&(!next||index<next.index))next={...token,index};
+      });
+      if(!next){
+        parent.appendChild(document.createTextNode(rest));
+        break;
+      }
+      if(next.index>0)parent.appendChild(document.createTextNode(rest.slice(0,next.index)));
+      next.parts.forEach(part=>{
+        if(typeof part==='string')parent.appendChild(document.createTextNode(part));
+        else{
+          const kbd=document.createElement('kbd');
+          kbd.textContent=part.kbd;
+          parent.appendChild(kbd);
+        }
+      });
+      rest=rest.slice(next.index+next.needle.length);
+    }
+  }
+  function renderHowTo(){
+    const mode=MULTIPLAYER_ENABLED?'multiplayer':(isMobileHowTo()?'mobile':'desktop');
+    ['howToBody'].forEach(id=>{
+      const body=document.getElementById(id);
+      if(!body)return;
+      body.dataset.mode=mode;
+      body.replaceChildren();
+      HOW_TO_COPY[mode].forEach(([title,text])=>{
+        const p=document.createElement('p');
+        const strong=document.createElement('strong');
+        strong.textContent=title+':';
+        p.appendChild(strong);
+        p.appendChild(document.createTextNode(' '));
+        appendHowToText(p,text);
+        body.appendChild(p);
+      });
+    });
+  }
+  function openHowTo(){
+    renderHowTo();
+    document.getElementById('howToOverlay').classList.add('show');
+  }
+  function closeHowTo(){document.getElementById('howToOverlay').classList.remove('show');}
+
+  function mpStorageKey(){
+    return 'gf_session';
+  }
+  function normalizeRoomCode(value){
+    const code=String(value||'').trim().toUpperCase();
+    return /^[A-HJ-NP-Z2-9]{6}$/.test(code)?code:'';
+  }
+  function inviteRoomCodeFromUrl(){
+    try{
+      const match=window.location.pathname.match(/^\/room\/([A-HJ-NP-Z2-9]{6})$/i);
+      return match?normalizeRoomCode(match[1]):'';
+    }
+    catch(_){return '';}
+  }
+  function requestedPlayModeFromUrl(){
+    try{
+      const mode=new URLSearchParams(window.location.search).get('mode');
+      return mode==='ai'||mode==='human'?mode:'';
+    }catch(_){return '';}
+  }
+  function syncPlayModeUrl(mode='select',force=false){
+    try{
+      if(window.location.pathname.startsWith('/room/')&&!force)return;
+      const target=mode==='ai'?'/play?mode=ai':(mode==='human'?'/play?mode=human':'/play');
+      if(window.location.pathname+window.location.search!==target)history.replaceState({},'',target);
+    }catch(_){}
+  }
+  function savedMultiplayerSession(){
+    try{return JSON.parse(sessionStorage.getItem(mpStorageKey())||'null');}
+    catch(_){return null;}
+  }
+  function getMultiplayerClientId(){
+    let id=sessionStorage.getItem('gf_clientId');
+    if(!id){
+      const rng=window.crypto||{};
+      id=rng.randomUUID?rng.randomUUID():('gf_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2));
+      sessionStorage.setItem('gf_clientId',id);
+    }
+    return id;
+  }
+  function multiplayerPayload(payload={}){
+    const out={...payload,clientId:multiplayer.clientId||getMultiplayerClientId()};
+    if(multiplayer.roomCode&&!out.code)out.code=multiplayer.roomCode;
+    if(multiplayer.token&&!out.token)out.token=multiplayer.token;
+    if(multiplayer.playerIndex!==null&&multiplayer.playerIndex!==undefined)out.playerIndex=multiplayer.playerIndex;
+    return out;
+  }
+  function saveMultiplayerSession(){
+    if(!multiplayer.roomCode)return;
+    sessionStorage.setItem(mpStorageKey(),JSON.stringify({
+      roomId:multiplayer.roomCode,
+      code:multiplayer.roomCode,
+      token:multiplayer.token,
+      playerIndex:multiplayer.playerIndex,
+      playerName:multiplayer.playerName,
+      clientId:multiplayer.clientId,
+      savedAt:Date.now()
+    }));
+  }
+  function showMultiplayerToast(message){
+    const toast=document.createElement('div');
+    toast.textContent=message;
+    toast.style.cssText='position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:6000;background:rgba(5,12,18,.92);border:1px solid rgba(226,185,111,.7);color:#f8fafc;border-radius:999px;padding:9px 14px;font-weight:800;font-size:.78rem;box-shadow:0 12px 28px rgba(0,0,0,.45);pointer-events:none;';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(),1800);
+  }
+  function setMultiplayerStatus(message){
+    const el=document.getElementById('mpStatus');
+    if(el)el.textContent=message||'';
+  }
+  function sanitizePlayerNameDraft(value){
+    return String(value||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,8);
+  }
+  function sanitizePlayerName(value){
+    return sanitizePlayerNameDraft(value)||'Captain';
+  }
+  function rememberPlayerName(value){
+    const name=sanitizePlayerName(value);
+    sessionStorage.setItem('ghostfleet-player-name',name);
+    return name;
+  }
+  function savedPlayerName(){
+    return sanitizePlayerName(sessionStorage.getItem('ghostfleet-player-name')||'');
+  }
+  function bindPlayerNameValidation(){
+    ['mpName','inviteName'].forEach(id=>{
+      const input=document.getElementById(id);
+      if(!input||input.dataset.nameBound)return;
+      input.dataset.nameBound='true';
+      input.addEventListener('input',()=>{
+        const cleaned=sanitizePlayerNameDraft(input.value);
+        if(input.value!==cleaned)input.value=cleaned;
+      });
+      input.addEventListener('blur',()=>{
+        input.value=sanitizePlayerNameDraft(input.value);
+      });
+    });
+  }
+  function multiplayerOpponentLabel(){
+    return multiplayer.opponentName||'Opponent';
+  }
+  function analysisOpponentLabel(){
+    return MULTIPLAYER_ENABLED&&multiplayer.joined?multiplayerOpponentLabel():'AI';
+  }
+  function analysisActorLabel(actor){
+    return actor==='AI'?analysisOpponentLabel():actor;
+  }
+  function updateMultiplayerRoomLabel(){
+    const el=document.getElementById('statRoom');
+    if(el)el.textContent=multiplayer.roomCode||'Not joined';
+  }
+  function updateMultiplayerSizeButtons(){
+    const size=multiplayer.roomBoardSize||N;
+    document.querySelectorAll('.mp-size-btn').forEach(btn=>{
+      const active=btn.id==='mpSize'+size;
+      btn.classList.toggle('active',active);
+      btn.setAttribute('aria-pressed',active?'true':'false');
+    });
+  }
+  function updateMultiplayerRoomSize(){
+    const el=document.getElementById('mpRoomSize');
+    if(el)el.textContent='Room size: '+(multiplayer.roomBoardSize||N)+'×'+(multiplayer.roomBoardSize||N);
+    const share=document.getElementById('shareRoomSize');
+    if(share)share.textContent='Room size: '+(multiplayer.roomBoardSize||N)+'×'+(multiplayer.roomBoardSize||N);
+    updateMultiplayerSizeButtons();
+  }
+  function multiplayerInviteLink(){
+    if(!multiplayer.roomCode)return '';
+    return window.location.origin+'/room/'+multiplayer.roomCode;
+  }
+  function syncRoomUrl(){
+    if(!multiplayer.roomCode)return;
+    const path='/room/'+multiplayer.roomCode;
+    if(window.location.pathname!==path)history.pushState({},'',path);
+  }
+  function copyMultiplayerInviteLink(){
+    const link=multiplayerInviteLink();
+    if(!link){setMultiplayerStatus('Create a room first, then copy the invite link.');return;}
+    const done=()=>setMultiplayerStatus('Invite link copied. Share it with player 2.');
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(link).then(done).catch(()=>{
+        window.prompt('Copy this GhostFleet invite link:',link);
+        done();
+      });
+    } else {
+      window.prompt('Copy this GhostFleet invite link:',link);
+      done();
+    }
+  }
+  function showShareRoomScreen(){
+    if(isHomeRedirecting())return;
+    hideOpponentOverlay();
+    hideMultiplayerLobby();
+    const overlay=document.getElementById('shareRoomOverlay');
+    const code=document.getElementById('shareRoomCode');
+    const url=document.getElementById('shareRoomUrl');
+    if(code)code.textContent=multiplayer.roomCode||'------';
+    if(url)url.value=multiplayerInviteLink();
+    updateMultiplayerRoomSize();
+    renderMultiplayerPlayers();
+    if(overlay)overlay.classList.add('show');
+  }
+  function hideShareRoomScreen(){
+    const overlay=document.getElementById('shareRoomOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function copyRoomLink(){
+    const link=multiplayerInviteLink();
+    const btn=document.getElementById('copyRoomBtn');
+    const done=()=>{if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy Invite Link',2000);}};
+    if(!link)return;
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(done).catch(()=>{window.prompt('Copy this GhostFleet invite link:',link);done();});
+    else {window.prompt('Copy this GhostFleet invite link:',link);done();}
+  }
+  function shareRoomLink(){
+    const link=multiplayerInviteLink();
+    if(!link)return;
+    if(navigator.share){
+      navigator.share({title:'GhostFleet',text:'Join my naval battle!',url:link}).catch(()=>copyRoomLink());
+    } else copyRoomLink();
+  }
+  function shareRoomWhatsApp(){
+    const link=multiplayerInviteLink();
+    if(!link)return;
+    window.open('https://wa.me/?text='+encodeURIComponent('Join my GhostFleet battle! '+link),'_blank','noopener');
+  }
+  function multiplayerWaitingMessage(players=multiplayer.roomPlayers||[]){
+    const slots=[players&&players[0],players&&players[1]];
+    const occupied=slots.filter(player=>player&&player.id).length;
+    const disconnected=slots.find(player=>player&&player.id&&!player.connected);
+    if(occupied<2)return 'Waiting for opponent to join...';
+    if(disconnected)return 'Waiting for '+(disconnected.displayName||'opponent')+' to reconnect...';
+    return 'Preparing ship placement...';
+  }
+  function updateShareRoomWaitText(players=multiplayer.roomPlayers||[]){
+    const el=document.getElementById('shareRoomWaitText');
+    if(el)el.textContent=multiplayerWaitingMessage(players);
+  }
+  function setMultiplayerSetupSize(size){
+    if(multiplayer.joined)return;
+    if(!BOARD_SIZES.includes(size))size=8;
+    multiplayer.roomBoardSize=size;
+    N=size;
+    updateSizeButtons();
+    updateMultiplayerRoomSize();
+  }
+  function setAiSetupSize(size){
+    if(!BOARD_SIZES.includes(size))size=8;
+    aiSetupSize=size;
+    document.querySelectorAll('#aiSizeRow .mp-size-btn').forEach(btn=>{
+      const active=btn.id==='aiSize'+size;
+      btn.classList.toggle('active',active);
+      btn.setAttribute('aria-pressed',active?'true':'false');
+    });
+  }
+  function showMultiplayerLobby(message){
+    if(isHomeRedirecting())return;
+    if(!MULTIPLAYER_ENABLED)return;
+    const overlay=document.getElementById('multiplayerOverlay');
+    if(overlay)overlay.classList.add('show');
+    setMultiplayerStatus(message||'Create a room or join a captain with a 6-letter code.');
+    const savedName=sanitizePlayerNameDraft(sessionStorage.getItem('ghostfleet-player-name')||'');
+    const nameInput=document.getElementById('mpName');
+    if(nameInput&&!nameInput.value)nameInput.value=savedName;
+    if(!multiplayer.joined)setJoinMode(false);
+    const backBtn=document.getElementById('mpBackBtn');
+    if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
+    updateMultiplayerRoomLabel();
+    updateMultiplayerRoomSize();
+  }
+  function prefillMultiplayerJoin(code){
+    const normalized=normalizeRoomCode(code);
+    if(!normalized)return;
+    setJoinMode(true);
+    const codeInput=document.getElementById('mpCode');
+    if(codeInput)codeInput.value=normalized;
+    setMultiplayerStatus('Invite loaded. Enter your Player Name, then join room '+normalized+'.');
+    const nameInput=document.getElementById('mpName');
+    if(nameInput)setTimeout(()=>nameInput.focus(),0);
+  }
+  function hideMultiplayerLobby(){
+    const overlay=document.getElementById('multiplayerOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function showInviteOverlay(code,message){
+    if(isHomeRedirecting())return;
+    const room=normalizeRoomCode(code);
+    if(!room)return;
+    multiplayer.roomCode=room;
+    hideOpponentOverlay();hideMultiplayerLobby();hideShareRoomScreen();
+    const overlay=document.getElementById('inviteOverlay');
+    const input=document.getElementById('inviteName');
+    const saved=sanitizePlayerNameDraft(sessionStorage.getItem('ghostfleet-player-name')||'');
+    if(input&&!input.value)input.value=saved;
+    const status=document.getElementById('inviteStatus');
+    if(status)status.textContent=message||('Room '+room+' is waiting for your callsign.');
+    if(overlay)overlay.classList.add('show');
+    if(input)setTimeout(()=>input.focus(),0);
+  }
+  function hideInviteOverlay(){
+    const overlay=document.getElementById('inviteOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function showReconnectOverlay(message){
+    if(isHomeRedirecting())return;
+    const overlay=document.getElementById('reconnectOverlay');
+    const msg=document.getElementById('reconnectMsg');
+    const actions=document.getElementById('reconnectActions');
+    if(msg)msg.textContent=message||'Restoring your GhostFleet room.';
+    if(actions)actions.style.display='none';
+    if(overlay)overlay.classList.add('show');
+    clearTimeout(multiplayer.reconnectFailTimer);
+    multiplayer.reconnectFailTimer=setTimeout(()=>{
+      if(!multiplayer.joined){
+        if(msg)msg.textContent='Could not reconnect. The room may have expired.';
+        if(actions)actions.style.display='flex';
+      }
+    },10000);
+  }
+  function hideReconnectOverlay(){
+    clearTimeout(multiplayer.reconnectFailTimer);
+    const overlay=document.getElementById('reconnectOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function showRoomStatus(title,message){
+    if(isHomeRedirecting())return;
+    hideOpponentOverlay();hideMultiplayerLobby();hideShareRoomScreen();hideInviteOverlay();hideReconnectOverlay();
+    const overlay=document.getElementById('roomStatusOverlay');
+    const titleEl=document.getElementById('roomStatusTitle');
+    const msgEl=document.getElementById('roomStatusMsg');
+    if(titleEl)titleEl.textContent=title||'Room Expired';
+    if(msgEl)msgEl.textContent=message||'This game has ended.';
+    if(overlay)overlay.classList.add('show');
+  }
+  function hideRoomStatus(){
+    const overlay=document.getElementById('roomStatusOverlay');
+    if(overlay)overlay.classList.remove('show');
+  }
+  function retryRoomReconnect(){
+    const code=multiplayer.roomCode||inviteRoomCodeFromUrl();
+    if(code)sendMultiplayerEvent('reconnect_room',{roomId:code},'Reconnecting to battle...');
+  }
+  function stopOpponentDisconnectBanner(){
+    if(multiplayer.opponentDisconnectTimer){
+      clearInterval(multiplayer.opponentDisconnectTimer);
+      multiplayer.opponentDisconnectTimer=null;
+    }
+    multiplayer.opponentDisconnectUntil=null;
+    const banner=document.getElementById('disconnectBanner');
+    if(banner)banner.classList.remove('show');
+  }
+  function showOpponentDisconnectBanner(payload){
+    const banner=document.getElementById('disconnectBanner');
+    if(!banner)return;
+    multiplayer.opponentDisconnectUntil=Number(payload&&payload.expiresAt)||Date.now()+90000;
+    const name=(payload&&payload.name)||multiplayerOpponentLabel();
+    const tick=()=>{
+      const left=Math.max(0,Math.ceil((multiplayer.opponentDisconnectUntil-Date.now())/1000));
+      banner.textContent=name+' disconnected - waiting '+left+'s for reconnect';
+      banner.classList.add('show');
+      if(left<=0)stopOpponentDisconnectBanner();
+    };
+    tick();
+    if(multiplayer.opponentDisconnectTimer)clearInterval(multiplayer.opponentDisconnectTimer);
+    multiplayer.opponentDisconnectTimer=setInterval(tick,1000);
+  }
+  function sendMultiplayerHeartbeat(){
+    const socket=multiplayer.socket;
+    if(!socket||!multiplayer.joined)return;
+    if(!socket.connected){socket.connect();return;}
+    socket.emit('client_heartbeat',multiplayerPayload({}));
+  }
+  function bindMultiplayerResumeHandlers(){
+    if(multiplayer.resumeBound)return;
+    multiplayer.resumeBound=true;
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState==='visible')sendMultiplayerHeartbeat();
+    });
+    window.addEventListener('focus',sendMultiplayerHeartbeat);
+  }
+  function ensureMultiplayerSocket(){
+    if(!MULTIPLAYER_ENABLED)return null;
+    if(multiplayer.socket)return multiplayer.socket;
+    if(typeof io!=='function'){
+      setMultiplayerStatus('Multiplayer transport did not load. Open GhostFleet from the Node or Railway server, then choose Friends.');
+      return null;
+    }
+    multiplayer.clientId=getMultiplayerClientId();
+    const socket=io();
+    multiplayer.socket=socket;
+    bindMultiplayerResumeHandlers();
+    socket.on('connect',()=>{
+      if(multiplayer.joined){sendMultiplayerHeartbeat();return;}
+      setMultiplayerStatus('Connected. Create a room or join with a code.');
+      const saved=savedMultiplayerSession();
+      if(saved&&(saved.roomId||saved.code)&&saved.clientId===multiplayer.clientId&&!multiplayer.joined&&!multiplayer.restoring){
+        multiplayer.restoring=true;
+        const roomId=normalizeRoomCode(saved.roomId||saved.code);
+        multiplayer.roomCode=roomId;
+        socket.emit('reconnect_room',multiplayerPayload({roomId,token:saved.token||''}));
+        setMultiplayerStatus('Restoring room '+roomId+'...');
+      }
+    });
+    socket.on('room_created',payload=>{if(isHomeRedirecting())return;handleMultiplayerJoined(payload,{created:true});});
+    socket.on('joined_room',payload=>{if(isHomeRedirecting())return;handleMultiplayerJoined(payload,{joined:true});});
+    socket.on('room:joined',payload=>{
+      if(isHomeRedirecting())return;
+      if(payload&&payload.roomId&&payload.roomId===multiplayer.roomCode)return;
+      handleMultiplayerJoined(payload,{legacy:true});
+    });
+    socket.on('room:update',snapshot=>{
+      if(isHomeRedirecting())return;
+      if(snapshot&&snapshot.phase==='placing'&&phase==='ended'&&multiplayer.rematchRequested){
+        beginMultiplayerPlacement(snapshot);
+        return;
+      }
+      applyMultiplayerSnapshot(snapshot);
+    });
+    socket.on('room_ready',snapshot=>{
+      if(isHomeRedirecting())return;
+      hideShareRoomScreen();
+      applyMultiplayerSnapshot(snapshot);
+    });
+    socket.on('match:startPlacement',snapshot=>{if(isHomeRedirecting())return;beginMultiplayerPlacement(snapshot);});
+    socket.on('match:startBattle',snapshot=>{if(isHomeRedirecting())return;beginMultiplayerBattle(snapshot);});
+    socket.on('turn:update',payload=>{if(isHomeRedirecting())return;handleMultiplayerTurn(payload);});
+    socket.on('shot:result',payload=>{if(isHomeRedirecting())return;handleMultiplayerShot(payload);});
+    socket.on('match:end',snapshot=>{if(isHomeRedirecting())return;finishMultiplayerMatch(snapshot);});
+    socket.on('game_over',snapshot=>{if(isHomeRedirecting())return;finishMultiplayerMatch(snapshot);});
+    socket.on('resync',snapshot=>{if(isHomeRedirecting())return;handleMultiplayerResync(snapshot);});
+    socket.on('opponent_placement_done',payload=>{
+      if(isHomeRedirecting())return;
+      setMultiplayerStatus((payload&&payload.msg)||'Opponent is ready. Waiting for you.');
+      if(phase==='placing')setStatus('waiting','Opponent is ready. Waiting for you.');
+    });
+    socket.on('turn_timeout',payload=>{
+      if(isHomeRedirecting())return;
+      setMultiplayerStatus((payload&&payload.msg)||'Turn timed out.');
+    });
+    socket.on('opponent_temporarily_disconnected',payload=>{
+      if(isHomeRedirecting())return;
+      showOpponentDisconnectBanner(payload);
+    });
+    socket.on('opponent_reconnected',payload=>{
+      if(isHomeRedirecting())return;
+      stopOpponentDisconnectBanner();
+      showMultiplayerToast((payload&&payload.msg)||'Opponent reconnected');
+    });
+    socket.on('opponent_disconnected',payload=>{
+      if(isHomeRedirecting())return;
+      clearMultiplayerShotPacing();
+      multiplayer.pendingShot=false;
+      inputLocked=true;
+      setMultiplayerStatus((payload&&payload.msg)||'Opponent disconnected. Exit the room to start again.');
+      setStatus('waiting','Opponent disconnected.');
+      sessionStorage.removeItem(mpStorageKey());
+    });
+    socket.on('room_expired',payload=>{
+      if(isHomeRedirecting())return;
+      sessionStorage.removeItem(mpStorageKey());
+      multiplayer.joined=false;
+      showRoomStatus('Room Expired',(payload&&payload.msg)||'This game has ended. Both players left the room.');
+    });
+    socket.on('error:message',payload=>{
+      if(isHomeRedirecting())return;
+      clearMultiplayerShotPacing();
+      setMultiplayerStatus((payload&&payload.message)||'Multiplayer error.');
+      if(payload&&(payload.code==='ROOM_NOT_FOUND'||payload.code==='room_not_found')){
+        sessionStorage.removeItem(mpStorageKey());
+        multiplayer.restoring=false;
+        showRoomStatus('Room Not Found','Room not found or has expired.');
+        return;
+      }
+      if(multiplayer.restoring){
+        multiplayer.restoring=false;
+        sessionStorage.removeItem(mpStorageKey());
+        multiplayer.joined=false;
+        multiplayer.roomCode='';
+        multiplayer.playerIndex=null;
+        multiplayer.token='';
+        if(MODE_SELECTION_ENABLED){
+          opponentMode=null;
+          syncOpponentMode();
+          hideMultiplayerLobby();
+          showOpponentOverlay();
+        }
+        showMultiplayerToast('Room expired');
+      }
+      multiplayer.pendingShot=false;
+      inputLocked=!!multiplayer.placementSubmitted;
+      renderBoards();
+    });
+    socket.on('disconnect',()=>{
+      if(isHomeRedirecting())return;
+      if(multiplayer.joined)setMultiplayerStatus('Connection lost. Reconnecting...');
+    });
+    socket.on('connect_error',()=>{
+      if(isHomeRedirecting())return;
+      setMultiplayerStatus('Could not reach the multiplayer server. Make sure you opened the game from npm start, not as a file.');
+    });
+    return socket;
+  }
+  function setJoinMode(on){
+    multiplayer.joinMode=!!on;
+    const codeField=document.getElementById('mpCodeField');
+    const joinBtn=document.getElementById('mpJoinBtn');
+    const createBtn=document.getElementById('mpCreateBtn');
+    const sizeField=document.getElementById('mpSizeField');
+    const backBtn=document.getElementById('mpBackBtn');
+    if(codeField)codeField.classList.toggle('show',multiplayer.joinMode);
+    if(sizeField)sizeField.classList.toggle('hidden',multiplayer.joinMode||multiplayer.joined);
+    if(backBtn)backBtn.classList.toggle('is-hidden',multiplayer.joined);
+    if(joinBtn)joinBtn.textContent=multiplayer.joinMode?'Enter Room':'Join Room';
+    if(createBtn)createBtn.textContent=multiplayer.joinMode?'Back to Friends Setup':'Create Room';
+    if(joinBtn)joinBtn.style.order=multiplayer.joinMode?'-1':'';
+    if(createBtn)createBtn.style.order=multiplayer.joinMode?'2':'';
+    if(multiplayer.joinMode){
+      const code=document.getElementById('mpCode');
+      if(code)setTimeout(()=>code.focus(),0);
+      setMultiplayerStatus('Enter the 6-letter room code from player 1.');
+    }
+  }
+  function sendMultiplayerEvent(eventName,payload,waitingMessage){
+    const socket=ensureMultiplayerSocket();if(!socket)return false;
+    const fullPayload=multiplayerPayload(payload||{});
+    setMultiplayerStatus(waitingMessage||'Connecting...');
+    if(socket.connected){
+      socket.emit(eventName,fullPayload);
+      return true;
+    }
+    let settled=false;
+    const createBtn=document.getElementById('mpCreateBtn');
+    const joinBtn=document.getElementById('mpJoinBtn');
+    if(createBtn)createBtn.disabled=true;
+    if(joinBtn)joinBtn.disabled=true;
+    const restoreButtons=()=>{if(createBtn)createBtn.disabled=false;if(joinBtn)joinBtn.disabled=false;};
+    const timeout=setTimeout(()=>{
+      if(settled)return;
+      settled=true;
+      restoreButtons();
+      setMultiplayerStatus('Still connecting. Check that the server is running, then reopen GhostFleet and choose Friends.');
+    },5000);
+    socket.once('connect',()=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timeout);
+      restoreButtons();
+      socket.emit(eventName,fullPayload);
+    });
+    socket.once('connect_error',()=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timeout);
+      restoreButtons();
+      setMultiplayerStatus('Could not connect. Run npm start in GhostFleetRailway or use the Railway URL, then choose Friends.');
+    });
+    return true;
+  }
+  function multiplayerName(){
+    const el=document.getElementById('mpName');
+    const name=rememberPlayerName(el&&el.value);
+    if(el)el.value=name;
+    return name;
+  }
+  function createMultiplayerRoom(){
+    if(multiplayer.joinMode){setJoinMode(false);return;}
+    setJoinMode(false);
+    multiplayer.playerName=multiplayerName();
+    N=multiplayer.roomBoardSize||N;
+    updateSizeButtons();
+    playGunsReadyCue('human');
+    sendMultiplayerEvent('create_room',{playerName:multiplayer.playerName,gridSize:N},'Creating room...');
+  }
+  function joinMultiplayerRoom(){
+    if(!multiplayer.joinMode){setJoinMode(true);return;}
+    const code=normalizeRoomCode(document.getElementById('mpCode').value||'');
+    if(!code){setMultiplayerStatus('Enter the 6-letter room code from player 1.');return;}
+    multiplayer.playerName=multiplayerName();
+    playGunsReadyCue('human');
+    sendMultiplayerEvent('join_room',{roomId:code,playerName:multiplayer.playerName},'Joined. Preparing ship placement...');
+  }
+  function joinInviteRoom(){
+    const code=normalizeRoomCode(multiplayer.roomCode||inviteRoomCodeFromUrl());
+    const input=document.getElementById('inviteName');
+    const name=rememberPlayerName(input&&input.value);
+    if(!code){
+      const status=document.getElementById('inviteStatus');
+      if(status)status.textContent='Room link is not valid.';
+      return;
+    }
+    if(input)input.value=name;
+    multiplayer.playerName=name;
+    playGunsReadyCue('human');
+    sendMultiplayerEvent('join_room',{roomId:code,playerName:name},'Joining battle...');
+  }
+  function cancelMultiplayerRoom(){
+    if(multiplayer.roomCode)sendMultiplayerEvent('cancel_room',{roomId:multiplayer.roomCode},'Cancelling room...');
+    leaveMultiplayerRoom(false);
+    hideShareRoomScreen();
+    opponentMode='human';
+    syncPlayModeUrl('human',true);
+    syncOpponentMode();
+    multiplayer.suppressLobby=true;
+    newGame();
+    multiplayer.suppressLobby=false;
+    showMultiplayerLobby('Room cancelled. Create a new room or join another captain.');
+  }
+  function handleMultiplayerJoined(payload,meta={}){
+    multiplayer.joined=true;
+    multiplayer.roomCode=normalizeRoomCode(payload.roomId||payload.code);
+    multiplayer.playerId=payload.playerId;
+    multiplayer.playerIndex=Number.isInteger(payload.playerIndex)?payload.playerIndex:null;
+    multiplayer.clientId=payload.clientId||multiplayer.clientId||getMultiplayerClientId();
+    multiplayer.token=payload.token;
+    multiplayer.lobbyReady=false;
+    multiplayer.rematchRequested=false;
+    multiplayer.restoring=false;
+    saveMultiplayerSession();
+    syncRoomUrl();
+    hideReconnectOverlay();
+    hideInviteOverlay();
+    hideRoomStatus();
+    const codeEl=document.getElementById('mpRoomCode');
+    if(codeEl)codeEl.textContent=multiplayer.roomCode;
+    const card=document.getElementById('mpRoomCard');
+    if(card)card.classList.add('show');
+    setJoinMode(false);
+    updateMultiplayerRoomLabel();
+    updateMultiplayerRoomSize();
+    applyMultiplayerSnapshot(payload.snapshot);
+    if(meta.created&&payload.snapshot&&payload.snapshot.phase==='waiting')showShareRoomScreen();
+  }
+  function applyMultiplayerSnapshot(snapshot){
+    if(!snapshot)return;
+    multiplayer.roomPhase=snapshot.phase||multiplayer.roomPhase;
+    multiplayer.roomCode=normalizeRoomCode(snapshot.roomId||snapshot.code)||multiplayer.roomCode;
+    if(Number.isInteger(snapshot.playerIndex))multiplayer.playerIndex=snapshot.playerIndex;
+    if(snapshot.turnSlot===0||snapshot.turnSlot===1)multiplayer.turnSlot=snapshot.turnSlot;
+    N=snapshot.gridSize||snapshot.boardSize||N;
+    multiplayer.roomBoardSize=N;
+    updateSizeButtons();
+    updateMultiplayerRoomLabel();
+    updateMultiplayerRoomSize();
+    const you=snapshot.you;
+    const opponent=snapshot.opponent;
+    if(you)multiplayer.playerName=you.displayName;
+    if(you)multiplayer.rematchRequested=!!you.rematchRequested;
+    if(you)multiplayer.placementSubmitted=!!you.placementDone;
+    if(you)multiplayer.waitingForOpponent=snapshot.phase==='placing'&&!!you.placementDone;
+    multiplayer.endReason=snapshot.endReason||'';
+    multiplayer.opponentName=opponent&&opponent.displayName?opponent.displayName:'';
+    renderMultiplayerPlayers(snapshot.players||[]);
+    updateMultiplayerEndState(snapshot);
+    syncMultiplayerTimer(snapshot);
+    if(multiplayer.joined)saveMultiplayerSession();
+    if(snapshot.phase==='waiting'){
+      const waitMessage=multiplayerWaitingMessage(snapshot.players||[]);
+      if(multiplayer.playerIndex===0){
+        setMultiplayerStatus(waitMessage==='Waiting for opponent to join...'?'Share this code with player 2.':waitMessage);
+        showShareRoomScreen();
+      } else {
+        showMultiplayerLobby(waitMessage);
+      }
+    }
+    syncStatsFromMultiplayerSnapshot(snapshot);
+  }
+  function renderMultiplayerPlayers(players){
+    if(players)multiplayer.roomPlayers=players;
+    const source=players||multiplayer.roomPlayers||[];
+    const slots=[source&&source[0],source&&source[1]];
+    ['mpPlayers','sharePlayers'].forEach(id=>{
+      const list=document.getElementById(id);
+      if(!list)return;
+      list.replaceChildren();
+      slots.forEach((player,index)=>{
+        const row=document.createElement('div');
+        const open=!player||!player.id;
+        row.className='room-player'+(!open&&player.lobbyReady?' ready':'')+(!open&&!player.connected?' offline':'');
+        const slotLabel='Player '+(index+1);
+        const name=open?(index===0?'Waiting for host':'Waiting for Player 2'):(player.playerIndex===multiplayer.playerIndex?(player.displayName+' (You)'):player.displayName);
+        const state=open?'Open slot':(player.connected?(player.rematchRequested?'Rematch':(player.lobbyReady?'Ready':'Joined')):'Offline');
+        const nameEl=document.createElement('strong');
+        nameEl.textContent=slotLabel+': '+name;
+        const stateEl=document.createElement('span');
+        stateEl.textContent=state;
+        row.replaceChildren(nameEl,stateEl);
+        list.appendChild(row);
+      });
+    });
+    updateShareRoomWaitText(source);
+  }
+  function updateSizeButtons(){
+    document.querySelectorAll('.size-tab').forEach(t=>t.classList.toggle('active',t.textContent.trim().startsWith(String(N))));
+  }
+  function hydrateShip(raw){
+    const def=SHIPS.find(ship=>ship.id===raw.id)||raw;
+    return {...def,orient:raw.orient||'h',cells:[...(raw.cells||[])],hits:new Set(raw.hits||[]),sunk:!!raw.sunk};
+  }
+  function hydrateBoard(ships,shots=[],hits=[],misses=[]){
+    return {ships:(ships||[]).map(hydrateShip),shots:new Set(shots||[]),hits:new Set(hits||[]),misses:new Set(misses||[])};
+  }
+  function syncStatsFromMultiplayerSnapshot(snapshot){
+    if(!snapshot||!snapshot.you)return;
+    shots=(snapshot.you.shots||[]).length;
+    hits=(snapshot.you.hits||[]).length;
+    aiShots=snapshot.opponent?(snapshot.opponent.shots||[]).length:0;
+    aiHits=snapshot.opponent?(snapshot.opponent.hits||[]).length:0;
+    rebuildBattleLogFromSnapshot(snapshot);
+    updateStats();
+  }
+  function hydrateMultiplayerBoards(snapshot){
+    if(snapshot.you)yourBoard=hydrateBoard(snapshot.you.ships,snapshot.opponent?snapshot.opponent.shots:[],snapshot.opponent?snapshot.opponent.hits:[],snapshot.opponent?snapshot.opponent.misses:[]);
+    if(snapshot.opponent)enemyBoard=hydrateBoard((snapshot.opponent&&snapshot.opponent.ships)||[],snapshot.you?snapshot.you.shots:[],snapshot.you?snapshot.you.hits:[],snapshot.you?snapshot.you.misses:[]);
+  }
+  function updateMultiplayerTurnState(snapshot){
+    if(snapshot&&Number.isInteger(snapshot.turnSlot))multiplayer.turnSlot=snapshot.turnSlot;
+    multiplayer.myTurn=multiplayer.turnSlot===multiplayer.playerIndex;
+    currentTurn=multiplayer.myTurn?'you':'ai';
+    activeMobileBoard=multiplayer.myTurn?'enemy':'your';
+  }
+  function rebuildBattleLogFromSnapshot(snapshot){
+    if(!snapshot||!Array.isArray(snapshot.battleLog))return;
+    battleLog=[];
+    battleMoves=[];
+    const lg=document.getElementById('moveLog');
+    if(lg)lg.replaceChildren();
+    snapshot.battleLog.forEach(entry=>{
+      const mine=entry.actorId===multiplayer.playerId;
+      const hit=entry.result==='hit'||entry.result==='sunk';
+      const sunk=entry.result==='sunk';
+      const actor=mine?'YOU':multiplayerOpponentLabel().toUpperCase();
+      const msg=sunk
+        ? `${actor} sunk ${entry.shipName||'a ship'} at ${entry.coord}!`
+        : `${actor} fired ${entry.coord} - ${hit?'hit':'miss'}`;
+      log(msg,sunk?'sunk-l':(hit?'hit-l':(mine?'you':'ai')));
+      recordMove(mine?'YOU':'AI',entry.idx,hit,sunk,entry.shipName||'');
+    });
+  }
+  function resetLocalMultiplayerPlacement(snapshot){
+    multiplayer.suppressLobby=true;
+    phase='placing';
+    N=snapshot.boardSize||N;
+    multiplayer.roomBoardSize=N;
+    updateSizeButtons();
+    updateMultiplayerRoomSize();
+    yourBoard=emptyBoard();
+    enemyBoard=emptyBoard();
+    shots=hits=aiShots=aiHits=0;lastPlayerShot=lastAIShot=-1;
+    battleLog=[];battleMoves=[];lastGameWon=false;endedBySurrender=false;
+    multiplayer.rematchRequested=false;
+    multiplayer.waitingForOpponent=false;
+    multiplayer.placementSubmitted=false;
+    multiplayer.endReason='';
+    multiplayer.turnDeadlineAt=null;
+    stopMultiplayerCountdown();
+    clearMultiplayerShotPacing();
+    document.getElementById('modalOverlay').classList.remove('show');
+    document.getElementById('analysisOverlay').classList.remove('show');
+    selectedShipId=SHIPS[0].id;selectedSource='dock';selectedOffset=0;orientation='h';hoverCell=-1;currentTurn='placing';previewCellsCurrent=[];
+    activeMobileBoard='your';
+    inputLocked=false;
+    document.getElementById('btnShuffle').disabled=false;
+    document.getElementById('btnClear').disabled=false;
+    document.getElementById('btnRotate').disabled=false;
+    document.getElementById('pickerBox').style.display='';
+    document.getElementById('fleetBox').style.display='none';
+    resetMoveLogPlaceholder();
+    setStatus('placing','Place your fleet for room '+multiplayer.roomCode);
+    updateBoardHighlights();renderShipPicker();renderBoards();updateStartBtn();updateStats();
+    multiplayer.suppressLobby=false;
+  }
+  function beginMultiplayerPlacement(snapshot){
+    applyMultiplayerSnapshot(snapshot);
+    hideMultiplayerLobby();
+    hideShareRoomScreen();
+    hideInviteOverlay();
+    resetLocalMultiplayerPlacement(snapshot);
+  }
+  function submitMultiplayerFleet(){
+    if(!multiplayer.joined){showMultiplayerLobby('Create or join a room first.');return;}
+    if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length||multiplayer.placementSubmitted)return;
+    playReadyBellCue();
+    multiplayer.waitingForOpponent=true;
+    multiplayer.placementSubmitted=true;
+    inputLocked=true;
+    document.getElementById('btnShuffle').disabled=true;
+    document.getElementById('btnClear').disabled=true;
+    document.getElementById('btnRotate').disabled=true;
+    document.getElementById('btnStart').disabled=true;
+    setStatus('waiting','Fleet submitted. Waiting for '+multiplayerOpponentLabel()+'...');
+    sendMultiplayerEvent('fleet:submit',{fleet:yourBoard.ships.map(ship=>({id:ship.id,orient:ship.orient,cells:[...ship.cells]}))},'Fleet submitted. Waiting for '+multiplayerOpponentLabel()+'...');
+    updateStartBtn();
+  }
+  function beginMultiplayerBattle(snapshot){
+    applyMultiplayerSnapshot(snapshot);
+    clearMultiplayerShotPacing();
+    hideMultiplayerLobby();
+    hideShareRoomScreen();
+    hideInviteOverlay();
+    phase='playing';
+    multiplayer.waitingForOpponent=false;
+    multiplayer.placementSubmitted=true;
+    inputLocked=false;
+    hydrateMultiplayerBoards(snapshot);
+    updateMultiplayerTurnState(snapshot);
+    syncMultiplayerTimer(snapshot);
+    document.getElementById('btnShuffle').disabled=true;
+    document.getElementById('btnClear').disabled=true;
+    document.getElementById('btnRotate').disabled=true;
+    document.getElementById('btnStart').disabled=true;
+    document.getElementById('pickerBox').style.display='none';
+    document.getElementById('fleetBox').style.display='';
+    setStatus(currentTurn==='you'?'yourturn':'aiturn',currentTurn==='you'?'Your turn - fire at enemy waters.':multiplayerOpponentLabel()+' is firing...');
+    updateModeUI();updateBoardHighlights(currentTurn);renderBoards();renderShipLists();
+  }
+  function multiplayerShotEffectRemaining(){
+    return Math.max(0,(multiplayer.shotEffectUntil||0)-Date.now());
+  }
+  function scheduleMultiplayerShotEffectFlush(){
+    if(multiplayer.shotEffectTimer)clearTimeout(multiplayer.shotEffectTimer);
+    const remaining=multiplayerShotEffectRemaining();
+    if(remaining<=0){flushPendingMultiplayerShotEffects();return;}
+    multiplayer.shotEffectTimer=setTimeout(flushPendingMultiplayerShotEffects,remaining);
+  }
+  function markMultiplayerShotEffect(duration){
+    multiplayer.shotEffectUntil=Math.max(multiplayer.shotEffectUntil||0,Date.now()+Math.max(0,duration||0));
+    scheduleMultiplayerShotEffectFlush();
+  }
+  function flushPendingMultiplayerShotEffects(){
+    if(multiplayer.shotEffectTimer){clearTimeout(multiplayer.shotEffectTimer);multiplayer.shotEffectTimer=null;}
+    multiplayer.shotEffectUntil=0;
+    const endSnapshot=multiplayer.pendingEndSnapshot;
+    const turnSnapshot=multiplayer.pendingTurnSnapshot;
+    multiplayer.pendingEndSnapshot=null;
+    multiplayer.pendingTurnSnapshot=null;
+    if(endSnapshot)processFinishMultiplayerMatch(endSnapshot);
+    else if(turnSnapshot)processMultiplayerTurn(turnSnapshot);
+  }
+  function clearMultiplayerShotPacing(){
+    if(multiplayer.shotEffectTimer){clearTimeout(multiplayer.shotEffectTimer);multiplayer.shotEffectTimer=null;}
+    multiplayer.shotEffectUntil=0;
+    multiplayer.pendingTurnSnapshot=null;
+    multiplayer.pendingEndSnapshot=null;
+  }
+  function processMultiplayerTurn(snapshot){
+    applyMultiplayerSnapshot(snapshot);
+    if(snapshot.phase==='battle')phase='playing';
+    if(phase!=='playing')return;
+    updateMultiplayerTurnState(snapshot);
+    syncMultiplayerTimer(snapshot);
+    multiplayer.pendingShot=false;
+    inputLocked=false;
+    setStatus(currentTurn==='you'?'yourturn':'aiturn',currentTurn==='you'?'Your turn - fire at enemy waters.':multiplayerOpponentLabel()+' is firing...');
+    updateBoardHighlights(currentTurn);renderBoards();renderShipLists();
+    showTurnBanner(currentTurn==='you'?'you':'ai',bannerDelay(650));
+  }
+  function handleMultiplayerTurn(snapshot){
+    if(multiplayerShotEffectRemaining()>0){
+      multiplayer.pendingTurnSnapshot=snapshot;
+      scheduleMultiplayerShotEffectFlush();
+      return;
+    }
+    processMultiplayerTurn(snapshot);
+  }
+  function multiplayerFire(idx){
+    if(phase!=='playing'||!multiplayer.myTurn||inputLocked||multiplayer.pendingShot)return;
+    if(enemyBoard.shots.has(idx))return;
+    multiplayer.pendingShot=true;
+    inputLocked=true;
+    setStatus('waiting','Firing...');
+    multiplayer.socket.emit('shot:fire',multiplayerPayload({idx}));
+  }
+  function upsertRevealedEnemyShip(rawShip){
+    if(!rawShip)return null;
+    let ship=enemyBoard.ships.find(candidate=>candidate.id===rawShip.id);
+    if(!ship){
+      ship=hydrateShip(rawShip);
+      enemyBoard.ships.push(ship);
+    } else {
+      ship.cells=[...(rawShip.cells||ship.cells)];
+      ship.hits=new Set(rawShip.hits||rawShip.cells||[]);
+      ship.sunk=!!rawShip.sunk;
+      ship.orient=rawShip.orient||ship.orient;
+    }
+    return ship;
+  }
+  function handleMultiplayerShot(payload){
+    const shot=payload&&payload.shot;
+    if(!shot)return;
+    const mine=(Number.isInteger(shot.actorSlot)?shot.actorSlot===multiplayer.playerIndex:shot.actorId===multiplayer.playerId);
+    const idx=shot.idx;
+    const hit=!!shot.hit;
+    const sunk=!!shot.sunk;
+    let shipName=shot.shipName||'';
+    let shotShipLen=0;
+    let shotAnimation=null;
+    let sunkCelebration=null;
+    if(mine){
+      enemyBoard.shots.add(idx);shots++;lastPlayerShot=idx;
+      if(hit){enemyBoard.hits.add(idx);hits++;}
+      else enemyBoard.misses.add(idx);
+      if(sunk&&shot.sunkShip){
+        const ship=upsertRevealedEnemyShip(shot.sunkShip);
+        if(ship){ship.sunk=true;shipName=ship.name;shotShipLen=ship.len;ship.cells.forEach(cell=>enemyBoard.hits.add(cell));sunkCelebration={ship,isEnemyShip:true};}
+        log(`YOU sunk enemy ${shipName||'ship'}!`,'sunk-l');
+      } else if(hit)log(`YOU hit at ${coord(idx)}`,'hit-l');
+      else log(`YOU fired ${coord(idx)} - miss`,'you');
+      recordMove('YOU',idx,hit,sunk,shipName);
+      playPlayerFire(hit,sunk,shotShipLen);
+      shotAnimation={containerId:'enemyContainer',idx,hit,sunk};
+    } else {
+      yourBoard.shots.add(idx);aiShots++;lastAIShot=idx;
+      const ship=yourBoard.ships.find(candidate=>candidate.cells.includes(idx));
+      if(hit){
+        yourBoard.hits.add(idx);aiHits++;
+        if(ship){ship.hits.add(idx);shipName=ship.name;}
+      } else yourBoard.misses.add(idx);
+      if(sunk&&ship){ship.sunk=true;shipName=ship.name;shotShipLen=ship.len;sunkCelebration={ship,isEnemyShip:false};log(`${multiplayerOpponentLabel()} sunk your ${ship.name}!`,'sunk-l');}
+      else if(hit)log(`${multiplayerOpponentLabel()} hit at ${coord(idx)}`,'hit-l');
+      else log(`${multiplayerOpponentLabel()} fired ${coord(idx)} - miss`,'ai');
+      recordMove('AI',idx,hit,sunk,shipName);
+      playEnemyFire(hit,sunk,shotShipLen);
+      shotAnimation={containerId:'yourContainer',idx,hit,sunk};
+    }
+    multiplayer.pendingShot=mine&&payload.snapshot&&payload.snapshot.phase!=='ended';
+    inputLocked=!!multiplayer.pendingShot;
+    let animationDuration=0;
+    if(shotAnimation)animationDuration=applyShotFeedback(shotAnimation.containerId,shotAnimation.idx,shotAnimation.hit,shotAnimation.sunk);
+    else {renderBoards();renderShipLists();updateStats();updateModeUI();}
+    if(sunkCelebration){celebrateSink(sunkCelebration.ship,sunkCelebration.isEnemyShip);animationDuration=Math.max(animationDuration,SHOT_EFFECT_TIMING.sunkMs);}
+    markMultiplayerShotEffect(animationDuration);
+  }
+  function handleMultiplayerResync(snapshot){
+    applyMultiplayerSnapshot(snapshot);
+    hideReconnectOverlay();
+    if(snapshot.phase==='waiting'){
+      hideInviteOverlay();
+      if(multiplayer.playerIndex===0){
+        hideMultiplayerLobby();
+        showShareRoomScreen();
+      } else {
+        hideShareRoomScreen();
+        showMultiplayerLobby(multiplayerWaitingMessage(snapshot.players||[]));
+      }
+      showMultiplayerToast('Reconnected');
+      return;
+    }
+    hideShareRoomScreen();
+    hideInviteOverlay();
+    if(snapshot.phase==='placing'){
+      phase='placing';
+      if(snapshot.you&&snapshot.you.ships&&snapshot.you.ships.length)hydrateMultiplayerBoards(snapshot);
+      hideMultiplayerLobby();
+      currentTurn='placing';
+      activeMobileBoard='your';
+      inputLocked=!!multiplayer.placementSubmitted;
+      document.getElementById('pickerBox').style.display='';
+      document.getElementById('fleetBox').style.display='none';
+      setStatus(multiplayer.placementSubmitted?'waiting':'placing',multiplayer.placementSubmitted?'Fleet submitted. Waiting for '+multiplayerOpponentLabel()+'...':'Place your fleet for room '+multiplayer.roomCode);
+      renderShipPicker();renderBoards();updateStartBtn();updateStats();
+    } else if(snapshot.phase==='battle'){
+      phase='playing';
+      hideMultiplayerLobby();
+      hydrateMultiplayerBoards(snapshot);
+      updateMultiplayerTurnState(snapshot);
+      syncMultiplayerTimer(snapshot);
+      inputLocked=false;
+      multiplayer.pendingShot=false;
+      document.getElementById('pickerBox').style.display='none';
+      document.getElementById('fleetBox').style.display='';
+      setStatus(currentTurn==='you'?'yourturn':'aiturn',currentTurn==='you'?'Your turn - fire at enemy waters.':multiplayerOpponentLabel()+' is firing...');
+      updateBoardHighlights(currentTurn);renderBoards();renderShipLists();updateStats();updateModeUI();
+    } else if(snapshot.phase==='ended'){
+      finishMultiplayerMatch(snapshot);
+      return;
+    }
+    showMultiplayerToast('Reconnected');
+  }
+  function finishMultiplayerMatch(snapshot){
+    const endReason=(snapshot&&(snapshot.endReason||snapshot.reason))||'ships_sunk';
+    if(endReason==='ships_sunk'&&multiplayerShotEffectRemaining()>0){
+      multiplayer.pendingEndSnapshot=snapshot;
+      scheduleMultiplayerShotEffectFlush();
+      return;
+    }
+    processFinishMultiplayerMatch(snapshot);
+  }
+  function processFinishMultiplayerMatch(snapshot){
+    clearMultiplayerShotPacing();
+    applyMultiplayerSnapshot(snapshot);
+    hydrateMultiplayerBoards(snapshot);
+    phase='ended';
+    currentTurn='ended';
+    inputLocked=false;
+    const won=snapshot.winnerSlot===multiplayer.playerIndex||snapshot.winner===multiplayer.playerId;
+    if(won)wins++;else losses++;
+    multiplayer.rematchRequested=false;
+    multiplayer.endReason=snapshot.endReason||'ships_sunk';
+    endedBySurrender=!won&&['timeout_surrender','disconnect_forfeit'].includes(multiplayer.endReason);
+    lastGameWon=won;
+    stopMultiplayerCountdown();
+    stopOpponentDisconnectBanner();
+    saveMultiplayerSession();
+    endGame(won);
+  }
+  function leaveMultiplayerRoom(emitLeave=true){
+    clearMultiplayerShotPacing();
+    if(emitLeave&&multiplayer.socket&&multiplayer.joined)multiplayer.socket.emit('room:leave',multiplayerPayload({}));
+    multiplayer.joined=false;
+    multiplayer.roomCode='';
+    multiplayer.playerId='';
+    multiplayer.playerIndex=null;
+    multiplayer.token='';
+    multiplayer.opponentName='';
+    multiplayer.roomPlayers=[];
+    multiplayer.turnSlot=null;
+    multiplayer.myTurn=false;
+    multiplayer.lobbyReady=false;
+    multiplayer.waitingForOpponent=false;
+    multiplayer.pendingShot=false;
+    multiplayer.placementSubmitted=false;
+    multiplayer.rematchRequested=false;
+    multiplayer.joinMode=false;
+    multiplayer.turnDeadlineAt=null;
+    multiplayer.endReason='';
+    stopMultiplayerCountdown();
+    stopOpponentDisconnectBanner();
+    sessionStorage.removeItem(mpStorageKey());
+    const card=document.getElementById('mpRoomCard');
+    if(card)card.classList.remove('show');
+    setJoinMode(false);
+    updateMultiplayerRoomLabel();
+    updateMultiplayerRoomSize();
+  }
+
+  function isMobileLayout(){
+    return window.matchMedia&&window.matchMedia('(max-width: 760px)').matches;
+  }
+  function isFleetReady(){
+    return !!yourBoard&&yourBoard.ships.length===SHIPS.length;
+  }
+  function isMultiplayerPlacementLocked(){
+    return !!(MULTIPLAYER_ENABLED&&multiplayer.joined&&multiplayer.placementSubmitted&&phase==='placing');
+  }
+
+  function setMobileBoard(which){
+    if(which!=='enemy'&&which!=='your')return;
+    if(which==='your'&&phase==='placing'&&isFleetReady()){
+      startBattle();
+      return;
+    }
+    if(phase==='placing'&&which==='enemy')return;
+    activeMobileBoard=which;
+    updateMobileBoardUI();
+    renderVisibleMobileBoard();
+  }
+
+  function updateMobileBoardUI(){
+    const mobile=isMobileLayout();
+    const strip=document.getElementById('mobileBoardTabs');
+    const boardsRow=document.querySelector('.boards-row');
+    const yourWrap=document.getElementById('yourWrap');
+    const enemyWrap=document.getElementById('enemyWrap');
+    const yourTab=document.getElementById('mobileYourTab');
+    const enemyTab=document.getElementById('mobileEnemyTab');
+    const arrangeActions=document.getElementById('topArrangeActions');
+    const yourLabel=document.getElementById('mobileYourLabel');
+    const enemyLabel=document.getElementById('mobileEnemyLabel');
+    const yourHint=document.getElementById('mobileYourHint');
+    const enemyHint=document.getElementById('mobileEnemyHint');
+    const ready=isFleetReady();
+    if(strip){
+      strip.classList.toggle('arrange-mode',phase==='placing');
+      strip.classList.toggle('battle-mode',phase!=='placing');
+    }
+    if(boardsRow){
+      boardsRow.classList.toggle('arrange-mode',phase==='placing');
+      boardsRow.classList.toggle('battle-mode',phase!=='placing');
+    }
+    if(phase==='placing')activeMobileBoard='your';
+    if((phase==='playing'||phase==='ended')&&activeMobileBoard!=='your'&&activeMobileBoard!=='enemy')activeMobileBoard='enemy';
+    if(yourWrap)yourWrap.classList.toggle('mobile-hidden',mobile&&activeMobileBoard!=='your');
+    if(enemyWrap)enemyWrap.classList.toggle('mobile-hidden',mobile&&activeMobileBoard!=='enemy');
+    if(yourTab){
+      yourTab.classList.toggle('active',activeMobileBoard==='your');
+      yourTab.classList.toggle('confirm-ready',phase==='placing'&&ready);
+      yourTab.setAttribute('aria-selected',activeMobileBoard==='your'?'true':'false');
+      yourTab.setAttribute('aria-label',phase==='placing'&&ready?'Confirm fleet and start battle':'Your fleet');
+      yourTab.disabled=false;
+    }
+    if(enemyTab){
+      enemyTab.hidden=phase==='placing';
+      enemyTab.classList.toggle('active',activeMobileBoard==='enemy');
+      enemyTab.setAttribute('aria-selected',activeMobileBoard==='enemy'?'true':'false');
+      enemyTab.disabled=phase==='placing';
+    }
+    if(arrangeActions)arrangeActions.hidden=phase!=='placing';
+    if(yourLabel)yourLabel.textContent=phase==='placing'&&ready?'Confirm':'Your Fleet';
+    setTextWithEnemyIcon(enemyLabel,'Enemy Waters','small');
+    if(yourHint){
+      if(phase==='placing')yourHint.textContent=ready?'Start battle':'Place ships';
+      else if(currentTurn==='ai')yourHint.textContent='Under attack';
+      else yourHint.textContent='Inspect damage';
+    }
+    if(enemyHint){
+      if(phase==='placing')enemyHint.textContent='Locked';
+      else if(currentTurn==='you'&&!inputLocked)enemyHint.textContent='Tap to fire';
+      else enemyHint.textContent='Stand by';
+    }
+  }
+
+  function showTurnBanner(who,durMs=900){
+    const b=document.getElementById('turnBanner');const t=document.getElementById('turnBannerTxt');
+    b.classList.remove('show','you','ai');void b.offsetWidth;
+    b.classList.add('show',who);
+    if(who==='you')t.textContent='⚓ YOUR TURN';
+    else t.replaceChildren(createEnemyIcon(),document.createTextNode(' ENEMY TURN'));
+    inputLocked=true;
+    renderTurnSensitiveBoards();
+    if(who==='you')playYourTurnStinger();else playEnemyTurnStinger();
+    setTimeout(()=>{b.classList.remove('show','you','ai');inputLocked=false;renderTurnSensitiveBoards();},durMs);}
+
+  // Sink celebration - visual ripple flash and banner only; shot outcome audio plays separately.
+  function celebrateSink(ship,isEnemyShip){
+    const containerId=isEnemyShip?'enemyContainer':'yourContainer';
+    ship.cells.forEach((idx,i)=>{
+      const el=getBoardCell(containerId,idx);
+      if(el){
+        setTimeout(()=>el.classList.add('sink-flash'),i*60);
+        setTimeout(()=>el.classList.remove('sink-flash'),i*60+SHOT_EFFECT_TIMING.sunkMs);
+      }
+    });
+    const banner=document.createElement('div');
+    banner.className='sink-banner';
+    const who=isEnemyShip?'🎯 ENEMY':'💥 YOUR';
+    banner.textContent=`${who} ${ship.name} SUNK!`;
+    document.body.appendChild(banner);
+    setTimeout(()=>banner.remove(),SHOT_EFFECT_TIMING.sinkBannerMs);
+  }
+
+  /* ─── Setup ─── */
+  function clearBattleAutoStart(){
+    if(battleAutoStartTimer){clearTimeout(battleAutoStartTimer);battleAutoStartTimer=null;}
+    const btn=document.getElementById('btnStart');
+    if(btn&&phase==='placing'){
+      if(yourBoard)updateStartBtn();
+      else{btn.disabled=true;btn.classList.remove('ready');btn.textContent='Place Ships';}
+    }
+  }
+
+  function updateModeUI(){
+    const placed=yourBoard?yourBoard.ships.length:0;
+    const ready=placed===SHIPS.length;
+    const arrange=document.getElementById('modeArrange');
+    const battle=document.getElementById('modeBattle');
+    const strip=document.getElementById('modeStrip');
+    if(strip){
+      strip.classList.toggle('phase-placing',phase==='placing');
+      strip.classList.toggle('phase-playing',phase==='playing');
+      strip.classList.toggle('phase-ended',phase==='ended');
+    }
+    if(arrange&&battle){
+      arrange.classList.toggle('active',phase==='placing');
+      arrange.classList.toggle('done',phase!=='placing');
+      battle.classList.toggle('active',phase==='playing');
+      battle.classList.toggle('locked',phase==='placing'&&!ready);
+      battle.classList.toggle('done',phase==='ended');
+    }
+
+    const progressText=document.getElementById('placementProgressText');
+    const progressFill=document.getElementById('placementProgressFill');
+    const orientationText=document.getElementById('placementOrientation');
+    const selectedText=document.getElementById('selectedShipLabel');
+    const autoText=document.getElementById('autoStartLabel');
+    if(progressText)progressText.textContent=placed+' / '+SHIPS.length+' placed';
+    if(progressFill)progressFill.style.width=Math.round((placed/SHIPS.length)*100)+'%';
+    if(orientationText){
+      const placedSelected=selectedSource==='grid'?placedShipById(selectedShipId):null;
+      const o=placedSelected?placedSelected.orient:orientation;
+      orientationText.textContent=o==='h'?'Horizontal':'Vertical';
+    }
+    if(selectedText){
+      const ship=SHIPS.find(s=>s.id===selectedShipId);
+      const placedSelected=selectedSource==='grid'?placedShipById(selectedShipId):null;
+      selectedText.textContent=phase==='placing'&&placedSelected?'Editing: '+placedSelected.name:(phase==='placing'&&ship?'Selected: '+ship.name:(phase==='placing'?'Fleet ready':'Battle underway'));
+    }
+    if(autoText){
+      if(phase==='placing')autoText.textContent=selectedSource==='grid'?'Move / rotate':(ready?'Ready to confirm':'Remaining: '+(SHIPS.length-placed));
+      else autoText.textContent='Battle mode';
+    }
+    const battleFill=document.getElementById('battleProgressFill');
+    const battleText=document.getElementById('battleProgressText');
+    const battleEnemy=document.getElementById('battleEnemyFleet');
+    const battlePlayer=document.getElementById('battlePlayerFleet');
+    const enemySunk=enemyBoard?enemyBoard.ships.filter(s=>s.sunk).length:0;
+    const playerSunk=yourBoard?yourBoard.ships.filter(s=>s.sunk).length:0;
+    const totalSunk=enemySunk+playerSunk;
+    const totalShips=SHIPS.length*2;
+    if(battleFill)battleFill.style.width=Math.round((totalSunk/totalShips)*100)+'%';
+    if(battleText){
+      if(MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='playing')battleText.textContent=multiplayer.myTurn?'Your turn':'Enemy turn';
+      else battleText.textContent=phase==='placing'?(ready?'Ready':'Locked'):(totalSunk+' / '+totalShips+' sunk');
+    }
+    if(battleEnemy)battleEnemy.textContent='Enemy: '+(SHIPS.length-enemySunk)+' remain / '+enemySunk+' sunk';
+    if(battlePlayer)battlePlayer.textContent='You: '+(SHIPS.length-playerSunk)+' remain / '+playerSunk+' sunk';
+    updateArrangeControls();
+    updateSizeControls();
+  }
+
+  function updateSizeControls(){
+    const locked=phase!=='placing'||(MULTIPLAYER_ENABLED&&multiplayer.joined);
+    document.querySelectorAll('.size-tab').forEach(t=>{
+      t.disabled=locked;
+      t.setAttribute('aria-disabled',locked?'true':'false');
+      t.title=locked?'Start a new battle or room to change grid size':'Change board size';
+    });
+  }
+
+  function setDifficulty(d){
+    if(d==='medium'||!DIFF_LABELS[d])d='easy';
+    difficulty=d;
+    ['easy','hard','expert'].forEach(x=>{
+      const btn=document.getElementById('diff'+x[0].toUpperCase()+x.slice(1));
+      if(btn)btn.classList.toggle('active',x===d);
+    });
+    document.getElementById('statDiff').textContent=DIFF_LABELS[d];}
+  function setSize(n){if(phase!=='placing'||(MULTIPLAYER_ENABLED&&multiplayer.joined))return;
+    if(!BOARD_SIZES.includes(n))n=8;N=n;
+    if(MULTIPLAYER_ENABLED)multiplayer.roomBoardSize=n;
+    document.querySelectorAll('.size-tab').forEach(t=>t.classList.toggle('active',t.textContent.trim().startsWith(String(n))));
+    updateMultiplayerRoomSize();
+    newGame();}
+  function emptyBoard(){return{ships:[],shots:new Set(),hits:new Set(),misses:new Set()};}
+  function shipCellsAt(idx,len,o){const r=Math.floor(idx/N),c=idx%N;const out=[];
+    if(r<0||c<0||r>=N||c>=N)return null;
+    for(let i=0;i<len;i++){if(o==='h'){if(c+i>=N)return null;out.push(r*N+c+i);}
+      else{if(r+i>=N)return null;out.push((r+i)*N+c);}}return out;}
+
+  function neighbors8(idx){const r=Math.floor(idx/N),c=idx%N,out=[];
+    for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+      if(dr===0&&dc===0)continue;
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<N&&nc>=0&&nc<N)out.push(nr*N+nc);}
+    return out;}
+
+  function canPlace(b,c){
+    if(!c)return false;
+    const occ=new Set();
+    b.ships.forEach(s=>s.cells.forEach(x=>occ.add(x)));
+    return c.every(x=>x>=0&&x<N*N&&!occ.has(x));}
+  function canPlaceIgnoring(b,c,ignoreId){
+    if(!c)return false;
+    const occ=new Set();
+    b.ships.forEach(s=>{if(s.id!==ignoreId)s.cells.forEach(x=>occ.add(x));});
+    return c.every(x=>x>=0&&x<N*N&&!occ.has(x));}
+  function clearPlacementPreview(){
+    previewCellsCurrent.forEach(el=>el.classList.remove('ship-preview','ship-preview-bad'));
+    previewCellsCurrent=[];
+  }
+  function getYourCellAtPoint(x,y){
+    const cont=document.getElementById('yourContainer');
+    const el=document.elementFromPoint(x,y);
+    const cell=el&&el.closest?el.closest('.cell'):null;
+    return cell&&cont&&cont.contains(cell)?cell:null;
+  }
+  function placedShipById(id){return yourBoard?yourBoard.ships.find(s=>s.id===id):null;}
+  function selectedShipDef(){return SHIPS.find(s=>s.id===selectedShipId)||null;}
+  function setArrangeSelection(id,source='dock',offset=0){
+    selectedShipId=id;
+    selectedSource=id===null?null:source;
+    selectedOffset=Math.max(0,offset||0);
+    const placed=placedShipById(id);
+    if(source==='grid'&&placed)orientation=placed.orient;
+    updateArrangeControls();
+    updateModeUI();
+  }
+  function selectFirstUnplaced(){
+    const next=SHIPS.find(s=>!placedShipById(s.id));
+    setArrangeSelection(next?next.id:null,next?'dock':null,0);
+  }
+  function selectNextUnplaced(){
+    const next=SHIPS.find(s=>!placedShipById(s.id));
+    setArrangeSelection(next?next.id:null,next?'dock':null,0);
+    if(next)setStatus('placing','Selected '+next.name);
+    else setStatus('placing','Fleet ready');
+  }
+  function exitPlacedShipEdit(){
+    const next=SHIPS.find(s=>!placedShipById(s.id));
+    selectedShipId=next?next.id:null;
+    selectedSource=next?'dock':null;
+    selectedOffset=0;
+    hoverCell=-1;
+    clearPlacementPreview();
+    setStatus('placing',next?'Selected '+next.name:'Fleet ready');
+    renderShipPicker();renderBoards();updateStartBtn();updateModeUI();
+  }
+  function updateArrangeControls(){
+    const disabled=phase!=='placing'||isMultiplayerPlacementLocked();
+    ['btnShuffle','btnRotate'].forEach(id=>{
+      const btn=document.getElementById(id);
+      if(btn)btn.disabled=disabled;
+    });
+    const clearBtn=document.getElementById('btnClear');
+    if(clearBtn){
+      const hasSelectedPlaced=!disabled&&selectedSource==='grid'&&!!placedShipById(selectedShipId);
+      clearBtn.disabled=!hasSelectedPlaced;
+      clearBtn.title=hasSelectedPlaced?'Clear selected ship (C)':'Select a placed ship to clear';
+      clearBtn.setAttribute('aria-label',clearBtn.title);
+    }
+  }
+  function clearArrangeDrag(){
+    isDragging=false;
+    dragState=null;
+    boardPointer=null;
+    if(dragPreviewFrame)cancelAnimationFrame(dragPreviewFrame);
+    dragPreviewFrame=null;
+    dragPreviewPoint=null;
+    clearPlacementPreview();
+    updateArrangeControls();
+  }
+  function cellsForShipTouch(ship,idx,o,offset){
+    const step=o==='h'?1:N;
+    return shipCellsAt(idx-(offset*step),ship.len,o);
+  }
+  function previewArrangeCells(cells,valid){
+    clearPlacementPreview();
+    if(!cells)return;
+    cells.forEach(idx=>{
+      const el=getBoardCell('yourContainer',idx);
+      if(el){el.classList.add(valid?'ship-preview':'ship-preview-bad');previewCellsCurrent.push(el);}
+    });
+  }
+  function selectPlacedShip(ship,idx){
+    const offset=Math.max(0,ship.cells.indexOf(idx));
+    setArrangeSelection(ship.id,'grid',offset);
+    setStatus('placing','Editing '+ship.name);
+    renderShipPicker();renderBoards();
+  }
+  function shipCellsAroundPivot(pivotIdx,len,o,offset,dir){
+    const step=o==='h'?1:N;
+    const pivotRow=Math.floor(pivotIdx/N),pivotCol=pivotIdx%N;
+    const cells=[];
+    for(let i=0;i<len;i++){
+      const idx=pivotIdx+(i-offset)*step*dir;
+      if(idx<0||idx>=N*N)return null;
+      if(o==='h'&&Math.floor(idx/N)!==pivotRow)return null;
+      if(o==='v'&&idx%N!==pivotCol)return null;
+      cells.push(idx);
+    }
+    return cells.sort((a,b)=>a-b);
+  }
+  function getRotationCandidates(ship,nextOrient){
+    const offset=Math.min(Math.max(0,selectedOffset||0),ship.len-1);
+    const pivot=ship.cells[offset]!==undefined?ship.cells[offset]:ship.cells[0];
+    return [1,-1].map(dir=>shipCellsAroundPivot(pivot,ship.len,nextOrient,offset,dir));
+  }
+  function updateDragPreviewAt(x,y){
+    if(!dragState)return;
+    const cell=getYourCellAtPoint(x,y);
+    if(!cell){
+      dragState.previewCells=null;
+      dragState.previewValid=false;
+      clearPlacementPreview();
+      updateArrangeControls();
+      return;
+    }
+    const idx=+cell.dataset.idx;
+    const ship=placedShipById(dragState.shipId);
+    const cells=ship?cellsForShipTouch(ship,idx,ship.orient,dragState.offset):null;
+    const valid=canPlaceIgnoring(yourBoard,cells,dragState.shipId);
+    dragState.previewCells=cells||[idx];
+    dragState.previewValid=valid;
+    previewArrangeCells(dragState.previewCells,valid);
+    updateArrangeControls();
+  }
+  function requestDragPreview(e){
+    dragPreviewPoint={x:e.clientX,y:e.clientY};
+    if(dragPreviewFrame)return;
+    dragPreviewFrame=requestAnimationFrame(()=>{
+      dragPreviewFrame=null;
+      const point=dragPreviewPoint;
+      dragPreviewPoint=null;
+      if(point)updateDragPreviewAt(point.x,point.y);
+    });
+  }
+  function handleArrangePointerDown(e,cont){
+    if(phase!=='placing'||isMultiplayerPlacementLocked()||e.button>0)return;
+    const t=e.target.closest('.cell');if(!t)return;
+    const idx=+t.dataset.idx;
+    const ship=yourBoard.ships.find(s=>s.cells.includes(idx));
+    boardPointer={pointerId:e.pointerId,startIdx:idx,lastIdx:idx,startX:e.clientX,startY:e.clientY,shipId:ship?ship.id:null,offset:ship?ship.cells.indexOf(idx):0,dragStarted:false};
+    try{cont.setPointerCapture(e.pointerId);}catch(_){}
+  }
+  function handleArrangePointerMove(e){
+    if(!boardPointer||boardPointer.pointerId!==e.pointerId)return;
+    const cell=getYourCellAtPoint(e.clientX,e.clientY);
+    boardPointer.lastIdx=cell?+cell.dataset.idx:-1;
+    const dist=Math.hypot(e.clientX-boardPointer.startX,e.clientY-boardPointer.startY);
+    if(!boardPointer.dragStarted&&boardPointer.shipId!==null&&dist>8){
+      const ship=placedShipById(boardPointer.shipId);
+      if(ship){
+        boardPointer.dragStarted=true;
+        isDragging=true;
+        selectedShipId=ship.id;
+        selectedSource='grid';
+        selectedOffset=boardPointer.offset;
+        orientation=ship.orient;
+        dragState={shipId:ship.id,offset:boardPointer.offset,originalCells:[...ship.cells],previewCells:null,previewValid:false};
+        renderShipPicker();
+        updateModeUI();
+      }
+    }
+    if(!boardPointer.dragStarted)return;
+    e.preventDefault();
+    requestDragPreview(e);
+  }
+  function finishArrangePointer(e){
+    if(!boardPointer||boardPointer.pointerId!==e.pointerId)return;
+    const pointer=boardPointer;
+    boardPointer=null;
+    if(pointer.dragStarted&&dragState){
+      e.preventDefault();
+      const ship=placedShipById(dragState.shipId);
+      if(ship&&dragState.previewValid&&dragState.previewCells){
+        ship.cells=[...dragState.previewCells];
+        ship.orient=orientation=ship.orient;
+        setArrangeSelection(ship.id,'grid',dragState.offset);
+        setStatus('placing',ship.name+' moved');
+        const moved=[...ship.cells];
+        clearArrangeDrag();
+        renderShipPicker();renderBoards();flashPlacementFeedback(moved,true);updateStartBtn();
+      } else {
+        const bad=dragState.previewCells||[pointer.lastIdx];
+        clearArrangeDrag();
+        renderShipPicker();renderBoards();flashPlacementFeedback(bad,false);updateModeUI();
+      }
+      return;
+    }
+    const ship=yourBoard.ships.find(s=>s.cells.includes(pointer.startIdx));
+    if(ship){selectPlacedShip(ship,pointer.startIdx);return;}
+    if(selectedSource==='grid'){exitPlacedShipEdit();return;}
+    if(selectedSource==='dock'&&selectedShipId!==null)tryPlaceShip(pointer.startIdx);
+  }
+  function rotatePlacedShip(id){
+    const ship=placedShipById(id);
+    if(!ship)return false;
+    const nextOrient=ship.orient==='h'?'v':'h';
+    const candidates=getRotationCandidates(ship,nextOrient);
+    const cells=candidates.find(c=>canPlaceIgnoring(yourBoard,c,ship.id));
+    if(!cells){
+      setStatus('placing','Rotation blocked');
+      renderBoards();flashPlacementFeedback(candidates.find(Boolean)||ship.cells,false);updateModeUI();
+      return false;
+    }
+    ship.cells=[...cells];
+    ship.orient=nextOrient;
+    orientation=nextOrient;
+    setArrangeSelection(ship.id,'grid',Math.min(selectedOffset,ship.len-1));
+    setStatus('placing',ship.name+' rotated '+(nextOrient==='h'?'horizontal':'vertical'));
+    renderShipPicker();renderBoards();flashPlacementFeedback(cells,true);updateStartBtn();
+    playCompassTickCue();
+    return true;
+  }
+  function cancelArrangePointer(){
+    boardPointer=null;
+    clearArrangeDrag();
+  }
+
+  function placeShipAt(b,d,c,o){b.ships.push({...d,cells:[...c],orient:o||'h',hits:new Set(),sunk:false});}
+  function autoPlaceFleet(b,list){
+    for(const s of list){let placed=false;
+      for(let a=0;a<500&&!placed;a++){
+        const h=Math.random()<.5;
+        const r=Math.floor(Math.random()*(h?N:N-s.len+1));
+        const c=Math.floor(Math.random()*(h?N-s.len+1:N));
+        const cells=[];for(let i=0;i<s.len;i++){const rr=h?r:r+i,cc=h?c+i:c;cells.push(rr*N+cc);}
+        if(canPlace(b,cells)){placeShipAt(b,s,cells,h?'h':'v');placed=true;}}
+      if(!placed){
+        for(let a=0;a<300;a++){
+          const h=Math.random()<.5;
+          const r=Math.floor(Math.random()*(h?N:N-s.len+1));
+          const c=Math.floor(Math.random()*(h?N-s.len+1:N));
+          const cells=[];for(let i=0;i<s.len;i++){const rr=h?r:r+i,cc=h?c+i:c;cells.push(rr*N+cc);}
+          const occ=new Set();b.ships.forEach(x=>x.cells.forEach(y=>occ.add(y)));
+          if(cells.every(x=>!occ.has(x))){placeShipAt(b,s,cells,h?'h':'v');break;}}}}}
+
+  function selectShip(id){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
+    clearBattleAutoStart();
+    const ship=yourBoard.ships.find(s=>s.id===id);
+    if(ship)selectPlacedShip(ship,ship.cells[0]);
+    else{
+      setArrangeSelection(id,'dock',0);
+      const next=SHIPS.find(s=>s.id===id);
+      if(next)setStatus('placing','Selected '+next.name);
+    }
+    renderShipPicker();renderBoards();updateStartBtn();}
+  function autoPlace(){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
+    clearBattleAutoStart();
+    clearArrangeDrag();
+    yourBoard.ships=[];
+    autoPlaceFleet(yourBoard,SHIPS);
+    setArrangeSelection(null,null,0);
+    renderShipPicker();renderBoards();
+    flashPlacementFeedback(yourBoard.ships.flatMap(s=>s.cells),true);
+    playDeckShuffleCue();
+    updateStartBtn();}
+  function clearSelectedShip(){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
+    clearBattleAutoStart();
+    const ship=selectedSource==='grid'?placedShipById(selectedShipId):null;
+    if(!ship){
+      setStatus('placing','Select a placed ship to clear');
+      updateArrangeControls();
+      return;
+    }
+    clearArrangeDrag();
+    const removedDef=SHIPS.find(s=>s.id===ship.id)||ship;
+    orientation=ship.orient||orientation;
+    yourBoard.ships=yourBoard.ships.filter(s=>s.id!==ship.id);
+    setArrangeSelection(ship.id,'dock',0);
+    hoverCell=-1;
+    clearPlacementPreview();
+    setStatus('placing',removedDef.name+' cleared. Place it again.');
+    renderShipPicker();renderBoards();playAnchorLiftCue();updateStartBtn();}
+  function clearFleet(){clearSelectedShip();}
+  function rotateOrientation(){if(isMultiplayerPlacementLocked())return;
+    if(phase==='placing'){
+      if(selectedSource==='grid'&&selectedShipId!==null)return rotatePlacedShip(selectedShipId);
+    }
+    orientation=(orientation==='h'?'v':'h');
+    setStatus('placing','Orientation: '+(orientation==='h'?'horizontal':'vertical'));
+    playCompassTickCue();
+    updateHoverPreview();updateModeUI();}
+  function tryPlaceShip(idx,shipId){if(phase!=='placing'||isMultiplayerPlacementLocked())return;
+    clearBattleAutoStart();
+    clearArrangeDrag();
+    const id=(shipId!==undefined&&shipId!==null)?shipId:selectedShipId;if(id===null)return;
+    const ship=SHIPS.find(s=>s.id===id);if(!ship||yourBoard.ships.find(s=>s.id===id))return;
+    const cells=shipCellsAt(idx,ship.len,orientation);
+    if(!canPlace(yourBoard,cells)){
+      flashPlacementFeedback(cells||[idx],false);
+      setStatus('placing','Blocked placement');
+      updateModeUI();
+      return;
+    }
+    placeShipAt(yourBoard,ship,cells,orientation);
+    selectNextUnplaced();
+    renderShipPicker();renderBoards();flashPlacementFeedback(cells,true);updateStartBtn();}
+  function updateStartBtn(){
+    const btn=document.getElementById('btnStart');
+    if(!btn)return;
+    const ready=!!yourBoard&&yourBoard.ships.length===SHIPS.length;
+    btn.disabled=!ready||(MULTIPLAYER_ENABLED&&(multiplayer.waitingForOpponent||multiplayer.placementSubmitted));
+    btn.classList.toggle('ready',phase==='placing'&&ready);
+    if(phase==='placing')btn.textContent=MULTIPLAYER_ENABLED?(ready?(multiplayer.waitingForOpponent?'Waiting':'Ready'):'Place Ships'):(ready?'Confirm':'Place Ships');
+    else btn.textContent='Battle';
+    updateModeUI();
+  }
+
+  function newGame(){stopConfetti();clearBattleAutoStart();clearArrangeDrag();phase='placing';
+    stopMultiplayerCountdown();
+    clearMultiplayerShotPacing();
+    syncOpponentMode();
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&!multiplayer.suppressLobby)leaveMultiplayerRoom();
+    yourBoard=emptyBoard();enemyBoard=emptyBoard();
+    if(opponentMode==='ai')autoPlaceFleet(enemyBoard,SHIPS);
+    shots=hits=aiShots=aiHits=0;lastPlayerShot=lastAIShot=-1;
+    battleLog=[];battleMoves=[];lastGameWon=false;endedBySurrender=false;
+    selectedShipId=SHIPS[0].id;selectedSource='dock';selectedOffset=0;orientation='h';hoverCell=-1;currentTurn='placing';previewCellsCurrent=[];
+    activeMobileBoard='your';
+    aiTargetQueue=[];aiHitChain=[];aiOrientation=null;aiKnownEmpty=new Set();
+    inputLocked=false;
+    multiplayer.placementSubmitted=false;
+    multiplayer.turnDeadlineAt=null;
+    multiplayer.endReason='';
+    document.getElementById('btnShuffle').disabled=false;
+    document.getElementById('btnClear').disabled=false;
+    document.getElementById('btnRotate').disabled=false;
+    document.getElementById('pickerBox').style.display='';
+    document.getElementById('fleetBox').style.display='none';
+    document.getElementById('modalOverlay').classList.remove('show');
+    document.getElementById('analysisOverlay').classList.remove('show');
+    document.getElementById('howToOverlay').classList.remove('show');
+    resetMoveLogPlaceholder('No shots fired yet…');
+    setStatus('placing','Place your fleet to begin!');
+    updateBoardHighlights();renderShipPicker();renderBoards();updateStartBtn();updateStats();
+    setDifficulty(difficulty);
+    if(MODE_SELECTION_ENABLED&&!opponentMode){
+      hideMultiplayerLobby();
+      showOpponentOverlay();
+      return;
+    }
+    if(MULTIPLAYER_ENABLED&&!multiplayer.suppressLobby){
+      ensureMultiplayerSocket();
+      showMultiplayerLobby();
+    }}
+
+  function startBattle(auto=false){if(phase!=='placing'||yourBoard.ships.length!==SHIPS.length)return;
+    if(MULTIPLAYER_ENABLED){submitMultiplayerFleet();return;}
+    playReadyBellCue();
+    if(battleAutoStartTimer){clearTimeout(battleAutoStartTimer);battleAutoStartTimer=null;}
+    clearArrangeDrag();
+    phase='playing';currentTurn='you';
+    activeMobileBoard='enemy';
+    document.getElementById('btnShuffle').disabled=true;
+    document.getElementById('btnClear').disabled=true;
+    document.getElementById('btnRotate').disabled=true;
+    document.getElementById('btnStart').disabled=true;
+    document.getElementById('btnStart').classList.remove('ready');
+    document.getElementById('btnStart').textContent='Battle';
+    document.getElementById('pickerBox').style.display='none';
+    document.getElementById('fleetBox').style.display='';
+    selectedShipId=null;selectedSource=null;selectedOffset=0;hoverCell=-1;previewCellsCurrent=[];
+    setStatus('yourturn','Your turn - fire at enemy waters.');
+    updateModeUI();updateBoardHighlights('you');renderBoards();renderShipLists();
+    showTurnBanner('you',bannerDelay(700));}
+
+  function updateBoardHighlights(turn){
+    const yw=document.getElementById('yourWrap'),ew=document.getElementById('enemyWrap');
+    const yt=document.getElementById('yourTitle'),et=document.getElementById('enemyTitle');
+    [yw,ew].forEach(w=>w.classList.remove('your-active','enemy-target','under-attack','dimmed'));
+    [yt,et].forEach(t=>t.classList.remove('your-active','enemy-target','under-attack'));
+    if(phase==='placing'){activeMobileBoard='your';yw.classList.add('your-active');yt.classList.add('your-active');ew.classList.add('dimmed');}
+    else if(phase==='playing'){
+      ew.classList.add('enemy-target');et.classList.add('enemy-target');
+      if(turn==='you'){activeMobileBoard='enemy';yw.classList.add('dimmed');}
+      else if(turn==='ai'){activeMobileBoard='your';}
+    } else if(phase==='ended'){
+      ew.classList.add('enemy-target');et.classList.add('enemy-target');
+    }
+    updateMobileBoardUI();
+  }
+
+  function playerShoot(idx){
+    if(phase!=='playing'||currentTurn!=='you'||inputLocked)return;
+    if(MULTIPLAYER_ENABLED){multiplayerFire(idx);return;}
+    if(enemyBoard.shots.has(idx))return;
+    currentTurn='ai';
+    inputLocked=true;
+    enemyBoard.shots.add(idx);shots++;lastPlayerShot=idx;
+    const ship=enemyBoard.ships.find(s=>s.cells.includes(idx));
+    let isHit=false,isSunk=false;
+    if(ship){enemyBoard.hits.add(idx);ship.hits.add(idx);hits++;isHit=true;
+      if(ship.hits.size===ship.len){ship.sunk=true;isSunk=true;
+        log(`YOU sunk enemy ${ship.name}!`,'sunk-l');}
+      else log(`YOU hit at ${coord(idx)} 💥`,'hit-l');
+    } else {enemyBoard.misses.add(idx);log(`YOU fired ${coord(idx)} — miss`,'you');}
+    recordMove('YOU',idx,isHit,isSunk,ship?ship.name:'');
+    playPlayerFire(isHit,isSunk,ship?ship.len:0);
+    const effectMs=applyShotFeedback('enemyContainer',idx,isHit,isSunk);
+
+    // Game over
+    if(enemyBoard.ships.every(s=>s.sunk)){phase='ended';wins++;
+      if(isSunk)celebrateSink(ship,true);
+      setTimeout(()=>endGame(true),Math.max(effectMs,isSunk?SHOT_EFFECT_TIMING.sunkMs:effectMs));return;}
+
+    // SINK PAUSE — celebrate, then change turn
+    if(isSunk){
+      inputLocked=true;
+      celebrateSink(ship,true);
+      setStatus('aiturn','Direct hit - enemy ship destroyed.');
+      setTimeout(()=>{
+        setStatus('aiturn','Enemy is firing back.');
+        updateBoardHighlights('ai');renderBoards();
+        showTurnBanner('ai',bannerDelay(800));
+        setTimeout(aiShoot,turnDelay(850));
+      },Math.max(effectMs,SHOT_EFFECT_TIMING.sunkMs));
+      return;
+    }
+
+    setStatus('aiturn','Shot resolving...');
+    setTimeout(()=>{updateBoardHighlights('ai');renderBoards();showTurnBanner('ai',bannerDelay(800));
+      setStatus('aiturn','Enemy is firing back.');
+      setTimeout(aiShoot,turnDelay(850));},effectMs);
+  }
+
+  function aiShoot(){if(phase!=='playing')return;
+    currentTurn='ai';
+    inputLocked=true;
+    let idx=pickAIShot();
+    yourBoard.shots.add(idx);aiShots++;lastAIShot=idx;
+    const ship=yourBoard.ships.find(s=>s.cells.includes(idx));
+    let isHit=false,isSunk=false;
+    if(ship){yourBoard.hits.add(idx);ship.hits.add(idx);aiHits++;isHit=true;
+      onAIHit(idx,ship);
+      if(ship.hits.size===ship.len){ship.sunk=true;isSunk=true;
+        log(`AI sunk your ${ship.name}!`,'sunk-l');
+        aiHitChain=[];aiTargetQueue=[];aiOrientation=null;}
+      else log(`AI hit at ${coord(idx)} 💥`,'hit-l');
+    } else {yourBoard.misses.add(idx);log(`AI fired ${coord(idx)} — miss`,'ai');}
+    recordMove('AI',idx,isHit,isSunk,ship?ship.name:'');
+    playEnemyFire(isHit,isSunk,ship?ship.len:0);
+    const effectMs=applyShotFeedback('yourContainer',idx,isHit,isSunk);
+
+    // Game over
+    if(yourBoard.ships.every(s=>s.sunk)){phase='ended';losses++;
+      if(isSunk)celebrateSink(ship,false);
+      setTimeout(()=>endGame(false),Math.max(effectMs,isSunk?SHOT_EFFECT_TIMING.sunkMs:effectMs));return;}
+
+    // SINK PAUSE
+    if(isSunk){
+      celebrateSink(ship,false);
+      setStatus('yourturn','Your ship was lost.');
+      setTimeout(()=>{
+        currentTurn='you';
+        setStatus('yourturn','Your turn - fire at enemy waters.');
+        updateBoardHighlights('you');renderBoards();
+        showTurnBanner('you',bannerDelay(700));
+      },Math.max(effectMs,SHOT_EFFECT_TIMING.sunkMs));
+      return;
+    }
+
+    setStatus('waiting','Enemy shot resolving...');
+    setTimeout(()=>{currentTurn='you';setStatus('yourturn','Your turn - fire at enemy waters.');updateBoardHighlights('you');renderBoards();showTurnBanner('you',bannerDelay(700));},effectMs);
+  }
+
+  function pickAIShot(){
+    if(difficulty==='easy')return randomUntried(yourBoard);
+    if(difficulty==='hard'||difficulty==='expert'){
+      aiTargetQueue=aiTargetQueue.filter(i=>!yourBoard.shots.has(i)&&!aiKnownEmpty.has(i));
+    } else {
+      aiTargetQueue=aiTargetQueue.filter(i=>!yourBoard.shots.has(i));
+    }
+    if(aiTargetQueue.length){
+      if(aiOrientation&&aiHitChain.length>=2&&(difficulty==='hard'||difficulty==='expert')){
+        const ori=aiTargetQueue.filter(i=>extendsChain(i));
+        if(ori.length)return ori[0];
+        if(difficulty==='expert'){
+          aiOrientation=null;
+          const fresh=rebuildQueueFromChain();
+          if(fresh.length)return fresh[0];
+        }
+      }
+      return aiTargetQueue.shift();
+    }
+    if(difficulty==='expert')return huntExpert();
+    return huntParity();
+  }
+
+  function rebuildQueueFromChain(){
+    const out=[];
+    aiHitChain.forEach(h=>{
+      const r=Math.floor(h/N),c=h%N;
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{
+        const nr=r+dr,nc=c+dc;
+        if(nr<0||nr>=N||nc<0||nc>=N)return;
+        const ni=nr*N+nc;
+        if(yourBoard.shots.has(ni))return;
+        if((difficulty==='hard'||difficulty==='expert')&&aiKnownEmpty.has(ni))return;
+        if(!out.includes(ni))out.push(ni);});
+    });
+    aiTargetQueue=out;
+    return out;
+  }
+
+  function extendsChain(idx){if(aiHitChain.length<2)return true;
+    const r=Math.floor(idx/N),c=idx%N,sm=aiHitChain[0],sr=Math.floor(sm/N),sc=sm%N;
+    if(aiOrientation==='h')return r===sr;
+    if(aiOrientation==='v')return c===sc;
+    return true;}
+
+  function onAIHit(idx,ship){aiHitChain.push(idx);
+    if(aiHitChain.length>=2){
+      const a=aiHitChain[0],b=aiHitChain[aiHitChain.length-1];
+      aiOrientation=(Math.floor(a/N)===Math.floor(b/N))?'h':'v';
+      aiTargetQueue=[];const sorted=[...aiHitChain].sort((x,y)=>x-y);
+      const f=sorted[0],l=sorted[sorted.length-1];
+      if(aiOrientation==='h'){
+        if(f%N>0)aiTargetQueue.push(f-1);
+        if(l%N<N-1)aiTargetQueue.push(l+1);
+      } else {
+        if(Math.floor(f/N)>0)aiTargetQueue.push(f-N);
+        if(Math.floor(l/N)<N-1)aiTargetQueue.push(l+N);}
+      if(difficulty==='hard'||difficulty==='expert'){
+        aiTargetQueue=aiTargetQueue.filter(i=>!aiKnownEmpty.has(i));}
+    } else {
+      const r=Math.floor(idx/N),c=idx%N,n=[];
+      if(r>0)n.push(idx-N);if(r<N-1)n.push(idx+N);
+      if(c>0)n.push(idx-1);if(c<N-1)n.push(idx+1);
+      n.forEach(x=>{
+        if(yourBoard.shots.has(x))return;
+        if((difficulty==='hard'||difficulty==='expert')&&aiKnownEmpty.has(x))return;
+        if(!aiTargetQueue.includes(x))aiTargetQueue.push(x);});}}
+
+  function randomUntried(b){const a=[];for(let i=0;i<N*N;i++)if(!b.shots.has(i))a.push(i);
+    return a[Math.floor(Math.random()*a.length)];}
+  function huntParity(){
+    const unsunk=yourBoard.ships.filter(s=>!s.sunk).map(s=>s.len);
+    const minLen=unsunk.length?Math.min(...unsunk):2;
+    const a=[];
+    for(let i=0;i<N*N;i++){const r=Math.floor(i/N),c=i%N;
+      if(((r+c)%minLen===0)&&!yourBoard.shots.has(i)
+         &&!((difficulty==='hard'||difficulty==='expert')&&aiKnownEmpty.has(i)))a.push(i);}
+    if(a.length)return a[Math.floor(Math.random()*a.length)];
+    const b=[];for(let i=0;i<N*N;i++)if(!yourBoard.shots.has(i)
+      &&!((difficulty==='hard'||difficulty==='expert')&&aiKnownEmpty.has(i)))b.push(i);
+    return b.length?b[Math.floor(Math.random()*b.length)]:randomUntried(yourBoard);
+  }
+  function huntExpert(){
+    const rem=yourBoard.ships.filter(s=>!s.sunk).map(s=>s.len);
+    const p=new Array(N*N).fill(0);
+    const blocked=i=>yourBoard.misses.has(i)||yourBoard.hits.has(i)||aiKnownEmpty.has(i);
+    for(const len of rem){
+      const w=len;
+      for(let r=0;r<N;r++)for(let c=0;c<=N-len;c++){let ok=true;
+        for(let k=0;k<len;k++){if(blocked(r*N+c+k)){ok=false;break;}}
+        if(ok)for(let k=0;k<len;k++)p[r*N+c+k]+=w;}
+      for(let c=0;c<N;c++)for(let r=0;r<=N-len;r++){let ok=true;
+        for(let k=0;k<len;k++){if(blocked((r+k)*N+c)){ok=false;break;}}
+        if(ok)for(let k=0;k<len;k++)p[(r+k)*N+c]+=w;}}
+    for(let i=0;i<N*N;i++)if(yourBoard.shots.has(i)||aiKnownEmpty.has(i))p[i]=-1;
+    let best=-1,bv=-1;for(let i=0;i<N*N;i++)if(p[i]>bv){bv=p[i];best=i;}
+    return best>=0?best:randomUntried(yourBoard);
+  }
+
+  /* ─── Render ─── */
+  function scaleBoardCell(size){
+    return Math.max(24,Math.floor(size*BOARD_VISUAL_SCALE));
+  }
+
+  function computeCellSize(){
+    const vw=window.innerWidth;
+    if(vw<=760){
+      const shell=54;
+      const gaps=(N-1)*2;
+      const widthCell=Math.floor((vw-shell-gaps)/N);
+      const vh=window.innerHeight;
+      const heightCell=Math.floor((vh-260)/N);
+      return scaleBoardCell(Math.min(58,widthCell,heightCell||widthCell));
+    }
+    const boardsRow=document.querySelector('.boards-row');
+    const rowWidth=boardsRow?boardsRow.getBoundingClientRect().width:0;
+    const perBoardOverhead=26;
+    const gap=18;
+    const fallbackSideUsed=vw>=1200?(205+235+20+20):40;
+    const usable=rowWidth>0?rowWidth:(vw-fallbackSideUsed-40);
+    const perBoardWidth=Math.floor((usable-gap)/2)-perBoardOverhead;
+    const rawCell=Math.floor((perBoardWidth-(N-1)*2)/N);
+    const vh=window.innerHeight;
+    const heightCell=Math.floor((vh-260)/N)-2;
+    return scaleBoardCell(Math.min(76,rawCell,heightCell));
+  }
+
+  function renderBoards(options={}){
+    const scope=options.scope||'all';
+    const cellSize=computeCellSize();
+    if(scope==='enemy')renderBoard('enemyContainer',enemyBoard,true,cellSize);
+    else if(scope==='your')renderBoard('yourContainer',yourBoard,false,cellSize);
+    else if(scope==='visible'&&isMobileLayout())renderVisibleMobileBoard(cellSize);
+    else if(isMobileLayout())renderVisibleMobileBoard(cellSize);
+    else {
+      renderBoard('enemyContainer',enemyBoard,true,cellSize);
+      renderBoard('yourContainer',yourBoard,false,cellSize);
+    }
+    updateMobileBoardUI();
+    if(phase==='placing'&&!isMobileLayout())updateHoverPreview();}
+
+  function canFireAtEnemyBoard(board,idx){
+    if(phase!=='playing'||inputLocked||board.shots.has(idx))return false;
+    if(MULTIPLAYER_ENABLED)return multiplayer.myTurn&&!multiplayer.pendingShot;
+    return currentTurn==='you';
+  }
+
+  function makeShipSvg(ship,cellIndexInShip){
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('class','ship-icon');
+    svg.setAttribute('viewBox','0 0 100 100');
+    svg.setAttribute('preserveAspectRatio','none');
+    const shipImg=normalizeAssetUrl(ship.img||'');
+    const useImage=!!shipImg&&!isFailedAsset(shipImg);
+    const art=document.createElementNS('http://www.w3.org/2000/svg',useImage?'image':'use');
+    if(useImage){
+      art.setAttribute('href',shipImg);
+      art.setAttribute('preserveAspectRatio','none');
+    } else {
+      art.setAttribute('href','#'+ship.icoId);
+    }
+    const len=ship.len;
+    if(ship.orient==='h'){
+      art.setAttribute('x',-cellIndexInShip*100);art.setAttribute('y',0);
+      art.setAttribute('width',100*len);art.setAttribute('height',100);
+      svg.appendChild(art);
+    } else {
+      const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform','rotate(90 50 50)');
+      art.setAttribute('x',-cellIndexInShip*100);art.setAttribute('y',0);
+      art.setAttribute('width',100*len);art.setAttribute('height',100);
+      g.appendChild(art);svg.appendChild(g);
+    }
+    return svg;
+  }
+
+  function makeShipLogoWrap(ship,compact=false){
+    const wrap=document.createElement('div');
+    wrap.className='pi-iconwrap pi-'+ship.cls+'-bg';
+    if(compact)wrap.style.padding='1px';
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('class','pi-icon ship-logo');
+    svg.setAttribute('viewBox','0 0 100 100');
+    svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+    const use=document.createElementNS('http://www.w3.org/2000/svg','use');
+    use.setAttribute('href','#'+(ship.logoId||ship.icoId));
+    svg.appendChild(use);
+    wrap.appendChild(svg);
+    return wrap;
+  }
+
+  function renderBoard(containerId,board,isEnemy,cellSize){
+    const cont=document.getElementById(containerId);cont.replaceChildren();
+    if(boardCellRefs[containerId])boardCellRefs[containerId].clear();
+    cellSize=cellSize||computeCellSize();
+    for(let r=0;r<N;r++){
+      const rowDiv=document.createElement('div');rowDiv.className='row-with-cells';
+      const rowCells=document.createElement('div');
+      rowCells.style.display='grid';
+      rowCells.style.gridTemplateColumns=`repeat(${N},${cellSize}px)`;
+      rowCells.style.gap='2px';rowCells.style.marginBottom='2px';
+      for(let c=0;c<N;c++){
+        const idx=r*N+c;
+        const cell=document.createElement('div');cell.className='cell';
+        cell.dataset.idx=idx;
+        if(boardCellRefs[containerId])boardCellRefs[containerId].set(idx,cell);
+        cell.style.width=cellSize+'px';cell.style.height=cellSize+'px';
+        cell.style.setProperty('--ocean-x',Math.round((c/Math.max(1,N-1))*100)+'%');
+        cell.style.setProperty('--ocean-y',Math.round((r/Math.max(1,N-1))*100)+'%');
+        cell.style.setProperty('--wave-tilt',(110+((r+c)%5)*7)+'deg');
+        const ship=board.ships.find(s=>s.cells.includes(idx));
+        const isHit=board.hits.has(idx);
+        const isMiss=board.misses.has(idx)&&!isHit;
+        const selectedPlaced=!isEnemy&&phase==='placing'&&ship&&selectedSource==='grid'&&ship.id===selectedShipId;
+        const showShip=(!isEnemy&&ship)||(isEnemy&&ship&&ship.sunk);
+        if(showShip){
+          cell.classList.add('ship','ship-'+ship.cls);
+          if(selectedPlaced)cell.classList.add('ship-held');
+          if(!isEnemy&&phase==='placing'&&dragState&&dragState.shipId===ship.id)cell.classList.add('ship-drag-origin');
+          cell.appendChild(makeShipSvg(ship,ship.cells.indexOf(idx)));
+        }
+        if(isMiss)cell.classList.add('miss');
+        if(isHit){if(ship&&ship.sunk)cell.classList.add('sunk');else cell.classList.add('hit');}
+        if(isEnemy&&idx===lastPlayerShot&&phase!=='ended')cell.classList.add('last-shot');
+        if(!isEnemy&&idx===lastAIShot&&phase!=='ended')cell.classList.add('last-shot');
+        if(isEnemy&&canFireAtEnemyBoard(board,idx))cell.classList.add('clickable');
+        if(!isEnemy&&phase==='placing')cell.classList.add('placeable');
+        if(r===0){
+          const colLabel=document.createElement('span');
+          colLabel.className='coord-label col';
+          colLabel.textContent=String.fromCharCode(97+c);
+          cell.appendChild(colLabel);
+        }
+        if(c===0){
+          const rowLabel=document.createElement('span');
+          rowLabel.className='coord-label row';
+          rowLabel.textContent=r+1;
+          cell.appendChild(rowLabel);
+        }
+        rowCells.appendChild(cell);
+      }
+      rowDiv.appendChild(rowCells);cont.appendChild(rowDiv);
+    }
+    cont.onclick=e=>{if(suppressNextBoardClick){suppressNextBoardClick=false;return;}
+      const t=e.target.closest('.cell');if(!t)return;const idx=+t.dataset.idx;
+      if(isEnemy){if(canFireAtEnemyBoard(board,idx))playerShoot(idx);}};
+    cont.oncontextmenu=e=>{const t=e.target.closest('.cell');if(t)e.preventDefault();};
+    if(!isEnemy&&phase==='placing'){
+      if(isMobileLayout()){
+        cont.onmousemove=cont.onmouseleave=null;
+      } else {
+        cont.onmousemove=e=>{const t=e.target.closest('.cell');
+          const nh=t?+t.dataset.idx:-1;if(nh!==hoverCell){hoverCell=nh;updateHoverPreview();}};
+        cont.onmouseleave=()=>{hoverCell=-1;updateHoverPreview();};
+      }
+      cont.ondragover=cont.ondragleave=cont.ondrop=null;
+      cont.onpointerdown=e=>handleArrangePointerDown(e,cont);
+      cont.onpointermove=handleArrangePointerMove;
+      cont.onpointerup=finishArrangePointer;
+      cont.onpointercancel=cancelArrangePointer;
+    } else {
+      cont.onmousemove=cont.onmouseleave=cont.ondragover=cont.ondrop=cont.ondragleave=null;
+      cont.onpointerdown=cont.onpointermove=cont.onpointerup=cont.onpointercancel=null;
+    }
+  }
+
+  function updateHoverPreview(){
+    const cont=document.getElementById('yourContainer');if(!cont)return;
+    clearPlacementPreview();
+    if(isMobileLayout()||phase!=='placing'||selectedSource!=='dock'||selectedShipId===null||hoverCell<0||isDragging)return;
+    if(yourBoard.ships.find(s=>s.id===selectedShipId))return;
+    const ship=SHIPS.find(s=>s.id===selectedShipId);
+    let cells=shipCellsAt(hoverCell,ship.len,orientation);
+    let bad=!canPlace(yourBoard,cells||[]);
+    if(!cells){cells=[hoverCell];bad=true;}
+    cells.forEach(idx=>{const el=getBoardCell('yourContainer',idx);
+      if(el){el.classList.add(bad?'ship-preview-bad':'ship-preview');previewCellsCurrent.push(el);}});
+  }
+
+  function renderShipPicker(){
+    const el=document.getElementById('shipPicker');el.replaceChildren();
+    SHIPS.forEach(s=>{
+      const placed=!!yourBoard.ships.find(x=>x.id===s.id);
+      const item=document.createElement('div');
+      item.className='picker-item'+(placed?' placed':'')+(selectedShipId===s.id?' selected':'')+(selectedSource==='grid'&&selectedShipId===s.id?' held':'');
+      item.draggable=false;
+      item.title=placed?'Tap to edit '+s.name:'Place '+s.name;
+      const name=document.createElement('div');
+      name.className='pi-name';
+      name.appendChild(document.createTextNode(s.name));
+      const meta=document.createElement('small');
+      meta.textContent=s.short+' / '+s.len+' cells';
+      name.appendChild(meta);
+      const cells=document.createElement('div');
+      cells.className='pi-cells';
+      for(let i=0;i<s.len;i++){
+        const pic=document.createElement('div');
+        pic.className='pic';
+        cells.appendChild(pic);
+      }
+      item.replaceChildren(makeShipLogoWrap(s),name,cells);
+      item.onclick=()=>selectShip(s.id);
+      el.appendChild(item);
+    });
+  }
+
+  function renderShipLists(){
+    const enemyHeading=document.getElementById('enemyFleetHeading');
+    const yourHeading=document.getElementById('yourFleetHeading');
+    setTextWithEnemyIcon(enemyHeading,'Enemy Fleet','small');
+    if(yourHeading)yourHeading.textContent='⚓ Your Fleet';
+    renderShipList('enemyShipList',enemyBoard,true);
+    renderShipList('yourShipList',yourBoard,false);}
+  function renderShipList(elId,board,hideHits){
+    const el=document.getElementById(elId);el.replaceChildren();
+    board.ships.forEach(s=>{
+      const item=document.createElement('div');item.className='ship-item'+(s.sunk?' sunk':'');
+      const name=document.createElement('div');
+      name.className='ship-name';
+      name.textContent=s.name;
+      const cells=document.createElement('div');
+      cells.className='ship-cells-small';
+      for(let i=0;i<s.len;i++){
+        const h=(!hideHits&&i<s.hits.size)||(hideHits&&s.sunk);
+        const cell=document.createElement('div');
+        cell.className='sc'+(h?' hit':'');
+        cells.appendChild(cell);
+      }
+      item.replaceChildren(makeShipLogoWrap(s,true),name,cells);
+      el.appendChild(item);
+    });
+  }
+
+  function updateStats(){document.getElementById('qsShots').textContent=shots;
+    document.getElementById('qsHits').textContent=hits;
+    const acc=shots>0?Math.round(hits/shots*100):0;
+    const a=document.getElementById('qsAcc');
+    a.textContent=shots>0?acc+'%':'—';
+    a.className='qs-val '+(acc>=50?'green':acc>=25?'':'red');
+    document.getElementById('statMisses').textContent=shots-hits;
+    const opponentLabel=analysisOpponentLabel();
+    document.getElementById('statOpponentShotsLabel').textContent=opponentLabel+' Shots';
+    document.getElementById('statOpponentHitsLabel').textContent=opponentLabel+' Hits';
+    document.getElementById('statAIShots').textContent=aiShots;
+    document.getElementById('statAIHits').textContent=aiHits;
+    document.getElementById('statWL').textContent=wins+' / '+losses;}
+  function setStatus(cls,msg){
+    statusState={cls,msg};
+    refreshStatusReadout();
+    updateExitControls();}
+  function coord(i){return String.fromCharCode(65+(i%N))+(Math.floor(i/N)+1);}
+  function log(msg,cls){const lg=document.getElementById('moveLog');
+    battleLog.push({msg,cls:cls||'',turn:battleLog.length+1});
+    if(lg.firstChild&&lg.firstChild.style&&lg.firstChild.style.fontStyle==='italic')lg.replaceChildren();
+    const e=document.createElement('div');e.className='log-entry '+(cls||'');e.textContent=msg;
+    lg.insertBefore(e,lg.firstChild);
+    while(lg.children.length>40)lg.removeChild(lg.lastChild);}
+
+  function recordMove(actor,idx,isHit,isSunk,shipName){
+    battleMoves.push({
+      turn:battleMoves.length+1,
+      actor,
+      idx,
+      coord:coord(idx),
+      row:Math.floor(idx/N),
+      col:idx%N,
+      result:isSunk?'sunk':(isHit?'hit':'miss'),
+      shipName:shipName||''
+    });
+  }
+
+  function adjacentMove(a,b){
+    return Math.abs(a.row-b.row)+Math.abs(a.col-b.col)===1;
+  }
+
+  function longestRun(moves,result){
+    let run=0,best=0;
+    moves.forEach(m=>{
+      if(m.result===result||(result==='hit'&&m.result==='sunk')){run++;best=Math.max(best,run);}
+      else run=0;
+    });
+    return best;
+  }
+
+  function hitRunLabel(run){
+    if(run<=0)return 'No Contact';
+    if(run===1)return 'Contact';
+    if(run===2)return 'Destroyer Class';
+    if(run===3)return 'Cruiser/Submarine Class';
+    if(run===4)return 'Battleship Class';
+    if(run===5)return 'Carrier Class';
+    if(run<=7)return 'Fleet Breaker';
+    if(run<=9)return 'Phantom Barrage';
+    return 'GhostFleet Legend';
+  }
+
+  function formatPattern(moves){
+    return moves.map(m=>m.coord).join(' -> ')||'No moves recorded';
+  }
+
+  function isDamageMove(m){
+    return m.result==='hit'||m.result==='sunk';
+  }
+
+  function getRoundAchievements(won,playerMoves,aiMoves,playerAcc,aiHitCount){
+    const firstHitMove=battleMoves.find(isDamageMove);
+    const firstBlood=!!firstHitMove&&firstHitMove.actor==='YOU';
+    return [
+      {
+        name:'First Blood',
+        icon:ACHIEVEMENT_ICONS.firstBlood,
+        earned:firstBlood,
+        detail:firstBlood
+          ? 'You scored the first hit at '+firstHitMove.coord+'.'
+          : (firstHitMove?'The enemy scored the first hit at '+firstHitMove.coord+'.':'No hits were recorded.')
+      },
+      {
+        name:'Precision Striker',
+        icon:ACHIEVEMENT_ICONS.precisionStriker,
+        earned:won&&playerAcc>=70,
+        detail:'Win with >=70% accuracy. This round: '+playerAcc+'%.'
+      },
+      {
+        name:'Unsinkable',
+        icon:ACHIEVEMENT_ICONS.unsinkable,
+        earned:won&&aiHitCount===0,
+        detail:'Win without taking a single hit. Enemy hits: '+aiHitCount+'.'
+      }
+    ];
+  }
+  function allowRoundAchievements(){
+    if(endedBySurrender)return false;
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined&&['opponent_left','timeout_surrender','disconnect_forfeit'].includes(multiplayer.endReason))return false;
+    return true;
+  }
+
+  function renderAchievements(elId,achievements){
+    const el=document.getElementById(elId);
+    if(!el)return;
+    const earned=achievements.filter(a=>a.earned);
+    const shell=el.closest('.achievement-wrap,.analysis-achievements');
+    if(shell)shell.style.display=earned.length?'':'none';
+    el.replaceChildren();
+    earned.forEach(a=>{
+      const card=document.createElement('div');
+      card.className='achievement-badge';
+      const icon=document.createElement('img');
+      icon.src=normalizeAssetUrl(a.icon);
+      icon.alt='';
+      icon.setAttribute('aria-hidden','true');
+      icon.onerror=()=>reportAssetFailure(icon.currentSrc||icon.src,icon);
+      const name=document.createElement('strong');
+      name.textContent=a.name;
+      const detail=document.createElement('span');
+      detail.textContent=a.detail;
+      card.appendChild(icon);
+      card.appendChild(name);
+      card.appendChild(detail);
+      el.appendChild(card);
+    });
+  }
+
+  function analyzeSearchSpacing(playerMoves){
+    const sunkNames=new Set();
+    const openSearchShots=[];
+    let unresolvedContact=false;
+    let tightSearchShots=0;
+    let openSearchCount=0;
+    playerMoves.forEach(m=>{
+      const remaining=SHIPS.filter(s=>!sunkNames.has(s.name));
+      const smallestRemaining=remaining.length?Math.min(...remaining.map(s=>s.len)):2;
+      if(!unresolvedContact){
+        openSearchCount++;
+        const nearest=openSearchShots.reduce((best,prev)=>{
+          const d=Math.abs(prev.row-m.row)+Math.abs(prev.col-m.col);
+          return Math.min(best,d);
+        },Infinity);
+        if(openSearchShots.length&&nearest<Math.max(1,smallestRemaining-1))tightSearchShots++;
+        openSearchShots.push(m);
+      }
+      if(m.result==='hit')unresolvedContact=true;
+      if(m.result==='sunk'){
+        sunkNames.add(m.shipName);
+        unresolvedContact=false;
+      }
+    });
+    return {tightSearchShots,openSearchCount};
+  }
+
+  function getRemainingEnemyShips(playerMoves){
+    const sunkNames=new Set(playerMoves.filter(m=>m.result==='sunk').map(m=>m.shipName));
+    return SHIPS.filter(s=>!sunkNames.has(s.name));
+  }
+
+  function buildSearchSpacingGuide(playerMoves){
+    const remaining=getRemainingEnemyShips(playerMoves);
+    if(!remaining.length)return 'All enemy ships were found; blind-search spacing no longer matters in the final cleanup.';
+    const n=Math.min(...remaining.map(s=>s.len));
+    const gap=Math.max(1,n-1);
+    return 'Smallest enemy ship still afloat: '+n+' cells. In blind search, leave about '+gap+' cell'+(gap===1?'':'s')+' between shots before tightening around a hit.';
+  }
+
+  function getHitFollowStats(playerMoves){
+    const hitMoves=playerMoves.filter(m=>m.result==='hit'||m.result==='sunk');
+    const followableHits=hitMoves.filter(m=>m.result!=='sunk');
+    let adjacentFollowups=0;
+    followableHits.forEach(hit=>{
+      const next=playerMoves.find(m=>m.turn>hit.turn);
+      if(next&&adjacentMove(hit,next))adjacentFollowups++;
+    });
+    const followRate=followableHits.length?Math.round(adjacentFollowups/followableHits.length*100):100;
+    return {adjacentFollowups,followableHits:followableHits.length,followRate};
+  }
+
+  function buildSuggestions(playerMoves,won,playerAcc,aiAcc,surrendered){
+    const suggestions=[];
+    if(surrendered){
+      if(!playerMoves.length)return ['You withdrew before firing, so there is no shot pattern to review. Next time, take a few wide search shots first so the analysis can judge your opening plan.'];
+      suggestions.push('You withdrew before the fleet was fully resolved. When a match feels behind, switch back to wide search spacing until you find contact, then finish one ship at a time.');
+    }
+    if(!playerMoves.length)return ['No shots were taken, so there is no firing pattern to review. Play out a few turns and Analysis Mode will build a useful move-by-move report.'];
+    const early=playerMoves.slice(0,Math.min(10,playerMoves.length));
+    const earlyMisses=early.filter(m=>m.result==='miss');
+    const earlyEdge=earlyMisses.filter(m=>m.row===0||m.col===0||m.row===N-1||m.col===N-1).length;
+    const searchSpacing=analyzeSearchSpacing(playerMoves);
+    const followStats=getHitFollowStats(playerMoves);
+    const spacingGuide=buildSearchSpacingGuide(playerMoves);
+    if(playerAcc<35)suggestions.push('Your accuracy was low. '+spacingGuide+' Use that spacing until you hit something, then switch to adjacent shots.');
+    if(searchSpacing.openSearchCount>=6&&searchSpacing.tightSearchShots>=Math.max(2,Math.ceil(searchSpacing.openSearchCount*.28)))suggestions.push('Your search pattern bunched several blind shots too close together. When the smallest remaining ship is n cells long, aim shots about n-1 cells apart; after contact, tighten to adjacent cells.');
+    if(earlyEdge>=3)suggestions.push('The opening leaned toward edges. Try opening through the center lanes first; they touch more possible ship placements and reveal patterns faster.');
+    if(followStats.followRate<70)suggestions.push('After a hit, stay local. Fire directly above, below, left, or right until you identify the ship direction, then finish the line.');
+    if(longestRun(playerMoves,'miss')>=6)suggestions.push('A long miss streak appeared. When that happens, reset to a fresh section instead of chasing nearby water with no contact.');
+    if(!won&&!surrendered&&aiAcc>=playerAcc)suggestions.push('The enemy created more pressure. Once you find a ship, prioritize sinking it quickly to reduce the number of turns they get back.');
+    if(won&&playerAcc>=45)suggestions.push('Good target discipline. The next improvement is speed: after the first hit on a ship, commit to adjacent confirmation sooner.');
+    if(!suggestions.length)suggestions.push('Your move quality was solid. Keep using wide search spacing, then switch immediately into adjacent shots after each hit.');
+    return suggestions.slice(0,5);
+  }
+
+  function buildBattleAnalysis(won){
+    const playerMoves=battleMoves.filter(m=>m.actor==='YOU');
+    const aiMoves=battleMoves.filter(m=>m.actor==='AI');
+    const playerHits=playerMoves.filter(isDamageMove).length;
+    const aiHitCount=aiMoves.filter(isDamageMove).length;
+    const playerSinks=playerMoves.filter(m=>m.result==='sunk').length;
+    const aiSinks=aiMoves.filter(m=>m.result==='sunk').length;
+    const firstHit=(playerMoves.find(isDamageMove)||{}).coord||'--';
+    const bestRun=longestRun(playerMoves,'hit');
+    const bestRunTier=hitRunLabel(bestRun);
+    const playerAcc=playerMoves.length?Math.round(playerHits/playerMoves.length*100):0;
+    const aiAcc=aiMoves.length?Math.round(aiHitCount/aiMoves.length*100):0;
+    const opponentLabel=analysisOpponentLabel();
+    const pressure=playerHits===aiHitCount?'Even':(playerHits>aiHitCount?'You +'+(playerHits-aiHitCount):opponentLabel+' +'+(aiHitCount-playerHits));
+    const followStats=getHitFollowStats(playerMoves);
+    const spacingGuide=buildSearchSpacingGuide(playerMoves);
+    const achievements=allowRoundAchievements()?getRoundAchievements(won,playerMoves,aiMoves,playerAcc,aiHitCount):[];
+    const unlocked=achievements.filter(a=>a.earned).map(a=>a.name);
+    const achievementSummary=unlocked.length?' Achievements unlocked: '+unlocked.join(', ')+'.':'';
+    let summary;
+    if(endedBySurrender){
+      summary='You surrendered after '+playerMoves.length+' shots with '+playerAcc+'% accuracy. '+opponentLabel+' had landed '+aiHitCount+' hit'+(aiHitCount===1?'':'s')+', and your first confirmed contact was '+firstHit+'. The review below focuses on what to stabilize before withdrawing.'+achievementSummary;
+    } else {
+      summary=won
+        ? 'You won in '+playerMoves.length+' shots with '+playerAcc+'% accuracy. Your strongest contact tier was '+bestRunTier+', and your first confirmed contact was '+firstHit+'.'+achievementSummary
+        : 'You lost after '+playerMoves.length+' shots at '+playerAcc+'% accuracy. Your strongest contact tier was '+bestRunTier+'. '+opponentLabel+"'s accuracy was "+aiAcc+'%, so the biggest opportunity is tighter hunt spacing and faster follow-up after hits.'+achievementSummary;
+    }
+    document.getElementById('analysisHitRun').textContent=bestRunTier;
+    document.getElementById('analysisFirstHit').textContent=firstHit;
+    document.getElementById('analysisSinks').textContent=playerSinks+' / '+aiSinks;
+    document.getElementById('analysisSinksLabel').textContent='You / '+opponentLabel+' Sinks';
+    document.getElementById('analysisPressure').textContent=pressure;
+    document.getElementById('analysisSummary').textContent=summary;
+    renderAchievements('analysisAchievements',achievements);
+
+    const logBox=document.getElementById('analysisLog');
+    logBox.replaceChildren();
+    [
+      ['Opening search','First 8 shots reveal your search spread: '+formatPattern(playerMoves.slice(0,8))],
+      ['Closing pattern','Last 8 shots reveal whether you finished contacts cleanly: '+formatPattern(playerMoves.slice(-8))],
+      ['Search spacing guide',spacingGuide],
+      ['Hit follow-up','Adjacent response after non-sinking hits: '+followStats.adjacentFollowups+' / '+followStats.followableHits+' ('+followStats.followRate+'%)'],
+      ['Accuracy split','You '+playerAcc+'% / '+opponentLabel+' '+aiAcc+'%']
+    ].forEach(([label,value])=>{
+      const div=document.createElement('div');
+      div.textContent=label+': '+value;
+      logBox.appendChild(div);
+    });
+
+    const timeline=document.getElementById('analysisTimeline');
+    timeline.replaceChildren();
+    battleMoves.forEach(m=>{
+      const row=document.createElement('div');
+      row.className='analysis-move '+m.result;
+      const turn=document.createElement('span');
+      turn.textContent='#'+m.turn;
+      const actor=document.createElement('span');
+      actor.textContent=analysisActorLabel(m.actor);
+      const result=document.createElement('span');
+      result.textContent=m.coord+' - '+m.result.toUpperCase()+(m.shipName?' / '+m.shipName:'');
+      row.replaceChildren(turn,actor,result);
+      timeline.appendChild(row);
+    });
+
+    const suggestions=document.getElementById('analysisSuggestions');
+    suggestions.replaceChildren();
+    buildSuggestions(playerMoves,won,playerAcc,aiAcc,endedBySurrender).forEach(text=>{
+      const li=document.createElement('li');
+      li.textContent=text;
+      suggestions.appendChild(li);
+    });
+  }
+
+  function endGame(won){
+    lastGameWon=won;
+    setStatus(won?'won':'lost',won?'Victory!':(endedBySurrender?'Surrendered':'Defeated!'));
+    updateModeUI();
+    enemyBoard.ships.forEach(s=>s.sunk=true);
+    updateBoardHighlights();renderBoards();renderShipLists();updateStats();
+    buildBattleAnalysis(won);
+    setTimeout(()=>won?playVictory():playDefeat(),600);
+    const modal=document.getElementById('modal');
+    modal.classList.toggle('lose',!won);
+    document.getElementById('modalIcon').textContent=won?'🏆':(endedBySurrender?'🏳':'💀');
+    document.getElementById('modalTitle').textContent=won?'GhostFleet Victory!':(endedBySurrender?'GhostFleet Surrendered':'GhostFleet Defeated');
+    let modalSubtitle=won?'You sank the entire enemy fleet.':(endedBySurrender?'You withdrew before the fleet was destroyed.':'The enemy destroyed your fleet.');
+    let specialResultMsg='';
+    if(MULTIPLAYER_ENABLED&&multiplayer.joined){
+      if(multiplayer.endReason==='opponent_left'&&won){
+        modalSubtitle='Opponent left the room. You win by surrender.';
+        specialResultMsg=multiplayerOpponentLabel()+' left the room. Victory awarded.';
+      } else if(multiplayer.endReason==='disconnect_forfeit'){
+        if(won){
+          modalSubtitle='Opponent failed to reconnect. You win by forfeit.';
+          specialResultMsg=multiplayerOpponentLabel()+' failed to reconnect before the timer expired.';
+        } else {
+          modalSubtitle='You failed to reconnect before the timer expired and forfeited the battle.';
+          specialResultMsg='Reconnect window expired. The battle was forfeited.';
+        }
+      } else if(multiplayer.endReason==='timeout_surrender'){
+        if(won){
+          modalSubtitle='Opponent missed three turn timers. You win by surrender.';
+          specialResultMsg=multiplayerOpponentLabel()+' timed out three turns in a row.';
+        } else {
+          modalSubtitle='You missed three turn timers and forfeited the battle.';
+          specialResultMsg='Timer forfeit logged. Keep an eye on the turn countdown next battle.';
+        }
+      }
+    }
+    document.getElementById('modalSubtitle').textContent=modalSubtitle;
+    document.getElementById('modalShots').textContent=shots;
+    const finalAcc=shots>0?Math.round(hits/shots*100):0;
+    document.getElementById('modalAcc').textContent=finalAcc+'%';
+    const modalDiff=document.getElementById('modalDiff');
+    const modalDiffLabel=document.getElementById('modalDiffLabel');
+    if(modalDiffLabel)modalDiffLabel.textContent=MULTIPLAYER_ENABLED?'Mode':'Difficulty';
+    if(modalDiff)modalDiff.textContent=MULTIPLAYER_ENABLED?'Friends':DIFF_LABELS[difficulty];
+    const playerMoves=battleMoves.filter(m=>m.actor==='YOU');
+    const aiMoves=battleMoves.filter(m=>m.actor==='AI');
+    const aiHitCount=aiMoves.filter(isDamageMove).length;
+    const achievements=allowRoundAchievements()?getRoundAchievements(won,playerMoves,aiMoves,finalAcc,aiHitCount):[];
+    renderAchievements('modalAchievements',achievements);
+    const unlocked=achievements.filter(a=>a.earned).map(a=>a.name);
+    const wm=['Outstanding tactics, Captain!','Masterful battle!','The seas are yours!','Flawless command!'];
+    const lm=endedBySurrender
+      ? ['Withdrawal logged. Rebuild the opening pattern.','Fleet recalled. The analysis can still sharpen the next run.','Retreat accepted. Review the pressure points.','Command paused. Come back with wider search lanes.']
+      : ['Regroup and try again.','Honor in defeat — fight on!','Better luck next battle.','Outsmart them next time!'];
+    document.getElementById('modalMsg').textContent=(specialResultMsg||((won?wm:lm)[Math.floor(Math.random()*4)]))+(unlocked.length?' Achievements: '+unlocked.join(', ')+'.':'');
+    updatePostGameActions();
+    setTimeout(()=>{document.getElementById('modalOverlay').classList.add('show');if(won)startConfetti();},700);}
+  function openAnalysis(){
+    if(phase!=='ended')return;
+    buildBattleAnalysis(lastGameWon);
+    document.getElementById('modalOverlay').classList.remove('show');
+    document.getElementById('analysisOverlay').classList.add('show');
+    stopConfetti();
+  }
+  function closeAnalysis(){
+    document.getElementById('analysisOverlay').classList.remove('show');
+    if(phase==='ended'){
+      updatePostGameActions();
+      document.getElementById('modalOverlay').classList.add('show');
+    }
+  }
+  function closeModal(n){
+    if(n&&MULTIPLAYER_ENABLED&&multiplayer.joined&&phase==='ended'){
+      if(!multiplayerCanRematch()){
+        leaveMultiplayerRoom(false);
+        startNewBattle();
+        return;
+      }
+      requestMultiplayerRematch();
+      return;
+    }
+    document.getElementById('modalOverlay').classList.remove('show');
+    document.getElementById('analysisOverlay').classList.remove('show');
+    document.getElementById('howToOverlay').classList.remove('show');
+    stopConfetti();
+    if(n){
+      if(opponentMode==='ai')newGame();
+      else startNewBattle();
+    }
+  }
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&document.getElementById('howToOverlay').classList.contains('show')){
+      closeHowTo();return;
+    }
+    const active=document.activeElement;
+    if(active&&(active.matches('input,textarea,select,button')||active.isContentEditable))return;
+    if(phase!=='placing')return;
+    const k=e.key.toLowerCase();
+    if(k==='r')rotateOrientation();
+    else if(k==='a')autoPlace();
+    else if(k==='c')clearSelectedShip();
+  });
+  document.addEventListener('click',()=>{if(soundOn)ensureAudio();},{once:true});
+
+  let resizeTimer;
+  window.addEventListener('resize',()=>{clearTimeout(resizeTimer);
+    resizeTimer=setTimeout(()=>{
+      renderBoards();resize();
+      if(document.getElementById('howToOverlay').classList.contains('show'))renderHowTo();
+    },100);});
+
+  const canvas=document.getElementById('confetti-canvas'),ctx=canvas.getContext('2d');
+  let particles=[],confettiAnim=null,confettiStopTimer=null;
+  const COLORS=['#ffd700','#fff','#e2b96f','#3498db','#27ae60','#fff9c4'];
+  function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+  resize();
+  function rnd(a,b){return a+Math.random()*(b-a);}
+  function mk(){return{x:rnd(0,canvas.width),y:rnd(-80,-10),w:rnd(6,16),h:rnd(4,10),
+    color:COLORS[Math.floor(Math.random()*COLORS.length)],rot:rnd(0,Math.PI*2),
+    rs:rnd(-.1,.1),vx:rnd(-2,2),vy:rnd(3,8),op:1};}
+  function startConfetti(){
+    stopConfetti();
+    particles=Array.from({length:200},mk);
+    anim();
+    confettiStopTimer=setTimeout(stopConfetti,10000);
+  }
+  function stopConfetti(){if(confettiStopTimer){clearTimeout(confettiStopTimer);confettiStopTimer=null;}
+    if(confettiAnim){cancelAnimationFrame(confettiAnim);confettiAnim=null;}
+    ctx.clearRect(0,0,canvas.width,canvas.height);particles=[];}
+  function anim(){ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(particles.length<260)for(let i=0;i<6;i++)particles.push(mk());
+    particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.rot+=p.rs;
+      if(p.y>canvas.height*.75)p.op-=.013;
+      ctx.save();ctx.globalAlpha=Math.max(0,p.op);ctx.translate(p.x,p.y);ctx.rotate(p.rot);
+      ctx.fillStyle=p.color;ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();});
+    particles=particles.filter(p=>p.op>0&&p.y<canvas.height+20);
+    confettiAnim=requestAnimationFrame(anim);}
+
+  function startUrlRoomReconnect(roomId,saved){
+    opponentMode='human';
+    syncOpponentMode();
+    multiplayer.roomCode=roomId;
+    multiplayer.token=(saved&&saved.token)||'';
+    multiplayer.playerIndex=saved&&Number.isInteger(saved.playerIndex)?saved.playerIndex:null;
+    multiplayer.playerName=sanitizePlayerName((saved&&saved.playerName)||sessionStorage.getItem('ghostfleet-player-name')||'Captain');
+    multiplayer.restoring=true;
+    multiplayer.suppressLobby=true;
+    newGame();
+    multiplayer.suppressLobby=false;
+    showReconnectOverlay('Reconnecting to room '+roomId+'...');
+    sendMultiplayerEvent('reconnect_room',{roomId,token:multiplayer.token},'Reconnecting to battle...');
+  }
+  function initializeGhostFleet(){
+    applyTierConfig();
+    validateVisualAssets();
+    renderHowTo();
+    bindPlayerNameValidation();
+    const inviteCode=inviteRoomCodeFromUrl();
+    const requestedPlayMode=requestedPlayModeFromUrl();
+    const saved=savedMultiplayerSession();
+    if(inviteCode&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
+      const savedRoom=normalizeRoomCode(saved&&(saved.roomId||saved.code));
+      const sameSaved=saved&&saved.clientId===getMultiplayerClientId()&&savedRoom===inviteCode;
+      if(sameSaved)startUrlRoomReconnect(inviteCode,saved);
+      else if(savedRoom&&savedRoom!==inviteCode&&!window.confirm('You have an active GhostFleet room. Join this new room instead?')){
+        history.pushState({},'','/room/'+savedRoom);
+        startUrlRoomReconnect(savedRoom,saved);
+      } else {
+        sessionStorage.removeItem(mpStorageKey());
+        opponentMode='human';
+        syncOpponentMode();
+        multiplayer.roomCode=inviteCode;
+        multiplayer.suppressLobby=true;
+        newGame();
+        multiplayer.suppressLobby=false;
+        showInviteOverlay(inviteCode);
+      }
+    } else if(saved&&saved.clientId===getMultiplayerClientId()&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE&&window.location.pathname.startsWith('/room/')){
+      const savedRoom=normalizeRoomCode(saved.roomId||saved.code);
+      if(savedRoom)startUrlRoomReconnect(savedRoom,saved);
+      else newGame();
+    } else if(requestedPlayMode==='ai'&&MODE_SELECTION_ENABLED){
+      newGame();
+      showAiDifficultyChoice(false);
+    } else if(requestedPlayMode==='human'&&MODE_SELECTION_ENABLED&&MULTIPLAYER_AVAILABLE){
+      chooseHumanOpponent(false);
+    } else {
+      newGame();
+    }
+    applyAudioState();
+  }
+  initializeGhostFleet();
