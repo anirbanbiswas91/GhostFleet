@@ -304,10 +304,11 @@
         <button class="mp-size-btn" id="aiSize12" type="button" onclick="setAiSetupSize(12)">12×12</button>
       </div>
       <div class="opponent-ai-grid">
-        <button class="modal-btn" type="button" onclick="chooseAiOpponent('easy')">Easy</button>
-        <button class="modal-btn" type="button" onclick="chooseAiOpponent('hard')">Med</button>
-        <button class="modal-btn" type="button" onclick="chooseAiOpponent('expert')">Hard</button>
+        <button class="modal-btn active" id="aiDiffEasy" type="button" onclick="selectAiDifficulty('easy')" aria-pressed="true">Easy</button>
+        <button class="modal-btn" id="aiDiffHard" type="button" onclick="selectAiDifficulty('hard')" aria-pressed="false">Med</button>
+        <button class="modal-btn" id="aiDiffExpert" type="button" onclick="selectAiDifficulty('expert')" aria-pressed="false">Hard</button>
       </div>
+      <button class="modal-btn modal-btn-confirm" id="aiConfirmBtn" type="button" onclick="confirmAiGame()">Confirm - Start Battle</button>
       <button class="modal-btn opponent-back" type="button" onclick="showOpponentChoices()">Back to Opponent Choice</button>
     </div>
     <button class="modal-btn modal-home-btn" type="button" onclick="goHomeFromPlay()">Home</button>
@@ -474,40 +475,6 @@
   </div>
 
     <div class="main-layout">
-    <div class="left-panel">
-      <div class="panel-box premium-ai-panel" id="aiPanel">
-        <h3>AI Difficulty</h3>
-        <div class="difficulty-row">
-          <button class="diff-btn active" id="diffEasy" onclick="setDifficulty('easy')">Easy <span class="diff-badge badge-easy">I</span></button>
-          <button class="diff-btn" id="diffHard" onclick="setDifficulty('hard')">Med <span class="diff-badge badge-hard">II</span></button>
-          <button class="diff-btn" id="diffExpert" onclick="setDifficulty('expert')">Hard <span class="diff-badge badge-expert">III</span></button>
-        </div>
-      </div>
-      <div class="panel-box" id="boardSizePanel">
-        <h3>Board Size</h3>
-        <div class="control-row">
-          <button class="size-tab active" onclick="setSize(8)">8×8</button>
-          <button class="size-tab" onclick="setSize(10)">10×10</button>
-          <button class="size-tab" onclick="setSize(12)">12×12</button>
-        </div>
-      </div>
-      <div class="panel-box" id="battleStatsPanel">
-        <h3>Battle Stats</h3>
-        <div class="quick-stats-grid">
-          <div class="quick-stat"><div class="qs-val" id="qsShots">0</div><div class="qs-lbl">Shots</div></div>
-          <div class="quick-stat"><div class="qs-val green" id="qsAcc">—</div><div class="qs-lbl">Acc</div></div>
-          <div class="quick-stat"><div class="qs-val" id="qsHits">0</div><div class="qs-lbl">Hits</div></div>
-        </div>
-        <hr class="divider"/>
-        <div class="stat-row premium-label-difficulty"><span>Difficulty</span><span class="stat-val" id="statDiff">Easy</span></div>
-        <div class="stat-row premium-label-room"><span>Room</span><span class="stat-val" id="statRoom">Not joined</span></div>
-        <div class="stat-row"><span>Misses</span><span class="stat-val" id="statMisses">0</span></div>
-        <div class="stat-row"><span id="statOpponentShotsLabel">AI Shots</span><span class="stat-val" id="statAIShots">0</span></div>
-        <div class="stat-row"><span id="statOpponentHitsLabel">AI Hits</span><span class="stat-val" id="statAIHits">0</span></div>
-        <hr class="divider"/>
-        <div class="stat-row"><span>Wins / Losses</span><span class="stat-val" id="statWL">0 / 0</span></div>
-      </div>
-    </div>
     <div class="mobile-board-tabs" id="mobileBoardTabs" role="group" aria-label="Board actions">
       <button class="mobile-board-tab active" id="mobileYourTab" type="button" aria-controls="yourWrap" onclick="setMobileBoard('your')"><span id="mobileYourLabel">Your Fleet</span><small id="mobileYourHint">Place ships</small></button>
       <button class="mobile-board-tab" id="mobileEnemyTab" type="button" aria-controls="enemyWrap" onclick="setMobileBoard('enemy')"><span id="mobileEnemyLabel"><span class="enemy-emoji small" aria-hidden="true">😈</span> Enemy Waters</span><small id="mobileEnemyHint">Fire here</small></button>
@@ -539,6 +506,22 @@
         <hr class="divider"/>
         <h3 id="yourFleetHeading">⚓ Your Fleet</h3>
         <div class="ship-list" id="yourShipList"></div>
+      </div>
+      <div class="panel-box" id="battleStatsPanel">
+        <h3>Battle Stats</h3>
+        <div class="quick-stats-grid">
+          <div class="quick-stat"><div class="qs-val" id="qsShots">0</div><div class="qs-lbl">Shots</div></div>
+          <div class="quick-stat"><div class="qs-val green" id="qsAcc">—</div><div class="qs-lbl">Acc</div></div>
+          <div class="quick-stat"><div class="qs-val" id="qsHits">0</div><div class="qs-lbl">Hits</div></div>
+        </div>
+        <hr class="divider"/>
+        <div class="stat-row premium-label-difficulty"><span>Difficulty</span><span class="stat-val" id="statDiff">Easy</span></div>
+        <div class="stat-row premium-label-room"><span>Room</span><span class="stat-val" id="statRoom">Not joined</span></div>
+        <div class="stat-row"><span>Misses</span><span class="stat-val" id="statMisses">0</span></div>
+        <div class="stat-row"><span id="statOpponentShotsLabel">AI Shots</span><span class="stat-val" id="statAIShots">0</span></div>
+        <div class="stat-row"><span id="statOpponentHitsLabel">AI Hits</span><span class="stat-val" id="statAIHits">0</span></div>
+        <hr class="divider"/>
+        <div class="stat-row"><span>Wins / Losses</span><span class="stat-val" id="statWL">0 / 0</span></div>
       </div>
       <div class="panel-box" id="battleLogPanel">
         <h3>📋 Battle Log</h3>

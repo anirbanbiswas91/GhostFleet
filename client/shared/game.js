@@ -153,7 +153,7 @@
     });
   }
 
-  let N=8,difficulty='easy',phase='placing',aiSetupSize=8;
+  let N=8,difficulty='easy',phase='placing',aiSetupSize=8,aiSetupDifficulty='easy';
   let yourBoard,enemyBoard;
   let lastPlayerShot=-1,lastAIShot=-1;
   let shots=0,hits=0,aiShots=0,aiHits=0,wins=0,losses=0;
@@ -242,6 +242,23 @@
     if(aiStep)aiStep.classList.add('show');
     if(intro)intro.textContent='Choose board size and AI difficulty.';
     setAiSetupSize(aiSetupSize||N||8);
+    selectAiDifficulty(aiSetupDifficulty||'easy');
+  }
+  function selectAiDifficulty(level){
+    if(level==='medium')level='easy';
+    if(!DIFF_LABELS[level])level='easy';
+    aiSetupDifficulty=level;
+    ['easy','hard','expert'].forEach(x=>{
+      const btn=document.getElementById('aiDiff'+x[0].toUpperCase()+x.slice(1));
+      if(btn){
+        const active=x===level;
+        btn.classList.toggle('active',active);
+        btn.setAttribute('aria-pressed',active?'true':'false');
+      }
+    });
+  }
+  function confirmAiGame(){
+    chooseAiOpponent(aiSetupDifficulty||'easy');
   }
   function showOpponentOverlay(){
     if(!MODE_SELECTION_ENABLED)return;
@@ -260,7 +277,8 @@
     syncOpponentMode();
     N=BOARD_SIZES.includes(aiSetupSize)?aiSetupSize:8;
     updateSizeButtons();
-    setDifficulty(level||'easy');
+    selectAiDifficulty(level||aiSetupDifficulty||'easy');
+    setDifficulty(aiSetupDifficulty||'easy');
     hideOpponentOverlay();
     hideMultiplayerLobby();
     newGame();
