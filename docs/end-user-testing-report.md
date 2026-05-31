@@ -1,70 +1,90 @@
 # GhostFleet End-User Testing Report
 
-Date: 2026-05-15
-Environment: Windows, Node.js local server, Microsoft Edge headless, Socket.IO client smoke tests
-Build target: `GhostFleetRailway`
+Date: 2026-06-01
+Environment: Windows local server, Node.js, Chrome DevTools MCP, Playwright Chromium, Playwright Microsoft Edge
+Build target: stacked roadmap branch through `feature/frontend-e2e-smoke`
 
 ## Summary
 
-Result: Pass for the local gameplay, multiplayer, and free-only deployment checks covered in this pass.
+Result: Pass for the automated checks, route smoke, AI browser flow, mobile-emulated layout sanity, and two-client multiplayer browser flow covered in this pass.
 
-This report was completed before GitHub push or Railway deployment, per the requested release order.
+No blocking issues were found during this QA pass. The optional high-risk roadmap refactors, `feature/modularize-game-js` and `feature/multiplayer-stage2`, are intentionally skipped for now because they are maintenance-only changes with high regression risk and low immediate player value.
 
 ## Automated Checks
 
 | Area | Scenario | Result |
 |---|---|---|
-| Static server checks | `npm.cmd run check` | Pass |
-| Server syntax | `node --check server/index.js`, `server/multiplayer.js`, `server/tier-configs.js` | Pass |
-| Inline game script | Parsed and compiled inline scripts from `client/shared/game.html` | Pass |
-| Local dev routes | `/`, `/free` redirect, `/premium`, `/api/tier/free`, `/api/tier/premium`, `/healthz` | Pass |
-| Free-only routes | `GHOSTFLEET_FREE_ONLY=true`: `/` works, `/free` redirects to `/`, `/premium` 404, premium tier API 404 | Pass |
-| Multiplayer socket flow | create 10×10 room, uppercase join, auto placement, submit fleets, miss/hit/sunk, rematch, exit notice | Pass |
-| Headless Edge free flow | Clear-Ship label, disabled initial state, auto-place, select ship, clear selected ship, fleet headings | Pass |
-| Human multiplayer flow | Join Room, Back, Create Room, 6-letter lowercase room code | Pass |
+| Lint | `npm.cmd run lint` | Pass |
+| Server syntax | `npm.cmd run check` | Pass |
+| Unit/integration tests | `npm.cmd test` | Pass, 38/38 |
+| Multiplayer smoke | `npm.cmd run smoke:multiplayer` | Pass |
+| Frontend browser smoke | `npm.cmd run test:e2e` | Pass |
+| Local Chromium install | `npx.cmd playwright install chromium` | Pass, local one-time setup |
 
-## Free Mode User Actions
+## Route Smoke
 
-| User action | Expected behavior | Result |
+Local server: `http://127.0.0.1:4190` with `GHOSTFLEET_FREE_ONLY=true`.
+
+| Route | Expected behavior | Result |
 |---|---|---|
-| Open `/` | Classic GhostFleet loads with the AI/Human opponent selector | Pass |
-| Arrange mode starts | Carrier selected by default, Clear-Ship disabled until a placed ship is selected | Pass |
-| Auto-Place | Places all ships and enables Confirm | Pass |
-| Tap/click placed ship | Ship enters edit mode and Clear-Ship enables | Pass |
-| Clear-Ship(C) | Removes only the selected ship, keeps other ships, reselects removed ship for placement | Pass |
-| Confirm after full fleet | Starts battle when all ships are placed | Pass |
-| Fleet status panel | Shows `Enemy Fleet` and `Your Fleet`, not duplicate enemy headings | Pass |
-| Battle visuals | Existing hit, miss, sunk, ripple, and explosion sprite paths remain active | Pass via script/smoke coverage |
+| `/` | Redirects to `/home` | Pass |
+| `/home` | Public landing page serves | Pass |
+| `/play` | Game shell serves | Pass |
+| `/play?mode=ai` | Game shell serves and opens AI setup | Pass |
+| `/play?mode=human` | Game shell serves and opens Friends setup | Pass |
+| `/room/XK4BNM` | Direct room route serves game shell | Pass |
+| `/about` | Public page serves | Pass |
+| `/privacy` | Public page serves | Pass |
+| `/terms` | Public page serves | Pass |
+| `/contact` | Public page serves | Pass |
+| `/ads.txt` | Plain text AdSense file serves | Pass |
+| `/healthz` | Health JSON serves | Pass |
+| `/api/tier/free` | Free tier JSON serves | Pass |
 
-## Human Multiplayer Actions
+## Browser QA
 
-| User action | Expected behavior | Result |
+| Browser / viewport | Scenario | Result |
 |---|---|---|
-| Choose Human from `/` | Multiplayer room modal appears | Pass |
-| Select room size | Host can choose `8×8` or `10×10` before creating a room | Pass |
-| Join Room | Shows room-code input and changes actions to `Back` / `Enter Room` | Pass |
-| Back | Hides room-code input and returns to `Create Room` / `Join Room` | Pass |
-| Create Room | Generates a lowercase 6-letter room code and keeps the host-selected board size | Pass |
-| Join with uppercase code | Server normalizes input, joins the lowercase room, and inherits host board size | Pass |
-| Two clients connected | Placement starts automatically | Pass |
-| Submit fleets | Battle starts after both fleets are submitted | Pass |
-| Fire shots | Server validates turns and broadcasts miss/hit/sunk results to both clients | Pass |
-| New Game after result | First player waits; both players requesting rematch restarts placement in the same room and board size | Pass |
-| Exit Room | Leaving player exits the room and the opponent receives a disconnected update | Pass |
+| Chrome DevTools MCP desktop | `/home` loaded with title, GhostFleet hero, Play vs AI, Play vs Friends, How to Play, footer, and Ko-fi links | Pass |
+| Chrome DevTools MCP desktop | `/home` console warnings/errors | Pass, none found |
+| Chrome DevTools MCP desktop | `/home` image asset requests for crest and ocean background | Pass, 200 |
+| Chrome DevTools MCP desktop | `/play?mode=ai` loaded game shell, versioned `/shared/game.css` and `/shared/game.js` | Pass, 200 |
+| Chrome DevTools MCP desktop | AI setup -> Confirm -> Auto-place -> Confirm battle -> fire one shot | Pass |
+| Chrome DevTools MCP desktop | AI battle log updates after player shot | Pass |
+| Chrome DevTools MCP mobile emulation | `/home` mobile How to Play shows the mobile card set and no horizontal overflow | Pass |
+| Microsoft Edge headless | `/home` title and Play vs AI CTA render | Pass |
+| Microsoft Edge headless | AI setup -> Auto-place -> Confirm battle -> fire one shot | Pass |
+| Microsoft Edge headless | Console/page errors during smoke | Pass, none found |
 
-## Production Free-Only Deployment Actions
+## Human Multiplayer Browser QA
 
-| Route/action | Expected behavior with `GHOSTFLEET_FREE_ONLY=true` | Result |
+Two isolated browser contexts were used against the same local server.
+
+| Scenario | Expected behavior | Result |
 |---|---|---|
-| `/` | Main GhostFleet game serves normally | Pass |
-| `/free` | Redirects to `/` for old links | Pass |
-| `/premium` | Premium multiplayer disabled response | Pass |
-| `/api/tier` | Returns only `free` | Pass |
-| `/api/tier/premium` | Returns disabled/404 response | Pass |
-| `/healthz` | Reports `freeOnly: true` and active multiplayer stats | Pass |
+| Host opens `/play?mode=human` | Friends setup appears with name, room size, create/join actions | Pass |
+| Host creates room | URL changes to `/room/7NPAGC`, waiting lobby appears with invite link and open Player 2 slot | Pass |
+| Guest opens direct room URL in isolated context | Invite name overlay appears | Pass |
+| Guest enters name and joins | Both clients move from waiting lobby to arrange mode | Pass |
+| Host auto-places and confirms fleet | Guest sees opponent-ready status | Pass |
+| Guest auto-places and confirms fleet | Both clients enter battle mode | Pass |
+| Guest fires first shot | Guest battle log records shot and stats update | Pass |
+| Host receives opponent shot | Host board/log update shows the guest shot and timer state | Pass |
 
-## Notes
+The full win/rematch/disconnect matrix was not manually replayed in browser during this pass. It remains covered by the existing multiplayer smoke tests and prior focused PR tests, while this pass focused on the route, layout, and two-client join/place/battle entry path.
 
-- Browser checks used headless Microsoft Edge through the Chrome DevTools Protocol.
-- Visual screenshot review was not captured in this pass; functional browser interaction and DOM state were verified.
-- GitHub Desktop bundled Git is available and used for version control.
+## Assets And Requests
+
+| Asset group | Evidence | Result |
+|---|---|---|
+| Shared CSS/JS | `/shared/game.css?v=...` and `/shared/game.js?v=...` returned 200 on `/play?mode=ai` | Pass |
+| Core images | Crest, ocean background, ship-grid images, and achievement images returned 200 | Pass |
+| Audio/static game assets | No missing media requests observed during browser smoke | Pass |
+| Console health | No console errors/warnings in checked Chrome/Edge flows | Pass |
+
+## Notes And Residual Risk
+
+- Physical phone testing was not performed in this pass; mobile checks used Chrome DevTools viewport emulation.
+- Full end-to-end multiplayer match completion, rematch, and disconnect were not replayed manually here; automated multiplayer smoke remains green.
+- AdSense external requests appear during local page loads. They did not block gameplay or produce console errors during this pass.
+- The optional roadmap PRs 10 and 11 are skipped intentionally. A future modularization pass should wait until broader frontend and multiplayer E2E coverage exists.
