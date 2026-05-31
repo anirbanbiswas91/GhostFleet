@@ -99,7 +99,7 @@ async function renderGame(tierName) {
 function serveTier(tierName) {
   return asyncRoute(async (req, res) => {
     if (freeOnly && tierName !== 'free') {
-      return res.status(404).type('text').send('GhostFleet premium multiplayer is disabled in this deployment.');
+      throw new NotFoundError('GhostFleet premium multiplayer is disabled in this deployment.', 'tier_disabled');
     }
     if (tierName === 'premium' && !isPremiumAllowed(req)) {
       return res.redirect('/?premium=required');
@@ -110,9 +110,9 @@ function serveTier(tierName) {
 }
 
 function serveSitePage(pageKey) {
-  return (req, res) => {
+  return (req, res, next) => {
     const html = renderSitePage(pageKey);
-    if (!html) return res.status(404).type('text').send('GhostFleet route not found');
+    if (!html) return next(new NotFoundError('GhostFleet route not found'));
     res.set('Cache-Control', 'no-cache');
     res.type('html').send(html);
   };
