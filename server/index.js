@@ -1,5 +1,5 @@
 import express from 'express';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -13,6 +13,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const clientDir = path.join(rootDir, 'client');
 const gameTemplatePath = path.join(clientDir, 'shared', 'game.html');
+const sharedCssPath = path.join(clientDir, 'shared', 'game.css');
+const sharedJsPath = path.join(clientDir, 'shared', 'game.js');
 const adsTxtPath = path.join(clientDir, 'ads.txt');
 const faviconPath = path.join(clientDir, 'assets', 'favicon.svg');
 const port = Number(process.env.PORT || 3000);
@@ -37,7 +39,8 @@ app.use('/assets', express.static(path.join(clientDir, 'assets'), {
   maxAge: '7d'
 }));
 app.use('/shared', express.static(path.join(clientDir, 'shared'), {
-  maxAge: '1h'
+  immutable: true,
+  maxAge: '1y'
 }));
 
 app.get('/ads.txt', (req, res) => {
@@ -59,6 +62,7 @@ function asyncRoute(handler) {
 // The game template is a static file that only changes on deploy, so it is
 // read asynchronously once and cached for the process lifetime.
 let gameTemplateCache = null;
+let sharedAssetVersionCache = null;
 async function loadGameTemplate() {
   if (gameTemplateCache === null) {
     gameTemplateCache = await readFile(gameTemplatePath, 'utf8');
@@ -66,10 +70,32 @@ async function loadGameTemplate() {
   return gameTemplateCache;
 }
 
+async function sharedAssetVersion() {
+  if (sharedAssetVersionCache !== null) return sharedAssetVersionCache;
+  const envVersion = process.env.GHOSTFLEET_ASSET_VERSION
+    || process.env.RAILWAY_GIT_COMMIT_SHA
+    || process.env.SOURCE_VERSION;
+  if (envVersion) {
+    sharedAssetVersionCache = String(envVersion).slice(0, 16);
+    return sharedAssetVersionCache;
+  }
+  const [cssStat, jsStat] = await Promise.all([stat(sharedCssPath), stat(sharedJsPath)]);
+  sharedAssetVersionCache = String(Math.max(cssStat.mtimeMs, jsStat.mtimeMs).toString(36).replace('.', ''));
+  return sharedAssetVersionCache;
+}
+
+async function versionSharedAssets(html) {
+  const version = encodeURIComponent(await sharedAssetVersion());
+  return html
+    .replaceAll('/shared/game.css"', `/shared/game.css?v=${version}"`)
+    .replaceAll('/shared/game.js"', `/shared/game.js?v=${version}"`);
+}
+
 async function renderGame(tierName) {
   const [template, config] = await Promise.all([loadGameTemplate(), getTierConfig(tierName)]);
   const bootstrap = `<script>window.GHOSTFLEET_BOOTSTRAP=${JSON.stringify(config).replace(/</g, '\\u003c')};document.documentElement.dataset.tier=${JSON.stringify(config.tier)};document.documentElement.dataset.ads=${JSON.stringify(String(config.ads.enabled))};</script>`;
-  return template.replace('</head>', `${adsenseScript(config.ads.enabled)}\n${bootstrap}\n</head>`);
+  const versionedTemplate = await versionSharedAssets(template);
+  return versionedTemplate.replace('</head>', `${adsenseScript(config.ads.enabled)}\n${bootstrap}\n</head>`);
 }
 
 function serveTier(tierName) {
