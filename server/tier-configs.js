@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { config as envConfig } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -44,8 +45,8 @@ export async function getTierConfig(tierName = 'free') {
 }
 
 export function isPremiumAllowed(req) {
-  if (process.env.PAYMENTS_ENABLED !== 'true') return true;
-  if (process.env.PREMIUM_OPEN_ACCESS === 'true') return true;
+  if (!envConfig.paymentsEnabled) return true;
+  if (envConfig.premiumOpenAccess) return true;
 
   const mockEntitlements = String(req.headers['x-ghostfleet-entitlements'] || '')
     .split(',')

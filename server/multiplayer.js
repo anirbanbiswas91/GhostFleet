@@ -14,12 +14,13 @@ import {
 } from './multiplayer/helpers.js';
 import { validateFleet } from './multiplayer/FleetValidator.js';
 import { resolveShot } from './multiplayer/ShotResolver.js';
+import { config as envConfig } from './config.js';
 
 const ROOM_TTL_MS = 30 * 60 * 1000;
-const DISCONNECT_GRACE_MS = positiveIntEnv('GHOSTFLEET_DISCONNECT_GRACE_MS', 90 * 1000);
+const DISCONNECT_GRACE_MS = envConfig.disconnectGraceMs;
 const ENDED_ROOM_GRACE_MS = 60 * 1000;
 const EXPIRED_ROOM_TTL_MS = 10 * 60 * 1000;
-const TURN_TIMEOUT_MS = positiveIntEnv('GHOSTFLEET_TURN_TIMEOUT_MS', 60 * 1000);
+const TURN_TIMEOUT_MS = envConfig.turnTimeoutMs;
 const TIMEOUT_FORFEIT_LIMIT = 3;
 const PHASES = new Set(['waiting', 'placing', 'battle', 'ended']);
 const SOCKET_ORIGIN_PATTERNS = [
@@ -45,21 +46,9 @@ const rooms = new Map();
 const expiredRooms = new Map();
 const socketRateBuckets = new Map();
 
-function positiveIntEnv(name, fallback) {
-  const value = Number.parseInt(process.env[name] || '', 10);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function configuredSocketOrigins() {
-  return String(process.env.GHOSTFLEET_SOCKET_ORIGINS || '')
-    .split(',')
-    .map(origin => origin.trim())
-    .filter(Boolean);
-}
-
 function socketOriginAllowed(origin) {
   if (!origin) return true;
-  if (configuredSocketOrigins().includes(origin)) return true;
+  if (envConfig.socketOrigins.includes(origin)) return true;
   return SOCKET_ORIGIN_PATTERNS.some(pattern => pattern.test(origin));
 }
 

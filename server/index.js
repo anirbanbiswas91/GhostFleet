@@ -8,6 +8,7 @@ import { getTierConfig, isPremiumAllowed, listTiers } from './tier-configs.js';
 import { isKnownTier } from './validation.js';
 import { AppError, NotFoundError, httpErrorBody } from './errors.js';
 import { adsenseScript, renderHomePage, renderSitePage } from './site-pages.js';
+import { config as envConfig } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -17,8 +18,8 @@ const sharedCssPath = path.join(clientDir, 'shared', 'game.css');
 const sharedJsPath = path.join(clientDir, 'shared', 'game.js');
 const adsTxtPath = path.join(clientDir, 'ads.txt');
 const faviconPath = path.join(clientDir, 'assets', 'favicon.svg');
-const port = Number(process.env.PORT || 3000);
-const freeOnly = process.env.GHOSTFLEET_FREE_ONLY === 'true';
+const port = envConfig.port;
+const freeOnly = envConfig.freeOnly;
 
 const app = express();
 const server = http.createServer(app);
@@ -72,11 +73,8 @@ async function loadGameTemplate() {
 
 async function sharedAssetVersion() {
   if (sharedAssetVersionCache !== null) return sharedAssetVersionCache;
-  const envVersion = process.env.GHOSTFLEET_ASSET_VERSION
-    || process.env.RAILWAY_GIT_COMMIT_SHA
-    || process.env.SOURCE_VERSION;
-  if (envVersion) {
-    sharedAssetVersionCache = String(envVersion).slice(0, 16);
+  if (envConfig.assetVersion) {
+    sharedAssetVersionCache = envConfig.assetVersion;
     return sharedAssetVersionCache;
   }
   const [cssStat, jsStat] = await Promise.all([stat(sharedCssPath), stat(sharedJsPath)]);
@@ -177,7 +175,7 @@ function healthCheck(req, res) {
     freeOnly,
     tiers: freeOnly ? ['free'] : listTiers(),
     multiplayer: multiplayer.stats(),
-    paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true'
+    paymentsEnabled: envConfig.paymentsEnabled
   });
 }
 
