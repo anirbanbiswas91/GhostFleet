@@ -2739,7 +2739,23 @@
       onAIHit(idx,ship);
       if(ship.hits.size===ship.len){ship.sunk=true;isSunk=true;
         log(`AI sunk your ${ship.name}!`,'sunk-l');
-        aiHitChain=[];aiTargetQueue=[];aiOrientation=null;}
+        // Preserve hits that belong to a DIFFERENT touching ship before clearing the chain.
+        // (GhostFleet allows ships to touch, so a chain can span two ships.)
+        const orphanedHits=aiHitChain.filter(h=>!ship.cells.includes(h));
+        aiHitChain=[];aiTargetQueue=[];aiOrientation=null;
+        if(orphanedHits.length>0){
+          aiHitChain=[...orphanedHits];
+          orphanedHits.forEach(h=>{
+            const r=Math.floor(h/N),c=h%N;
+            [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{
+              const nr=r+dr,nc=c+dc;
+              if(nr<0||nr>=N||nc<0||nc>=N)return;
+              const ni=nr*N+nc;
+              // Only exclude already-shot cells — NOT aiKnownEmpty (always empty in GhostFleet).
+              if(!yourBoard.shots.has(ni)&&!aiTargetQueue.includes(ni))aiTargetQueue.push(ni);
+            });
+          });
+        }}
       else log(`AI hit at ${coord(idx)} 💥`,'hit-l');
     } else {yourBoard.misses.add(idx);log(`AI fired ${coord(idx)} — miss`,'ai');}
     recordMove('AI',idx,isHit,isSunk,ship?ship.name:'');
@@ -2855,16 +2871,42 @@
     const p=new Array(N*N).fill(0);
     const blocked=i=>yourBoard.misses.has(i)||yourBoard.hits.has(i)||aiKnownEmpty.has(i);
     for(const len of rem){
-      const w=len;
+      // Count-based density: each valid placement covering a cell adds 1 (the correct
+      // probability proxy). Weighting by ship length biased the map toward long ships.
       for(let r=0;r<N;r++)for(let c=0;c<=N-len;c++){let ok=true;
         for(let k=0;k<len;k++){if(blocked(r*N+c+k)){ok=false;break;}}
-        if(ok)for(let k=0;k<len;k++)p[r*N+c+k]+=w;}
+        if(ok)for(let k=0;k<len;k++)p[r*N+c+k]+=1;}
       for(let c=0;c<N;c++)for(let r=0;r<=N-len;r++){let ok=true;
         for(let k=0;k<len;k++){if(blocked((r+k)*N+c)){ok=false;break;}}
-        if(ok)for(let k=0;k<len;k++)p[(r+k)*N+c]+=w;}}
+        if(ok)for(let k=0;k<len;k++)p[(r+k)*N+c]+=1;}}
     for(let i=0;i<N*N;i++)if(yourBoard.shots.has(i)||aiKnownEmpty.has(i))p[i]=-1;
-    let best=-1,bv=-1;for(let i=0;i<N*N;i++)if(p[i]>bv){bv=p[i];best=i;}
-    return best>=0?best:randomUntried(yourBoard);
+    // Among all cells tied for the highest density, break ties with secondary signals
+    // (open neighbours, spread, learned prior, lookahead proxy) instead of a top-left bias.
+    let bv=-1;for(let i=0;i<N*N;i++)if(p[i]>bv)bv=p[i];
+    const topCells=[];for(let i=0;i<N*N;i++)if(p[i]===bv)topCells.push(i);
+    if(topCells.length===0)return randomUntried(yourBoard);
+    if(topCells.length===1)return topCells[0];
+    const secondaryScore=idx=>{
+      const r=Math.floor(idx/N),c=idx%N;
+      let openNeighbours=0;
+      [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{
+        const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<N&&nc>=0&&nc<N&&!yourBoard.shots.has(nr*N+nc))openNeighbours++;
+      });
+      let totalDist=0;
+      yourBoard.shots.forEach(s=>{const sr=Math.floor(s/N),sc=s%N;totalDist+=Math.max(Math.abs(r-sr),Math.abs(c-sc));});
+      const avgDist=yourBoard.shots.size>0?totalDist/yourBoard.shots.size:Math.floor(N/2);
+      const prior=(window.GF_BRUTAL_PRIOR&&window.GF_BRUTAL_PRIOR[idx])||0;
+      const priorWeight=0.15*Math.exp(-yourBoard.shots.size/35);
+      return (openNeighbours/4)*0.35
+           +Math.min(avgDist/(N-1),1)*0.30
+           +prior*priorWeight*0.20
+           +(openNeighbours*0.05)*0.15;
+    };
+    const scored=topCells.map(idx=>({idx,sc:secondaryScore(idx)}));
+    let bestScore=-Infinity;for(const e of scored)if(e.sc>bestScore)bestScore=e.sc;
+    const winners=scored.filter(e=>e.sc===bestScore).map(e=>e.idx);
+    return winners[Math.floor(Math.random()*winners.length)];
   }
 
   /* ─── Render ─── */

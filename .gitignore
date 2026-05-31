@@ -11,6 +11,8 @@ Thumbs.db
 *.log
 logs/
 coverage/
+test-results/
+playwright-report/
 dist/
 build/
 .cache/
