@@ -42,6 +42,8 @@ test('GET /play renders the game page (async template + tier config)', async () 
   assert.equal(res.status, 200);
   assert.match(res.headers['content-type'], /text\/html/);
   assert.match(res.text, /GHOSTFLEET_BOOTSTRAP/, 'bootstrap script should be injected');
+  assert.match(res.text, /\/shared\/game\.css\?v=[^"]+"/, 'game CSS should include an asset version');
+  assert.match(res.text, /\/shared\/game\.js\?v=[^"]+"/, 'game JS should include an asset version');
 });
 
 test('GET /play is consistent across repeated requests (template cache)', async () => {
