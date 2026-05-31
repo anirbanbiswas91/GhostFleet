@@ -89,7 +89,25 @@ function rateLimited(socket, action, handler) {
     if (!consumeSocketRateLimit(socket, action)) {
       return fail(socket, 'Too many requests. Slow down and try again shortly.', 'rate_limited');
     }
-    return handler(payload);
+    try {
+      return handler(payload);
+    } catch (err) {
+      console.error(`[GhostFleet] socket "${action}" handler error:`, err);
+      return fail(socket, 'Something went wrong. Please try again.', 'internal_error');
+    }
+  };
+}
+
+// Wraps a non-rate-limited handler so an unexpected throw is logged and
+// surfaced as a safe error instead of crashing the connection/process.
+function safeHandler(socket, label, handler) {
+  return (...args) => {
+    try {
+      return handler(...args);
+    } catch (err) {
+      console.error(`[GhostFleet] socket "${label}" handler error:`, err);
+      if (socket.connected) fail(socket, 'Something went wrong. Please try again.', 'internal_error');
+    }
   };
 }
 
@@ -867,13 +885,13 @@ function attachSocketHandlers(io) {
     }));
 
     // Legacy compatibility: triggered by older clients; validates room/player and marks lobby ready without affecting the auto-start slot flow.
-    socket.on('player:ready', payload => {
+    socket.on('player:ready', safeHandler(socket, 'player:ready', payload => {
       const { room, slot } = findRoomAndSlot(socket, payload);
       if (!room) return fail(socket, 'Room expired.', 'room_missing');
       if (slot < 0) return fail(socket, 'Player not found.', 'player_missing');
       if (room.phase !== 'waiting') return fail(socket, 'Room readiness is only available before placement.', 'wrong_phase');
       syncWaitingRoom(room);
-    });
+    }));
 
     // Triggered when a player confirms fleet placement; validates phase/fleet, marks that slot placed, emits opponent_placement_done and starts battle when both are ready.
     socket.on('fleet:submit', rateLimited(socket, 'fleet_submit', payload => {
@@ -959,14 +977,14 @@ function attachSocketHandlers(io) {
     }));
 
     // Triggered by explicit Exit Room; validates the socket room and tells the opponent before closing the room.
-    socket.on('room:leave', payload => {
+    socket.on('room:leave', safeHandler(socket, 'room:leave', payload => {
       const { room, slot } = findRoomAndSlot(socket, payload);
       if (room && slot >= 0) disconnectSlot(room, slot, true);
       if (socket.data.roomCode) socket.leave(socket.data.roomCode);
       socket.data.roomCode = null;
       socket.data.playerIndex = null;
       socket.data.clientId = null;
-    });
+    }));
 
     // Triggered when a visible tab/app returns; validates clientId/code and sends a resync for the matched slot.
     socket.on('client_heartbeat', rateLimited(socket, 'client_heartbeat', payload => {
@@ -981,10 +999,14 @@ function attachSocketHandlers(io) {
 
     // Triggered by Socket.IO transport loss; validates the stored slot, starts a grace timer, and emits room:update.
     socket.on('disconnect', () => {
-      const room = rooms.get(socket.data.roomCode);
-      const slot = room ? findSlotBySocket(room, socket) : -1;
-      if (!room || slot < 0) return;
-      disconnectSlot(room, slot, false);
+      try {
+        const room = rooms.get(socket.data.roomCode);
+        const slot = room ? findSlotBySocket(room, socket) : -1;
+        if (!room || slot < 0) return;
+        disconnectSlot(room, slot, false);
+      } catch (err) {
+        console.error('[GhostFleet] socket "disconnect" handler error:', err);
+      }
     });
   });
 }

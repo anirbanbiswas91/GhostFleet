@@ -52,8 +52,9 @@ test('GET /play is consistent across repeated requests (template cache)', async 
   assert.equal(first.text, second.text, 'cached template should render identically');
 });
 
-test('unknown route returns 404', async () => {
+test('unknown route returns a normalized 404 error', async () => {
   const res = await request(app).get('/this-route-does-not-exist');
   assert.equal(res.status, 404);
-  assert.match(res.text, /not found/i);
+  assert.equal(res.body.error.code, 'NOT_FOUND');
+  assert.match(res.body.error.message, /not found/i);
 });
