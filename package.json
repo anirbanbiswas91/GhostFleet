@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server/index.js",
     "check": "node --check server/index.js && node --check server/tier-configs.js && node --check server/multiplayer.js && node --check server/site-pages.js",
+    "lint": "eslint .",
     "test": "node --test \"test/*.test.js\"",
     "test:watch": "node --test --watch \"test/*.test.js\"",
     "smoke:multiplayer": "node scripts/multiplayer-smoke.mjs"
@@ -19,6 +20,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "eslint": "^10.4.1",
     "socket.io-client": "^4.8.3",
     "supertest": "^7.2.2"
   }

@@ -130,7 +130,7 @@ app.get('/api/tier/:tier', asyncRoute(async (req, res) => {
 }));
 
 function billingDisabled(feature) {
-  return (req, res) => {
+  return (_req, _res) => {
     if (freeOnly) throw new NotFoundError('Billing is disabled in this deployment.', 'billing_disabled');
     throw new AppError(`${feature} is reserved for the payment milestone.`, {
       code: 'billing_not_enabled',
@@ -166,7 +166,6 @@ app.use((req, res, next) => {
 // Centralized error handler: logs unexpected errors server-side (with stack),
 // and responds with a normalized { error: { code, message } } body. Stack
 // traces are never sent to the client.
-// eslint-disable-next-line no-unused-vars -- Express requires the 4-arg signature.
 app.use((err, req, res, next) => {
   const { status, body } = httpErrorBody(err);
   // Log only genuinely unexpected errors (not the expected, exposable ones like
