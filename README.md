@@ -19,7 +19,32 @@ Open:
 
 - `http://localhost:3000/`
 - `http://localhost:3000/premium`
-- `http://localhost:3000/healthz`
+- `http://localhost:3000/healthz` — health check, returns JSON (`{"ok":true, ...}`)
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and adjust as needed. All variables are optional for local
+development (sensible defaults apply). See `.env.example` for the full list, including:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | HTTP port the server listens on |
+| `GHOSTFLEET_FREE_ONLY` | `false` | Serve only the free tier (Railway production) |
+| `PAYMENTS_ENABLED` | `false` | Payment milestone flag (Stripe is stubbed) |
+| `PREMIUM_OPEN_ACCESS` | `true` | Allow open premium playtest access |
+| `GHOSTFLEET_SOCKET_ORIGINS` | _(unset)_ | Extra comma-separated Socket.IO allowed origins |
+| `GHOSTFLEET_DISCONNECT_GRACE_MS` | `90000` | Grace period before a disconnected player forfeits |
+| `GHOSTFLEET_TURN_TIMEOUT_MS` | `60000` | Per-turn timeout in battle |
+
+The app does not read a `.env` file automatically; export variables in your shell (or use
+your platform's env settings, e.g. Railway) before `npm start`.
+
+## Checks
+
+```bash
+npm run check            # syntax-check server modules
+npm run smoke:multiplayer  # Socket.IO multiplayer smoke test
+```
 
 ## Multiplayer
 

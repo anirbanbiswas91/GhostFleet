@@ -135,7 +135,7 @@ app.post('/api/billing/webhook', (req, res) => {
   });
 });
 
-app.get('/healthz', (req, res) => {
+function healthCheck(req, res) {
   res.json({
     ok: true,
     service: 'ghostfleet-railway',
@@ -144,7 +144,10 @@ app.get('/healthz', (req, res) => {
     multiplayer: multiplayer.stats(),
     paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true'
   });
-});
+}
+
+app.get('/healthz', healthCheck);
+app.get('/health', healthCheck);
 
 app.use((req, res) => {
   res.status(404).type('text').send('GhostFleet route not found');
