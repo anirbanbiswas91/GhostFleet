@@ -10,7 +10,6 @@ import {
   cleanName,
   normalizeBoardSize,
   normalizeClientId,
-  normalizeToken,
   playerTokenMatches
 } from './multiplayer/helpers.js';
 import { validateFleet } from './multiplayer/FleetValidator.js';
