@@ -1,5 +1,5 @@
 import express from 'express';
-import fs from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -49,15 +49,30 @@ app.get('/favicon.ico', (req, res) => {
   res.type('image/svg+xml').sendFile(faviconPath);
 });
 
-function renderGame(tierName) {
-  const template = fs.readFileSync(gameTemplatePath, 'utf8');
-  const config = getTierConfig(tierName);
+// Wraps an async route handler so rejected promises reach Express' error
+// handler (a 500) instead of becoming an unhandled rejection / hung request.
+function asyncRoute(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+// The game template is a static file that only changes on deploy, so it is
+// read asynchronously once and cached for the process lifetime.
+let gameTemplateCache = null;
+async function loadGameTemplate() {
+  if (gameTemplateCache === null) {
+    gameTemplateCache = await readFile(gameTemplatePath, 'utf8');
+  }
+  return gameTemplateCache;
+}
+
+async function renderGame(tierName) {
+  const [template, config] = await Promise.all([loadGameTemplate(), getTierConfig(tierName)]);
   const bootstrap = `<script>window.GHOSTFLEET_BOOTSTRAP=${JSON.stringify(config).replace(/</g, '\\u003c')};document.documentElement.dataset.tier=${JSON.stringify(config.tier)};document.documentElement.dataset.ads=${JSON.stringify(String(config.ads.enabled))};</script>`;
   return template.replace('</head>', `${adsenseScript(config.ads.enabled)}\n${bootstrap}\n</head>`);
 }
 
 function serveTier(tierName) {
-  return (req, res) => {
+  return asyncRoute(async (req, res) => {
     if (freeOnly && tierName !== 'free') {
       return res.status(404).type('text').send('GhostFleet premium multiplayer is disabled in this deployment.');
     }
@@ -65,8 +80,8 @@ function serveTier(tierName) {
       return res.redirect('/?premium=required');
     }
     res.set('Cache-Control', 'no-cache');
-    res.type('html').send(renderGame(tierName));
-  };
+    res.type('html').send(await renderGame(tierName));
+  });
 }
 
 function serveSitePage(pageKey) {
@@ -102,7 +117,7 @@ app.get('/api/tier', (req, res) => {
   res.json({ tiers: freeOnly ? ['free'] : listTiers() });
 });
 
-app.get('/api/tier/:tier', (req, res) => {
+app.get('/api/tier/:tier', asyncRoute(async (req, res) => {
   const { tier } = req.params;
   if (!isKnownTier(tier)) {
     return res.status(404).json({
@@ -116,8 +131,8 @@ app.get('/api/tier/:tier', (req, res) => {
       message: 'Only the free GhostFleet tier is enabled in this deployment.'
     });
   }
-  res.json(getTierConfig(tier));
-});
+  res.json(await getTierConfig(tier));
+}));
 
 app.post('/api/billing/checkout', (req, res) => {
   if (freeOnly) return res.status(404).json({ error: 'billing_disabled' });

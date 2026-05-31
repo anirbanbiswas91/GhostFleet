@@ -37,6 +37,21 @@ test('GET /home serves HTML', async () => {
   assert.match(res.headers['content-type'], /text\/html/);
 });
 
+test('GET /play renders the game page (async template + tier config)', async () => {
+  const res = await request(app).get('/play');
+  assert.equal(res.status, 200);
+  assert.match(res.headers['content-type'], /text\/html/);
+  assert.match(res.text, /GHOSTFLEET_BOOTSTRAP/, 'bootstrap script should be injected');
+});
+
+test('GET /play is consistent across repeated requests (template cache)', async () => {
+  const first = await request(app).get('/play');
+  const second = await request(app).get('/play');
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  assert.equal(first.text, second.text, 'cached template should render identically');
+});
+
 test('unknown route returns 404', async () => {
   const res = await request(app).get('/this-route-does-not-exist');
   assert.equal(res.status, 404);
