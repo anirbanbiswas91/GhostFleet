@@ -1149,6 +1149,26 @@
   function sanitizePlayerName(value){
     return sanitizePlayerNameDraft(value)||'Captain';
   }
+  function randomPlayerName(){
+    const pool=['Kraken','Corsair','Tempest','Mariner','Hydra','Orca','Nemo','Drake','Nelson','Cyclone','Reef','Tide','Rogue','Anchor','Typhoon'];
+    const base=pool[Math.floor(Math.random()*pool.length)]||'Captain';
+    const maxDigits=Math.min(2,8-base.length);
+    if(maxDigits>0&&Math.random()<.45){
+      const limit=maxDigits===1?10:100;
+      return sanitizePlayerNameDraft(base+Math.floor(Math.random()*limit));
+    }
+    return sanitizePlayerNameDraft(base);
+  }
+  function randomizePlayerName(){
+    const input=document.getElementById('mpName');
+    const name=rememberPlayerName(randomPlayerName());
+    if(input){
+      input.value=name;
+      input.focus();
+    }
+    multiplayer.playerName=name;
+    return name;
+  }
   function rememberPlayerName(value){
     const name=sanitizePlayerName(value);
     sessionStorage.setItem('ghostfleet-player-name',name);

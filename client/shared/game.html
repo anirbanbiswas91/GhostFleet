@@ -325,7 +325,10 @@
     <div class="multiplayer-form">
       <div class="multiplayer-field">
         <label for="mpName">Player Name</label>
-        <input id="mpName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="name" placeholder="Captain"/>
+        <div class="name-input-row">
+          <input id="mpName" maxlength="8" pattern="[A-Za-z0-9]{1,8}" autocomplete="name" placeholder="Captain"/>
+          <button class="name-randomize-btn" id="mpNameRandom" type="button" onclick="randomizePlayerName()" title="Generate a random callsign" aria-label="Generate a random name">🎲</button>
+        </div>
       </div>
       <div class="multiplayer-field multiplayer-size-field" id="mpSizeField">
         <label>Room Size</label>
